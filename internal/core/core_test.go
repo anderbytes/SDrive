@@ -529,7 +529,7 @@ func TestOrphanCleanupOnlyTouchesGeneratedUnusedRemotes(t *testing.T) {
 
 func TestDesktopCallbacksAreNotExposedByTheBridge(t *testing.T) {
 	service := reflect.TypeOf(&Service{})
-	for _, name := range []string{"SetDesktop", "AutoMount", "SetFilePicker", "SetLanguageChanged", "Language"} {
+	for _, name := range []string{"SetDesktop", "SetDesktopStatus", "AutoMount", "SetFilePicker", "SetLanguageChanged", "Language"} {
 		if _, ok := service.MethodByName(name); ok {
 			t.Fatalf("internal method exposed through bridge: %s", name)
 		}

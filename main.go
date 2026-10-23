@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -32,6 +33,9 @@ var assets embed.FS
 
 //go:embed installer/prerequisites.json
 var prerequisiteManifest []byte
+
+//go:embed frontend/package.json
+var packageMetadata []byte
 
 // Set only in the separate, locally built UI smoke-test binary.
 var uiSmoke string
@@ -104,8 +108,18 @@ func main() {
 		platform.Alert("Could not restrict the data directory to the Windows user.")
 		return
 	}
+	instanceID, err := platform.InstanceID(dir)
+	if err != nil {
+		platform.Alert(err.Error())
+		return
+	}
 	unlock, err := platform.SingleInstance(dir)
 	if err != nil {
+		if errors.Is(err, platform.ErrInstanceRunning) {
+			if err = platform.ActivateInstance(instanceID); err == nil {
+				return
+			}
+		}
 		platform.Alert(err.Error())
 		return
 	}
@@ -119,17 +133,31 @@ func main() {
 			rpc.Close()
 		}
 	}()
+	content, _ := fs.Sub(assets, "frontend/dist")
+	var activationMu sync.Mutex
+	var activate func()
+	activationPending := false
+	options := application.Options{Name: "SDrive", Description: "Open source remote storage", LogLevel: slog.LevelError, Assets: application.AssetOptions{Handler: application.BundledAssetFileServer(content)}, Windows: application.WindowsOptions{WebviewUserDataPath: filepath.Join(dir, "webview")}, SingleInstance: &application.SingleInstanceOptions{UniqueID: instanceID, OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+		activationMu.Lock()
+		show := activate
+		if show == nil {
+			activationPending = true
+		}
+		activationMu.Unlock()
+		if show != nil {
+			application.InvokeAsync(show)
+		}
+	}}}
+	if uiSmoke == "true" {
+		options.Windows.AdditionalBrowserArgs = []string{"--remote-debugging-port=9337"}
+	}
+	app := application.New(options)
 	service, err := core.New(dir, nil, "")
 	if err != nil {
 		platform.Alert(err.Error())
 		return
 	}
-	content, _ := fs.Sub(assets, "frontend/dist")
-	options := application.Options{Name: "SDrive", Description: "Open source remote storage", LogLevel: slog.LevelError, Services: []application.Service{application.NewService(service)}, Assets: application.AssetOptions{Handler: application.BundledAssetFileServer(content)}, Windows: application.WindowsOptions{WebviewUserDataPath: filepath.Join(dir, "webview")}}
-	if uiSmoke == "true" {
-		options.Windows.AdditionalBrowserArgs = []string{"--remote-debugging-port=9337"}
-	}
-	app := application.New(options)
+	app.RegisterService(application.NewService(service))
 	core.SetDesktop(service, func(target string) error {
 		if len(target) == 3 && target[1:] == `:\` {
 			return app.Browser.OpenFile(target)
@@ -167,34 +195,21 @@ func main() {
 		}
 		return dialog.PromptForSingleSelection()
 	})
-	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) { window.Hide(); event.Cancel() })
-	tray := app.SystemTray.New()
-	tray.SetIcon(trayIcon())
-	tray.SetTooltip("SDrive — your remote drives")
-	show := func() { window.Show(); window.Focus() }
-	tray.OnClick(show)
-	menu := application.NewMenu()
-	openItem := menu.Add(i18n.Text(core.Language(service), "Open SDrive"))
-	openItem.OnClick(func(*application.Context) { show() })
-	menu.AddSeparator()
-	exitItem := menu.Add(i18n.Text(core.Language(service), "Exit safely"))
-	exitItem.OnClick(func(*application.Context) {
-		go func() {
-			if err := service.Exit(); err != nil {
-				show()
-				platform.Alert(i18n.Text(core.Language(service), err.Error()))
-			}
-		}()
-	})
-	tray.SetMenu(menu)
-	updateLanguage := func(language string) {
-		tray.SetTooltip(i18n.Text(language, "SDrive — your remote drives"))
-		openItem.SetLabel(i18n.Text(language, "Open SDrive"))
-		exitItem.SetLabel(i18n.Text(language, "Exit safely"))
-		tray.SetMenu(menu)
+	var metadata struct {
+		Version string `json:"version"`
 	}
-	updateLanguage(core.Language(service))
-	core.SetLanguageChanged(service, updateLanguage)
+	_ = json.Unmarshal(packageMetadata, &metadata)
+	desktop := setupDesktop(app, window, service, dir, metadata.Version, hidden)
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		<-desktop.ready
+		activationMu.Lock()
+		activate = desktop.show
+		pending := activationPending
+		activationMu.Unlock()
+		if pending {
+			application.InvokeAsync(desktop.show)
+		}
+	})
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) { go core.AutoMount(service) })
 	if err = app.Run(); err != nil {
 		platform.Alert("Could not open SDrive. Run the SDrive installer again to repair the required components.")
@@ -202,10 +217,14 @@ func main() {
 }
 
 func trayIcon() []byte {
+	return trayIconColor(color.RGBA{33, 185, 147, 255})
+}
+
+func trayIconColor(fill color.RGBA) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
 	for y := 3; y < 29; y++ {
 		for x := 3; x < 29; x++ {
-			img.Set(x, y, color.RGBA{33, 185, 147, 255})
+			img.Set(x, y, fill)
 		}
 	}
 	for y := 9; y < 23; y++ {

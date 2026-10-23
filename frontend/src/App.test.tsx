@@ -16,6 +16,9 @@ vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
 vi.mock("./api", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api")>(),
   api: {
+    about: vi.fn(),
+    desktopVisible: vi.fn(),
+    onDesktopVisibility: vi.fn(),
     snapshot: vi.fn(),
     begin: vi.fn(),
     status: vi.fn(),
@@ -84,6 +87,8 @@ const snapshot = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(api.desktopVisible).mockResolvedValue(true);
+  vi.mocked(api.onDesktopVisibility).mockReturnValue(() => {});
   vi.mocked(api.snapshot).mockResolvedValue(snapshot);
   vi.mocked(api.end).mockResolvedValue();
   vi.mocked(api.folders).mockResolvedValue([]);
@@ -91,6 +96,86 @@ beforeEach(() => {
   vi.mocked(api.mount).mockResolvedValue();
 });
 afterEach(() => cleanup());
+
+test("About shows actual versions and unavailable components, and returns focus on close", async () => {
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "v-running", windowsVersion: "10.0.26100", winFspVersion: "", webView2Version: "123.4", architecture: "amd64" });
+  render(<App />);
+  const button = screen.getByRole("button", { name: "About SDrive" });
+  button.focus();
+  fireEvent.click(button);
+  await screen.findByText("v-running");
+  expect(screen.getByRole("dialog").textContent).toContain("Unavailable or not installed");
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(button);
+});
+
+test("About uses Portuguese and reports a failed version request", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" } });
+  vi.mocked(api.about).mockRejectedValue(new Error("version request failed"));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Sobre o SDrive" }));
+  await screen.findByText("version request failed");
+  fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("hidden polling stops and showing refreshes immediately without accepting a late snapshot", async () => {
+  vi.useFakeTimers();
+  let visibility!: (visible: boolean) => void;
+  const unsubscribe = vi.fn();
+  vi.mocked(api.onDesktopVisibility).mockImplementation((callback) => { visibility = callback; return unsubscribe; });
+  const view = render(<App />);
+  try {
+    await act(async () => {});
+    expect(api.snapshot).toHaveBeenCalledTimes(1);
+    let resolveLate!: (value: typeof snapshot) => void;
+    vi.mocked(api.snapshot).mockImplementationOnce(() => new Promise((resolve) => { resolveLate = resolve; }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(api.snapshot).toHaveBeenCalledTimes(2);
+    act(() => visibility(false));
+    await act(async () => { resolveLate({ ...snapshot, engineError: "obsolete hidden result" }); });
+    expect(screen.queryByText("obsolete hidden result")).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(api.snapshot).toHaveBeenCalledTimes(2);
+    await act(async () => { visibility(true); });
+    expect(api.snapshot).toHaveBeenCalledTimes(3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(api.snapshot).toHaveBeenCalledTimes(4);
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
+test("background startup suspends visual polling after the visibility handshake", async () => {
+  vi.useFakeTimers();
+  vi.mocked(api.desktopVisible).mockResolvedValue(false);
+  const view = render(<App />);
+  try {
+    await act(async () => {});
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(api.snapshot).toHaveBeenCalledTimes(1);
+    view.unmount();
+  } finally { vi.useRealTimers(); }
+});
+
+test("an older initial visibility response cannot override a newer native event", async () => {
+  vi.useFakeTimers();
+  let visibility!: (visible: boolean) => void;
+  let initialVisibility!: (visible: boolean) => void;
+  vi.mocked(api.onDesktopVisibility).mockImplementation((callback) => { visibility = callback; return () => {}; });
+  vi.mocked(api.desktopVisible).mockReturnValue(new Promise(resolve => { initialVisibility = resolve; }));
+  const view = render(<App />);
+  try {
+    await act(async () => {});
+    await act(async () => { visibility(false); visibility(true); });
+    const count = vi.mocked(api.snapshot).mock.calls.length;
+    await act(async () => { initialVisibility(false); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(api.snapshot).toHaveBeenCalledTimes(count + 1);
+    view.unmount();
+  } finally { vi.useRealTimers(); }
+});
 
 test("damaged settings block normal actions and restoration requires confirmation", async () => {
   const damaged = { ...snapshot, settingsError: "Could not load local settings. Preserve the data directory and restore a valid backup.", backupAvailable: true };

@@ -103,3 +103,33 @@ func TestSingleInstanceKeepsLegacyInstallerMarker(t *testing.T) {
 	}
 	next()
 }
+
+func TestIndependentProfilesKeepSeparateOwnershipAndActivation(t *testing.T) {
+	dir, other := t.TempDir(), t.TempDir()
+	t.Setenv("USERNAME", "sdrive-test-"+filepath.Base(dir))
+	first, err := SingleInstance(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first()
+	second, err := SingleInstance(other)
+	if err != nil {
+		t.Fatal("legacy marker blocked an independent profile", err)
+	}
+	defer second()
+	id, err := InstanceID(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := InstanceID(filepath.Join(dir, "."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	different, err := InstanceID(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != same || id == different {
+		t.Fatal("profile activation identity is not scoped correctly")
+	}
+}

@@ -1,4 +1,13 @@
-import { Call } from "@wailsio/runtime";
+import { Call, Events } from "@wailsio/runtime";
+
+export interface AboutInfo {
+  appVersion: string;
+  rcloneVersion: string;
+  windowsVersion: string;
+  winFspVersion: string;
+  webView2Version: string;
+  architecture: string;
+}
 
 export interface Field {
   key: string;
@@ -113,6 +122,10 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }
 export const api = {
+  about: () => invoke<AboutInfo>("About"),
+  desktopVisible: () => invoke<boolean>("DesktopVisible"),
+  onDesktopVisibility: (callback: (visible: boolean) => void) =>
+    Events.On("desktop:visibility", (event) => { if (typeof event.data === "boolean") callback(event.data); }),
   snapshot: () => invoke<Snapshot>("Snapshot"),
   begin: (input: ConfigInput) => invoke<string>("BeginConfig", input),
   status: (id: string) => invoke<Session>("ConfigStatus", id),

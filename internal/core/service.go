@@ -147,6 +147,9 @@ type Service struct {
 	languageChanged      func(string)
 	snapshotID           uint64
 	inspections          map[string]*cacheInspection
+	desktopVisible       func() bool
+	snapshotChanged      func(uint64, View)
+	appVersion           string
 }
 
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
@@ -357,6 +360,13 @@ func (s *Service) Snapshot() View {
 			cv.Cache = CacheView{Error: "Could not inspect local cache; preserve the files and try again."}
 		}
 		s.mu.Unlock()
+	}
+	s.mu.Lock()
+	changed := s.snapshotChanged
+	current := s.snapshotID == snapshotID && s.rpc == rpc
+	s.mu.Unlock()
+	if current && changed != nil {
+		changed(snapshotID, v)
 	}
 	return v
 }

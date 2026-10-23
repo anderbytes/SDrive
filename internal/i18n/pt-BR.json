@@ -458,5 +458,21 @@
   "Filter folders": "Filtrar pastas",
   "No folders match your filter.": "Nenhuma pasta corresponde ao filtro.",
   "Destination not applied. Choose Open destination before connecting.": "Destino não aplicado. Escolha Abrir destino antes de conectar.",
-  "name must not contain NUL or line breaks": "nome não deve conter NUL nem quebras de linha"
+  "name must not contain NUL or line breaks": "nome não deve conter NUL nem quebras de linha",
+  "About SDrive": "Sobre o SDrive",
+  "Loading component versions…": "Carregando versões dos componentes…",
+  "rclone (running)": "rclone (em execução)",
+  "WinFsp (installed)": "WinFsp (instalado)",
+  "WebView2 (installed)": "WebView2 (instalado)",
+  "Architecture": "Arquitetura",
+  "Unavailable or not installed": "Indisponível ou não instalado",
+  "Connected drives": "Unidades conectadas",
+  "Uploading or working": "Enviando arquivos ou trabalhando",
+  "Recovery or unknown status": "Recuperação ou status desconhecido",
+  "Attention required": "Atenção necessária",
+  "Cache errors": "Erros no cache",
+  "Pending status unknown": "Status de envios pendentes desconhecido",
+  "Could not save window position. Your drives are unaffected.": "Não foi possível salvar a posição da janela. Suas unidades não foram afetadas.",
+  "SDrive owns this profile but cannot be activated in this Windows session; use its tray icon": "O SDrive está usando este perfil, mas não pode ser ativado nesta sessão do Windows; use o ícone na bandeja",
+  "SDrive did not respond to window activation; use its tray icon": "O SDrive não respondeu à ativação da janela; use o ícone na bandeja"
 }

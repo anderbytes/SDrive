@@ -17,6 +17,10 @@ For installation without internet access or on networks that restrict downloads,
 
 Before disconnecting or exiting, close files and wait for uploads. Closing the window keeps drives active in the tray. **Preferences** lets you start SDrive with Windows; automatic mounting is optional per connection. Both are disabled initially.
 
+The tray shows connected-drive counts and distinguishes uploads, recovery, unknown status and failures. Right-click it to connect, disconnect or open a drive, or exit safely. Launching SDrive again opens the existing window in the same Windows session. New background problems open the window once; an unchanged problem does not repeatedly interrupt you. Background status checks run every 15 seconds while visual polling is suspended.
+
+Window position, size and maximization are remembered and adjusted to available monitors. **About SDrive** lists application, running rclone, Windows and installed WinFsp/WebView2 versions; unavailable components are shown explicitly.
+
 ## Language
 
 English is the application's default and the language of the repository, source messages and documentation. The interface supports **English** and **Português (Brasil)**. Choose **Preferences → Language** and save. The choice is stored in your settings and applies to the interface, connection wizard and tray menu. Missing translations fall back to English. Account names, remote paths and file contents are preserved.

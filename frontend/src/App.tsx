@@ -2,6 +2,7 @@ import { LanguageProvider, useLanguage, type Language } from "./i18n";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   api,
+  type AboutInfo,
   validationError,
   type FieldError,
   type Connection,
@@ -104,6 +105,7 @@ function AppContent() {
   }>();
   const [working, setWorking] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState(false);
+  const [about, setAbout] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const snapshotRequest = useRef(0);
   const snapshotActive = useRef(true);
@@ -122,18 +124,35 @@ function AppContent() {
   useEffect(() => {
     snapshotActive.current = true;
     let active = true;
+    let visible = true;
+    let generation = 0;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      if (!active) return;
+      if (!active || !visible) return;
+      const current = generation;
       await refresh();
-      if (active) timer = setTimeout(poll, 3000);
+      if (active && visible && current === generation) timer = setTimeout(poll, 3000);
     };
+    const visibility = (next: boolean) => {
+      if (!active) return;
+      ++generation;
+      ++snapshotRequest.current;
+      clearTimeout(timer);
+      visible = next;
+      if (visible) void poll();
+    };
+    const unsubscribe = api.onDesktopVisibility(visibility);
+    const initialGeneration = generation;
+    void api.desktopVisible().then((next) => {
+      if (active && generation === initialGeneration && next !== visible) visibility(next);
+    }).catch(() => {});
     void poll();
     return () => {
       active = false;
       snapshotActive.current = false;
       ++snapshotRequest.current;
       clearTimeout(timer);
+      unsubscribe();
     };
   }, []);
   const run = async (
@@ -185,6 +204,7 @@ function AppContent() {
         <footer>
           {t("Open source · GPLv3")}
           <br /> Go + rclone <br />
+          <button className="nav" onClick={() => setAbout(true)}>{t("About SDrive")}</button>
           <button
             className="nav"
             disabled={!!working["exit"]}
@@ -433,8 +453,34 @@ function AppContent() {
           )}
         />
       )}
+      {about && <AboutDialog onClose={() => setAbout(false)} />}
     </div>
   );
+}
+
+function AboutDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage();
+  const dialog = useDialog(onClose);
+  const [info, setInfo] = useState<AboutInfo>();
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void api.about().then((value) => { if (active) setInfo(value); })
+      .catch((e) => { if (active) setError(message(e)); });
+    return () => { active = false; };
+  }, []);
+  return <div className="overlay"><section ref={dialog} className="modal small" role="dialog" aria-modal="true" aria-labelledby="about-title">
+    <h2 id="about-title">{t("About SDrive")}</h2>
+    <p>{t("Open source · GPLv3")}</p>
+    {error && <p role="alert" className="alert error">{t(error)}</p>}
+    {!info && !error && <p role="status">{t("Loading component versions…")}</p>}
+    {info && <dl className="about-versions">{([
+      ["SDrive", info.appVersion], ["rclone (running)", info.rcloneVersion],
+      ["Windows", info.windowsVersion], ["WinFsp (installed)", info.winFspVersion],
+      ["WebView2 (installed)", info.webView2Version], ["Architecture", info.architecture],
+    ]).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
+    <div className="modal-actions"><button onClick={onClose}>{t("Close")}</button></div>
+  </section></div>;
 }
 
 function RestoreSettingsDialog({

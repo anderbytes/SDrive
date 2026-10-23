@@ -174,7 +174,7 @@ func AutoStartMatches(enabled bool) (bool, error) {
 func SingleInstance(dir string) (func(), error) {
 	name, _ := windows.UTF16PtrFromString(`Local\SDrive-` + os.Getenv("USERNAME"))
 	h, err := windows.CreateMutex(nil, false, name)
-	if err != nil {
+	if err != nil && err != windows.ERROR_ALREADY_EXISTS {
 		if h != 0 {
 			windows.CloseHandle(h)
 		}
@@ -189,6 +189,8 @@ func SingleInstance(dir string) (func(), error) {
 }
 
 // The open file, rather than its path or session namespace, defines ownership.
+var ErrInstanceRunning = errors.New("could not lock the data directory; SDrive may already be running in another Windows session")
+
 func lockDataDir(dir string) (func(), error) {
 	path, err := windows.UTF16PtrFromString(filepath.Join(dir, "instance.lock"))
 	if err != nil {
@@ -196,7 +198,10 @@ func lockDataDir(dir string) (func(), error) {
 	}
 	h, err := windows.CreateFile(path, windows.GENERIC_READ|windows.GENERIC_WRITE, 0, nil, windows.OPEN_ALWAYS, windows.FILE_ATTRIBUTE_NORMAL, 0)
 	if err != nil {
-		return nil, fmt.Errorf("could not lock the data directory; SDrive may already be running in another Windows session")
+		if errors.Is(err, windows.ERROR_SHARING_VIOLATION) {
+			return nil, ErrInstanceRunning
+		}
+		return nil, fmt.Errorf("could not lock the data directory: %w", err)
 	}
 	return func() { windows.CloseHandle(h) }, nil
 }

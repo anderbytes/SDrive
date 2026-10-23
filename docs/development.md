@@ -58,6 +58,22 @@ The opt-in engine test uses a temporary DPAPI-protected profile and the pinned l
 
 Ownership tests use separate processes and a hard-link alias of the lock file, check the installer's native sharing-violation probe, preserve the legacy mutex marker and verify release after process termination. They do not create an interactive second Windows session. Native WinFsp mounting remains covered by the separate opt-in `SDRIVE_TEST_MOUNT=1` lifecycle test.
 
+## Desktop lifecycle checks
+
+Desktop regressions run without provider accounts, mounts or changes to the real startup registry:
+
+```powershell
+./.tools/go/bin/go.exe test . ./internal/core ./internal/platform ./internal/i18n
+npm --prefix frontend test
+npm --prefix frontend run build
+```
+
+The root tests start a disposable child process with the real Wails message-only receiver and verify activation while preserving profile ownership. Platform tests cover independent profile identities and the legacy installer marker. Other regressions cover stale snapshot delivery, alert deduplication, installed/running version reporting, negative/off-screen/oversized geometry and small monitor work areas. Frontend tests cover About, translation, visibility handshakes, suspended polling and obsolete responses.
+
+`About()` adds component-version diagnostics to the service bridge. `DesktopVisible()` supplies initial native visibility; the `desktop:visibility` event carries a boolean for subsequent changes. Native visibility includes minimization. The interface polls every three seconds when visible and refreshes immediately on return. While hidden, a native loop samples the existing `Snapshot` every 15 seconds; only current snapshots reach the tray. Active authentication/setup status checks retain their existing behavior.
+
+For native acceptance, use a new temporary profile by setting `LOCALAPPDATA` only in the child process environment. Check background startup, second launch and focus, close-to-tray, minimization, geometry after restart, About and safe exit. Stop only that profile's own rclone child to verify that a new background engine failure reveals the window and an unchanged failure does not reveal it again. Verify taskbar/DPI and monitor-removal behavior separately on suitable hardware. Do not reuse a personal profile or terminate another instance to run these checks. Use the native UI smoke harness separately.
+
 ## Connection lifecycle checks
 
 `ConfirmConfig(sessionID, path, letter)` validates the chosen Windows letter before saving. Repeating confirmation reuses the saved connection; changing its letter requires a disconnected, idle connection with a verified clean cache and no recovery protection. Other saved fields and the remote identity remain unchanged. Connection snapshots retain `busy` and add transient `operation`: empty when idle, otherwise `validating`, `mounting`, `checkingUploads`, `waitingUploads` or `unmounting`. These stages are not persisted. An access test only lists folders; success does not prove write permission.

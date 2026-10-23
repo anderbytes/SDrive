@@ -535,3 +535,5 @@ summary::-webkit-details-marker {
     transition: none !important;
   }
 }
+.about-versions > div { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 0; }
+.about-versions dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
