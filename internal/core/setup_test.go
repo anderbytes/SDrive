@@ -36,17 +36,17 @@ func TestGuidedDraftIsOnlySavedAfterDestinationValidation(t *testing.T) {
 	if _, err = s.ListConfigFolders(id, "../outside"); err == nil {
 		t.Fatal("path traversal accepted")
 	}
-	if _, err = s.ConfirmConfig(id, "denied"); err == nil || strings.Contains(err.Error(), "do-not-leak") {
+	if _, err = s.ConfirmConfig(id, "denied", "S"); err == nil || strings.Contains(err.Error(), "do-not-leak") {
 		t.Fatal("validation/error redaction failed")
 	}
 	if len(s.store.Connections) != 0 {
 		t.Fatal("invalid destination saved")
 	}
-	connectionID, err := s.ConfirmConfig(id, "Documents")
+	connectionID, err := s.ConfirmConfig(id, "Documents", "S")
 	if err != nil || connectionID == "" || len(s.store.Connections) != 1 || s.store.Connections[0].Path != "Documents" {
 		t.Fatalf("confirm failed: %v", err)
 	}
-	if _, err = s.ConfirmConfig(id, "another"); err != nil || s.store.Connections[0].Path != "Documents" {
+	if _, err = s.ConfirmConfig(id, "another", "S"); err != nil || s.store.Connections[0].Path != "Documents" {
 		t.Fatal("retry changed destination")
 	}
 	if err = s.EndConfig(id); err != nil {

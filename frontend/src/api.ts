@@ -36,6 +36,7 @@ export interface Connection {
 export interface ConnectionView extends Connection {
   mounted: boolean;
   busy: boolean;
+  operation: "" | "validating" | "mounting" | "checkingUploads" | "waitingUploads" | "unmounting";
   pending: number | null;
   uploads: { active: number; queued: number; cacheErrors: number } | null;
   cache: {
@@ -107,8 +108,8 @@ export const api = {
   end: (id: string) => invoke<void>("EndConfig", id),
   folders: (id: string, path: string) =>
     invoke<{ name: string; path: string }[]>("ListConfigFolders", id, path),
-  confirm: (id: string, path: string) =>
-    invoke<string>("ConfirmConfig", id, path),
+  confirm: (id: string, path: string, letter: string) =>
+    invoke<string>("ConfirmConfig", id, path, letter),
   selectFile: (kind: string) => invoke<string>("SelectCredentialFile", kind),
   mount: (id: string) => invoke<void>("Mount", id),
   unmount: (id: string) => invoke<void>("Unmount", id),

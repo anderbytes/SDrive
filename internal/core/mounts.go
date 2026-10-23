@@ -32,70 +32,75 @@ func readMounts(ctx context.Context, rpc RPC) ([]engineMount, error) {
 
 func mountLetter(point string) string { return strings.TrimRight(strings.ToUpper(point), `\/`) }
 
-func (s *Service) Mount(id string) error {
+func (s *Service) Mount(id string) (resultErr error) {
 	s.mu.Lock()
-	if err := s.persistenceReady(); err != nil {
-		s.mu.Unlock()
-		return err
-	}
+	defer s.mu.Unlock()
+	record, owned := false, false
+	defer func() {
+		if owned {
+			s.busy[id] = false
+			delete(s.operations, id)
+			s.snapshotID++
+			delete(s.inspections, id)
+		}
+		if record && resultErr != nil {
+			s.errors[id] = resultErr.Error()
+			s.snapshotID++
+		}
+	}()
 	i := s.index(id)
 	if i < 0 {
-		s.mu.Unlock()
 		return fmt.Errorf("connection not found")
 	}
+	if s.mounted[id] || s.busy[id] {
+		return fmt.Errorf("connection already mounted or busy")
+	}
+	record = true
+	if err := s.persistenceReady(); err != nil {
+		return err
+	}
 	if s.exiting {
-		s.mu.Unlock()
 		return fmt.Errorf("exit in progress")
 	}
 	c := s.store.Connections[i]
 	if s.recoveryHold {
 		cache, err := s.cacheRemotes()
 		if err != nil {
-			s.mu.Unlock()
 			return err
 		}
 		if cache["sd_"+c.Remote] && (!c.Recovery || c.TargetHash == "") {
-			s.mu.Unlock()
 			return fmt.Errorf("the restored connection cannot prove the cache destination; preserve the data directory for manual recovery")
 		}
 	}
-	if s.mounted[id] || s.busy[id] {
-		s.mu.Unlock()
-		return fmt.Errorf("connection already mounted or busy")
-	}
 	if s.session != nil && s.session.connection.ID == id && !s.session.Complete {
-		s.mu.Unlock()
 		return fmt.Errorf("complete or cancel reconfiguration")
 	}
 	if !s.winFsp() {
-		s.mu.Unlock()
 		return fmt.Errorf("run the SDrive installer again to prepare virtual drives")
 	}
-	if platform.DriveUsed(c.Letter) {
-		s.mu.Unlock()
+	if s.driveUsed(c.Letter) {
 		return fmt.Errorf("letter %s: is already in use", c.Letter)
 	}
 	for otherID, active := range s.busy {
 		if active && otherID != id {
 			other := s.index(otherID)
 			if other >= 0 && s.store.Connections[other].Letter == c.Letter {
-				s.mu.Unlock()
 				return fmt.Errorf("letter in use by another operation")
 			}
 		}
 	}
 	if err := os.MkdirAll(s.dataPath(), 0700); err != nil {
-		s.mu.Unlock()
 		return err
 	}
 	free, err := platform.FreeBytes(s.dataPath())
 	if err != nil || free < 5<<30 {
-		s.mu.Unlock()
 		return fmt.Errorf("keep at least 5 GiB free on the cache disk")
 	}
 	previous := c.Recovery
 	rpc := s.rpc
 	s.busy[id] = true
+	owned = true
+	s.operations[id] = "validating"
 	s.snapshotID++
 	delete(s.inspections, id)
 	s.mu.Unlock()
@@ -109,16 +114,10 @@ func (s *Service) Mount(id string) error {
 		err = fmt.Errorf("connection operation changed; try again")
 	}
 	if err != nil {
-		s.busy[id] = false
-		s.snapshotID++
-		s.mu.Unlock()
 		return err
 	}
 	targetHash, err := checkDestination(c, config)
 	if err != nil {
-		s.busy[id] = false
-		s.snapshotID++
-		s.mu.Unlock()
 		return err
 	}
 	previousHash := c.TargetHash
@@ -127,12 +126,9 @@ func (s *Service) Mount(id string) error {
 	if err = saveStore(s.dir, s.store); err != nil {
 		s.store.Connections[i].Recovery = previous
 		s.store.Connections[i].TargetHash = previousHash
-		s.busy[id] = false
-		s.snapshotID++
-		s.mu.Unlock()
 		return err
 	}
-	s.busy[id] = true
+	s.operations[id] = "mounting"
 	s.snapshotID++
 	delete(s.inspections, id)
 	cacheGiB := s.store.Settings.CacheGiB
@@ -148,13 +144,9 @@ func (s *Service) Mount(id string) error {
 		done()
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	i = s.index(id)
-	s.busy[id] = false
-	s.snapshotID++
 	delete(s.inspections, id)
 	if err != nil {
-		s.errors[id] = err.Error()
 		checkCtx, done := context.WithTimeout(context.Background(), 3*time.Second)
 		defer done()
 		if checkErr == nil {
@@ -242,6 +234,7 @@ func (s *Service) Unmount(id string) error {
 		return fmt.Errorf("drive is not mounted; use Connect to recover pending files")
 	}
 	s.busy[id] = true
+	s.operations[id] = "checkingUploads"
 	s.snapshotID++
 	delete(s.inspections, id)
 	s.mu.Unlock()
@@ -249,6 +242,7 @@ func (s *Service) Unmount(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.busy[id] = false
+	delete(s.operations, id)
 	s.snapshotID++
 	delete(s.inspections, id)
 	if unmounted {
@@ -283,12 +277,20 @@ func (s *Service) drainAndUnmount(c Connection) (bool, error) {
 		if pending == 0 {
 			break
 		}
+		s.mu.Lock()
+		s.operations[c.ID] = "waitingUploads"
+		s.snapshotID++
+		s.mu.Unlock()
 		select {
 		case <-ctx.Done():
 			return false, fmt.Errorf("there are open files or pending uploads; close files and wait for the network before trying again")
 		case <-time.After(time.Second):
 		}
 	}
+	s.mu.Lock()
+	s.operations[c.ID] = "unmounting"
+	s.snapshotID++
+	s.mu.Unlock()
 	if err := callRPC(ctx, rpc, "mount/unmount", map[string]string{"mountPoint": c.Letter + ":"}, nil); err != nil {
 		return false, fmt.Errorf("could not unmount; close open files and try again")
 	}

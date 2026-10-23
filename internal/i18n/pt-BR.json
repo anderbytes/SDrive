@@ -439,5 +439,18 @@
   "could not reach the storage service": "Não foi possível acessar o serviço de armazenamento",
   "the storage service rejected the credentials": "O serviço de armazenamento rejeitou as credenciais",
   "the storage service denied the required permission": "O serviço de armazenamento negou a permissão necessária",
-  "could not communicate with the local engine": "Não foi possível comunicar com o mecanismo local"
+  "could not communicate with the local engine": "Não foi possível comunicar com o mecanismo local",
+  "Validating account…": "Validando conta…",
+  "Mounting drive…": "Montando unidade…",
+  "Checking pending uploads…": "Verificando uploads pendentes…",
+  "Waiting for uploads…": "Aguardando uploads…",
+  "Unmounting drive…": "Desmontando unidade…",
+  "Validating destination…": "Validando destino…",
+  "No drive letters are available. Free a letter between D and Z before creating a connection.": "Não há letras de unidade disponíveis. Libere uma letra entre D e Z antes de criar uma conexão.",
+  "Configuration saved. Retry uses this connection without creating another. You can also close setup and connect from My drives.": "Configuração salva. A nova tentativa usa esta conexão sem criar outra. Você também pode fechar a configuração e conectar em Minhas unidades.",
+  "Keep the saved letter while recovery or an operation is pending. Resolve pending files before changing it.": "Mantenha a letra salva enquanto houver recuperação ou operação pendente. Resolva os arquivos pendentes antes de alterá-la.",
+  "Choose a free letter. If connecting fails, you can correct it here and retry the saved connection.": "Escolha uma letra livre. Se a conexão falhar, você pode corrigi-la aqui e tentar novamente com a conexão salva.",
+  "Retry connection": "Tentar conexão novamente",
+  "Use Reconfigure account to change Google Drive access mode and update OAuth consent.": "Use Reconfigurar conta para alterar o modo de acesso do Google Drive e atualizar o consentimento OAuth.",
+  "Access test succeeded. Listing folders does not verify write permission.": "Teste de acesso concluído com sucesso. A listagem de pastas não verifica a permissão de escrita."
 }

@@ -40,12 +40,13 @@ type View struct {
 }
 type ConnectionView struct {
 	Connection
-	Mounted bool        `json:"mounted"`
-	Pending *int        `json:"pending"`
-	Busy    bool        `json:"busy"`
-	Error   string      `json:"error"`
-	Uploads *UploadView `json:"uploads"`
-	Cache   CacheView   `json:"cache"`
+	Mounted   bool        `json:"mounted"`
+	Pending   *int        `json:"pending"`
+	Busy      bool        `json:"busy"`
+	Operation string      `json:"operation"`
+	Error     string      `json:"error"`
+	Uploads   *UploadView `json:"uploads"`
+	Cache     CacheView   `json:"cache"`
 }
 type Example struct {
 	Value string
@@ -132,9 +133,11 @@ type Service struct {
 	startupWarning       string
 	autoStart            func(bool) error
 	winFsp               func() bool
+	driveUsed            func(string) bool
 	engineError          string
 	mounted              map[string]bool
 	busy                 map[string]bool
+	operations           map[string]string
 	errors               map[string]string
 	session              *ConfigSession
 	exiting              bool
@@ -149,7 +152,7 @@ type Service struct {
 
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
 	store, loadErr := loadStore(dir)
-	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, winFsp: platform.WinFspInstalled, mounted: map[string]bool{}, busy: map[string]bool{}, errors: map[string]string{}}
+	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, winFsp: platform.WinFspInstalled, driveUsed: platform.DriveUsed, mounted: map[string]bool{}, busy: map[string]bool{}, operations: map[string]string{}, errors: map[string]string{}}
 	s.initializeRecovery(loadErr)
 	if s.settingsError == "" {
 		_ = s.cleanup()
@@ -263,12 +266,12 @@ func (s *Service) Snapshot() View {
 		reserved[c.Letter] = true
 	}
 	for letter := 'D'; letter <= 'Z'; letter++ {
-		if !platform.DriveUsed(string(letter)) && !reserved[string(letter)] {
+		if !s.driveUsed(string(letter)) && !reserved[string(letter)] {
 			v.Letters = append(v.Letters, string(letter))
 		}
 	}
 	for _, c := range s.store.Connections {
-		cv := ConnectionView{Connection: c, Mounted: s.mounted[c.ID] && v.EngineError == "", Busy: s.busy[c.ID], Error: s.errors[c.ID]}
+		cv := ConnectionView{Connection: c, Mounted: s.mounted[c.ID] && v.EngineError == "", Busy: s.busy[c.ID], Operation: s.operations[c.ID], Error: s.errors[c.ID]}
 		v.Connections = append(v.Connections, cv)
 	}
 	s.mu.Unlock()
@@ -299,10 +302,10 @@ func (s *Service) Snapshot() View {
 			if s.mounted[cv.ID] && !active {
 				cv.Error = "drive was unexpectedly unmounted; use Connect to recover pending files"
 			}
-			if active && !platform.DriveUsed(cv.Letter) {
+			if active && !s.driveUsed(cv.Letter) {
 				cv.Error = "engine reports a mount but the Windows drive is unavailable; try Disconnect and preserve the cache"
 			}
-			if !active && platform.DriveUsed(cv.Letter) {
+			if !active && s.driveUsed(cv.Letter) {
 				cv.Error = "drive letter is occupied outside this connection; preserve the cache"
 			}
 			if cv.Error != "" {
@@ -741,8 +744,15 @@ func (s *Service) ProbeSSH(host, port string) (HostIdentity, error) {
 
 func (s *Service) UpdateConnection(c Connection) error {
 	s.mu.Lock()
-	delete(s.inspections, c.ID)
 	defer s.mu.Unlock()
+	if s.session != nil && s.session.connection.ID == c.ID {
+		return fmt.Errorf("connection operation in progress")
+	}
+	return s.updateConnection(c)
+}
+
+// Caller holds s.mu; completed setup may reuse this for a letter-only correction.
+func (s *Service) updateConnection(c Connection) error {
 	if err := s.persistenceReady(); err != nil {
 		return err
 	}
@@ -757,7 +767,7 @@ func (s *Service) UpdateConnection(c Connection) error {
 		return fmt.Errorf("connection not found")
 	}
 	old := s.store.Connections[i]
-	if s.exiting || (s.session != nil && s.session.connection.ID == c.ID) {
+	if s.exiting {
 		return fmt.Errorf("connection operation in progress")
 	}
 	if s.mounted[c.ID] || s.busy[c.ID] || old.Recovery {
@@ -774,6 +784,17 @@ func (s *Service) UpdateConnection(c Connection) error {
 			return fmt.Errorf("letter already reserved")
 		}
 	}
+	if c.Letter != old.Letter {
+		if err := s.availableLetter(c); err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		pending, err := s.cachedPending(ctx, old)
+		if err != nil || pending != 0 {
+			return fmt.Errorf("unmount and resolve pending files before editing")
+		}
+	}
 	c.Remote = old.Remote
 	c.TargetHash = old.TargetHash
 	c.Recovery = false
@@ -782,6 +803,8 @@ func (s *Service) UpdateConnection(c Connection) error {
 		s.store.Connections[i] = old
 		return err
 	}
+	delete(s.inspections, c.ID)
+	s.snapshotID++
 	return nil
 }
 func (s *Service) Remove(id string) error {
@@ -930,9 +953,23 @@ func (s *Service) TestConnection(id string) error {
 		s.mu.Unlock()
 		return fmt.Errorf("connection not found")
 	}
+	if s.exiting || s.busy[id] || (s.session != nil && s.session.connection.ID == id && !s.session.Complete) {
+		s.mu.Unlock()
+		return fmt.Errorf("connection operation in progress")
+	}
 	c := s.store.Connections[i]
 	rpc := s.rpc
+	s.busy[id] = true
+	s.operations[id] = "validating"
+	s.snapshotID++
 	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.busy[id] = false
+		delete(s.operations, id)
+		s.snapshotID++
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var result struct{ List []struct{ Name string } }

@@ -82,7 +82,7 @@ func (s *Service) ListConfigFolders(id, path string) ([]Folder, error) {
 	return folders, err
 }
 
-func (s *Service) ConfirmConfig(id, path string) (string, error) {
+func (s *Service) ConfirmConfig(id, path, letter string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ss := s.session
@@ -90,12 +90,32 @@ func (s *Service) ConfirmConfig(id, path string) (string, error) {
 		return "", fmt.Errorf("setup is not ready")
 	}
 	if ss.Complete {
+		if letter != ss.connection.Letter {
+			i := s.index(ss.connection.ID)
+			if i < 0 {
+				return "", fmt.Errorf("connection not found")
+			}
+			c := s.store.Connections[i]
+			c.Letter = letter
+			if err := s.updateConnection(c); err != nil {
+				return "", err
+			}
+			ss.connection = s.store.Connections[i]
+		}
 		return ss.connection.ID, nil
 	}
-	if ss.inPlace && path != ss.connection.Path {
+	if ss.inPlace && (path != ss.connection.Path || letter != ss.connection.Letter) {
 		return "", fmt.Errorf("keep the destination during recovery")
 	}
 	c, rpc := ss.connection, ss.rpc
+	candidate := c
+	candidate.Path, candidate.Letter = path, letter
+	if err := validateConnection(&candidate); err != nil {
+		return "", err
+	}
+	if err := s.availableLetter(candidate); err != nil {
+		return "", err
+	}
 	ss.Busy = true
 	s.mu.Unlock()
 	_, err := listFolders(ss.ctx, rpc, c, path)
@@ -107,12 +127,32 @@ func (s *Service) ConfirmConfig(id, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ss.connection.Path = path
+	if err := s.availableLetter(candidate); err != nil {
+		return "", err
+	}
+	ss.connection = candidate
 	if err := s.commitConfig(ss); err != "" {
+		if !ss.Complete {
+			ss.connection = c
+		}
 		ss.Error = err
 		return "", fmt.Errorf("%s", err)
 	}
+	ss.Error = ""
 	return ss.connection.ID, nil
+}
+
+// Caller holds s.mu; recheck after provider calls because Windows letters can change.
+func (s *Service) availableLetter(c Connection) error {
+	for _, other := range s.store.Connections {
+		if other.ID != c.ID && other.Letter == c.Letter {
+			return fmt.Errorf("letter already reserved")
+		}
+	}
+	if s.driveUsed(c.Letter) {
+		return fmt.Errorf("letter %s: is already in use", c.Letter)
+	}
+	return nil
 }
 
 func SetFilePicker(s *Service, picker func(string) (string, error)) { s.pickFile = picker }

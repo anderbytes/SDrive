@@ -17,7 +17,15 @@ const bytes = (value: number | null) => {
   const index = value > 0 ? Math.min(Math.floor(Math.log2(value) / 10), units.length - 1) : 0;
   return `${(value / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
 };
-const blank = (letter = "S"): Connection => ({
+const operationText = {
+  "": "",
+  validating: "Validating account…",
+  mounting: "Mounting drive…",
+  checkingUploads: "Checking pending uploads…",
+  waitingUploads: "Waiting for uploads…",
+  unmounting: "Unmounting drive…",
+};
+const blank = (letter: string): Connection => ({
   id: "",
   remote: "",
   name: "",
@@ -92,7 +100,7 @@ function AppContent() {
     connection: Connection;
     auth: boolean;
   }>();
-  const [working, setWorking] = useState<string[]>([]);
+  const [working, setWorking] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const snapshotRequest = useRef(0);
@@ -130,9 +138,10 @@ function AppContent() {
     key: string,
     action: () => Promise<void>,
     success = "",
+    operation = "Operation in progress…",
   ) => {
     ++snapshotRequest.current;
-    setWorking((v) => [...v, key]);
+    setWorking((v) => ({ ...v, [key]: operation }));
     setError("");
     setNotice("");
     try {
@@ -146,7 +155,11 @@ function AppContent() {
       ++snapshotRequest.current;
       setError(message(e));
     } finally {
-      if (snapshotActive.current) setWorking((v) => v.filter((x) => x !== key));
+      if (snapshotActive.current) setWorking((v) => {
+        const next = { ...v };
+        delete next[key];
+        return next;
+      });
     }
   };
   return (
@@ -172,7 +185,7 @@ function AppContent() {
           <br /> Go + rclone <br />
           <button
             className="nav"
-            disabled={working.includes("exit")}
+            disabled={!!working["exit"]}
             onClick={() => void run("exit", api.exit)}
           >
             {t(data?.settingsError ? "Close SDrive" : "Exit safely")}
@@ -189,12 +202,12 @@ function AppContent() {
           <button
             className="primary"
             disabled={
-              !data || !!data.engineError || !!data.settingsError || data.recoveryHold
+              !data || !!data.engineError || !!data.settingsError || data.recoveryHold || !data.letters.length
             }
             onClick={() =>
               setEditor({
                 connection: blank(
-                  data?.letters.includes("S") ? "S" : data?.letters[0] || "S",
+                  data!.letters.includes("S") ? "S" : data!.letters[0],
                 ),
                 auth: true,
               })
@@ -203,6 +216,9 @@ function AppContent() {
             {t("+ New connection")}
           </button>
         </header>
+        {data && !data.settingsError && !data.letters.length && (
+          <p role="status" className="alert warning">{t("No drive letters are available. Free a letter between D and Z before creating a connection.")}</p>
+        )}
         {error && !restoreConfirm && (
           <div role="alert" className="alert error">
             {t(error)}
@@ -252,7 +268,7 @@ function AppContent() {
                 {t("Automatic connection and credential cleanup are suspended. Recover and disconnect restored drives, then verify recovery. Unknown credentials and cache require manual recovery.")}
               </p>
               <button
-                disabled={working.includes("verify-recovery")}
+                disabled={!!working["verify-recovery"]}
                 onClick={() => void run("verify-recovery", api.verifyRecovery, "Settings recovery verified.")}
               >
                 {t("Verify recovery")}
@@ -264,7 +280,7 @@ function AppContent() {
           <div className="alert warning" role="alert">
             {t(data.maintenanceError)}
             <button
-              disabled={data.recoveryHold || working.includes("cleanup")}
+              disabled={data.recoveryHold || !!working["cleanup"]}
               onClick={() => void run("cleanup", api.retryCleanup, "Credential cleanup completed.")}
             >
               {t("Retry cleanup")}
@@ -278,7 +294,7 @@ function AppContent() {
           <div role="alert" className="alert error">
             {t(data.engineError)}
             <button
-              disabled={working.includes("restart")}
+              disabled={!!working["restart"]}
               onClick={() =>
                 void run(
                   "restart",
@@ -339,8 +355,9 @@ function AppContent() {
               key={c.id}
               connection={c}
               provider={data.providers.find((p) => p.id === c.provider)!}
-              busy={working.includes(c.id) || c.busy}
-              onAction={(action) => void run(c.id, () => action(c.id))}
+              busy={!!working[c.id] || c.busy}
+              operation={operationText[c.operation] || working[c.id] || ""}
+              onAction={(action, operation, success) => void run(c.id, () => action(c.id), success, operation)}
               onEdit={(auth) => setEditor({ connection: c, auth })}
             />
           ))}
@@ -355,10 +372,11 @@ function AppContent() {
               )}
             </p>
             <button
+              disabled={!data.letters.length || !!data.engineError}
               onClick={() =>
                 setEditor({
                   connection: blank(
-                    data.letters.includes("S") ? "S" : data.letters[0] || "S",
+                    data.letters.includes("S") ? "S" : data.letters[0],
                   ),
                   auth: true,
                 })
@@ -382,6 +400,7 @@ function AppContent() {
           initial={editor.connection}
           auth={editor.auth}
           data={data}
+          onRefresh={refresh}
           onClose={() => {
             setEditor(undefined);
             void refresh();
@@ -399,7 +418,7 @@ function AppContent() {
       )}
       {restoreConfirm && (
         <RestoreSettingsDialog
-          busy={working.includes("restore")}
+          busy={!!working["restore"]}
           error={error}
           onClose={() => setRestoreConfirm(false)}
           onConfirm={() => void run(
@@ -455,13 +474,15 @@ function Drive({
   connection: c,
   provider: p,
   busy,
+  operation,
   onAction,
   onEdit,
 }: {
   connection: ConnectionView;
   provider: Provider;
   busy: boolean;
-  onAction: (action: (id: string) => Promise<void>) => void;
+  operation: string;
+  onAction: (action: (id: string) => Promise<void>, operation?: string, success?: string) => void;
   onEdit: (auth: boolean) => void;
 }) {
   const { t } = useLanguage();
@@ -480,7 +501,7 @@ function Drive({
         </p>
         <div className="state">
           {busy
-            ? t("Operation in progress…")
+            ? t(operation || "Operation in progress…")
             : c.pending === null
               ? t("Pending uploads unknown")
               : c.mounted
@@ -518,7 +539,7 @@ function Drive({
         <button
           disabled={busy}
           className={c.mounted ? "" : "primary"}
-          onClick={() => onAction(c.mounted ? api.unmount : api.mount)}
+          onClick={() => onAction(c.mounted ? api.unmount : api.mount, c.mounted ? "Checking pending uploads…" : "Validating account…")}
         >
           {c.mounted
             ? t("Disconnect")
@@ -537,7 +558,7 @@ function Drive({
             •••
           </summary>
           <div className="dropdown">
-            <button disabled={busy} onClick={() => onAction(api.test)}>
+            <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>
               {t("Test access")}
             </button>
             <button
@@ -602,11 +623,13 @@ function ConnectionEditor({
   initial,
   auth,
   data,
+  onRefresh,
   onClose,
 }: {
   initial: Connection;
   auth: boolean;
   data: Snapshot;
+  onRefresh: () => Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useLanguage();
@@ -634,6 +657,8 @@ function ConnectionEditor({
   const [path, setPath] = useState(initial.path);
   const [directPath, setDirectPath] = useState(initial.path);
   const [savedID, setSavedID] = useState("");
+  const [savedLetter, setSavedLetter] = useState("");
+  const [operation, setOperation] = useState("");
   const p = data.providers.find((p) => p.id === connection.provider)!;
   const change = (patch: Partial<Connection>) =>
     setConnection((c) => ({ ...c, ...patch }));
@@ -645,6 +670,7 @@ function ConnectionEditor({
     } catch (e) {
       setError(message(e));
     } finally {
+      setOperation("");
       setBusy(false);
     }
   };
@@ -737,6 +763,12 @@ function ConnectionEditor({
     !initial.id &&
     p.available === false &&
     !(p.id === "gcs" && values.service_account_file);
+  const noLetters = !initial.id && !savedID && !data.letters.length;
+  const saved = data.connections.find((c) => c.id === savedID);
+  const letterLocked = initial.recovery || !!saved?.recovery || !!saved?.mounted || !!saved?.busy;
+  const letters = Array.from(new Set([
+    ...((initial.id || savedID) ? [connection.letter] : []), ...data.letters,
+  ])).sort();
   const question = session?.question;
   const setValue = (key: string, value: string) => {
     setValues((v) => ({ ...v, [key]: value }));
@@ -804,6 +836,8 @@ function ConnectionEditor({
       ));
   const begin = () =>
     action(async () => {
+      if (noLetters)
+        throw new Error("No drive letters are available. Free a letter between D and Z before creating a connection.");
       if (!fieldsLoaded)
         throw new Error("Could not load access details. Cancel and try again.");
       const populated = { ...values };
@@ -855,6 +889,10 @@ function ConnectionEditor({
           <div role="alert" className="alert error">
             {t(error || session?.error || "")}
           </div>
+        )}
+        {noLetters && <p role="alert">{t("No drive letters are available. Free a letter between D and Z before creating a connection.")}</p>}
+        {savedID && step === "folder" && (
+          <p role="status" className="alert warning">{t("Configuration saved. Retry uses this connection without creating another. You can also close setup and connect from My drives.")}</p>
         )}
         {initial.recovery && (
           <div className="alert warning">
@@ -910,7 +948,7 @@ function ConnectionEditor({
               <button type="button" onClick={close}>
                 {t("Cancel")}
               </button>
-              <button className="primary" disabled={unavailable && p.id !== "gcs"}>{t("Continue")}</button>
+              <button className="primary" disabled={noLetters || (unavailable && p.id !== "gcs")}>{t("Continue")}</button>
             </div>
           </form>
         )}
@@ -1053,6 +1091,7 @@ function ConnectionEditor({
                   busy ||
                   loading ||
                   !fieldsLoaded ||
+                  noLetters ||
                   unavailable ||
                   (p.id === "sftp" && !trusted)
                 }
@@ -1212,13 +1251,15 @@ function ConnectionEditor({
             )}
             <label>
               {t("Windows drive letter")}
-              <select value={connection.letter} disabled onChange={() => {}}>
-                <option>{connection.letter}:</option>
+              <select aria-label={t("Windows drive letter")} value={letters.includes(connection.letter) ? connection.letter : ""} disabled={busy || letterLocked || noLetters}
+                onChange={(e) => change({ letter: e.target.value })}>
+                {!letters.includes(connection.letter) && <option value="" disabled>{t("Select…")}</option>}
+                {letters.map((letter) => <option key={letter} value={letter}>{letter}:</option>)}
               </select>
               <small>
-                {t(
-                  "The letter was chosen automatically. You can change it in Edit drive after disconnecting.",
-                )}
+                {t(letterLocked
+                  ? "Keep the saved letter while recovery or an operation is pending. Resolve pending files before changing it."
+                  : "Choose a free letter. If connecting fails, you can correct it here and retry the saved connection.")}
               </small>
             </label>
             <div className="modal-actions">
@@ -1227,17 +1268,27 @@ function ConnectionEditor({
               </button>
               <button
                 className="primary"
-                disabled={busy || loading || !data.winFsp}
+                disabled={busy || loading || !data.winFsp || noLetters || (!savedID && !initial.id && !data.letters.includes(connection.letter))}
                 onClick={() =>
                   void action(async () => {
-                    const id = savedID || (await api.confirm(sessionID, path));
-                    setSavedID(id);
-                    await api.mount(id);
-                    setStep("complete");
+                    try {
+                      let id = savedID;
+                      if (!id || savedLetter !== connection.letter) {
+                        setOperation("Validating destination…");
+                        id = await api.confirm(sessionID, path, connection.letter);
+                        setSavedID(id);
+                        setSavedLetter(connection.letter);
+                      }
+                      setOperation("Mounting drive…");
+                      await api.mount(id);
+                      setStep("complete");
+                    } finally {
+                      await onRefresh();
+                    }
                   })
                 }
               >
-                {busy ? t("Connecting…") : t("Connect drive")}
+                {busy ? t(operation || "Validating destination…") : savedID ? t("Retry connection") : t("Connect drive")}
               </button>
             </div>
             {!data.winFsp && (
@@ -1313,10 +1364,12 @@ function ConnectionEditor({
               <input
                 type="checkbox"
                 checked={connection.readOnly}
+                disabled={connection.provider === "drive"}
                 onChange={(e) => change({ readOnly: e.target.checked })}
               />
               {t("Mount read only")}
             </label>
+            {connection.provider === "drive" && <p>{t("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")}</p>}
             <label className="check">
               <input
                 type="checkbox"

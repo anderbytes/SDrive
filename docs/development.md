@@ -58,6 +58,24 @@ The opt-in engine test uses a temporary DPAPI-protected profile and the pinned l
 
 Ownership tests use separate processes and a hard-link alias of the lock file, check the installer's native sharing-violation probe, preserve the legacy mutex marker and verify release after process termination. They do not create an interactive second Windows session. Native WinFsp mounting remains covered by the separate opt-in `SDRIVE_TEST_MOUNT=1` lifecycle test.
 
+## Connection lifecycle checks
+
+`ConfirmConfig(sessionID, path, letter)` validates the chosen Windows letter before saving. Repeating confirmation reuses the saved connection; changing its letter requires a disconnected, idle connection with a verified clean cache and no recovery protection. Other saved fields and the remote identity remain unchanged. Connection snapshots retain `busy` and add transient `operation`: empty when idle, otherwise `validating`, `mounting`, `checkingUploads`, `waitingUploads` or `unmounting`. These stages are not persisted. An access test only lists folders; success does not prove write permission.
+
+Core regressions inject drive-letter availability and RPC responses, including failures before mounting, occupied-letter changes during destination validation, saved-connection retries, persistence rollback and channel-controlled operation stages. Frontend tests cover unavailable letters, saved configuration feedback, Google Drive consent restrictions and English/Portuguese messages. Run the core/i18n tests, frontend tests/build and the race detector described above; none requires a provider account or native drive mounting.
+
+### Suspend and connectivity recovery (manual checks)
+
+Use a disposable Windows VM with WinFsp, an explicitly selected test account/folder and disposable files. Record the build, provider/account type and sanitized results for each scenario. Save expected file hashes before starting; keep credentials and cache intact when a scenario fails. Do not change the workstation's power or network settings to perform these checks.
+
+- Establish read/list access and, on a writable connection, create a test file and verify its downloaded hash. Repeat read/list checks on a read-only connection without claiming write capability.
+- While a disposable write is queued, suspend and resume; repeat with hibernation if supported. Check the actual mount, upload status and destination after each resume. Record unsupported VM power states as untested.
+- With pending writes, disconnect/reconnect the VM network, change Wi-Fi/network adapters where supported, and connect/disconnect its test VPN. Verify errors and unknown status remain visible and pending files stay recoverable.
+- Expire or revoke only the selected test credentials. Verify access failure is actionable, then renew against the original account/library and recover. Do not redirect pending uploads to a different destination.
+- After each scenario, use Connect/Recover as needed, wait for uploads, disconnect safely and verify the remote file hash. Confirm there is one saved connection, the letter/destination remain correct and pending data was neither lost nor reported complete while unknown. Remove only the disposable remote files after verification.
+
+These are manual acceptance scenarios, not completed validation. Report native mount availability, recovery after resume and any intervention needed separately; local tests do not certify automatic reconnection or live providers.
+
 ## Sign-in identities
 
 Authentication regressions also verify strict completion response fields against the pinned local rclone binary, all three FTP transports and password obscuring in a temporary encrypted profile. The FTP configuration checks do not contact a storage server. Setup verifies saved remotes before success; frontend tests cover failed access-detail loading, renewed transport/consent, sensitive-question masking, show/hide controls and service-account availability. `ConnectionFields` returns `{values, transport}` to the frontend; `values` includes only non-secret catalog fields. See the [provider identity limits](provider-validation.md#recovery-identity-limits) before describing these checks as account verification.

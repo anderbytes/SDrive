@@ -24,6 +24,8 @@ vi.mock("./api", () => ({
     folders: vi.fn(),
     confirm: vi.fn(),
     mount: vi.fn(),
+    test: vi.fn(),
+    update: vi.fn(),
     unmount: vi.fn(),
     open: vi.fn(),
     fields: vi.fn(),
@@ -47,6 +49,7 @@ const connection: ConnectionView = {
   targetHash: "",
   mounted: false,
   busy: false,
+  operation: "",
   pending: 0,
   uploads: null,
   cache: { checkedAt: null, pendingBytes: 0, usedBytes: 0, error: "" },
@@ -381,7 +384,7 @@ test("guided setup chooses a folder before confirming and mounting", async () =>
   );
   fireEvent.click(screen.getByText("Connect drive"));
   await screen.findByText("Drive connected");
-  expect(api.confirm).toHaveBeenCalledWith("draft", "Documents");
+  expect(api.confirm).toHaveBeenCalledWith("draft", "Documents", "S");
   expect(api.mount).toHaveBeenCalledWith("connected-id");
   expect(api.begin).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -563,7 +566,7 @@ test("destination validation failure does not mount and allows retry", async () 
   fireEvent.click(connect);
   await screen.findByText("Drive connected");
   expect(api.confirm).toHaveBeenCalledTimes(2);
-  expect(api.confirm).toHaveBeenLastCalledWith("draft", "");
+  expect(api.confirm).toHaveBeenLastCalledWith("draft", "", "S");
   expect(api.mount).toHaveBeenCalledExactlyOnceWith("connected-id");
 });
 
@@ -773,4 +776,181 @@ test("an action completing after unmount cannot start another snapshot", async (
   view.unmount();
   await act(async () => finish());
   expect(api.snapshot).toHaveBeenCalledTimes(1);
+});
+
+test.each(["en", "pt-BR"])("no letters blocks both creation entries (%s)", async (language) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, letters: [], settings: { ...snapshot.settings, language: language as "en" | "pt-BR" } });
+  render(<App />);
+  const english = language === "en";
+  await screen.findByText(english
+    ? "No drive letters are available. Free a letter between D and Z before creating a connection."
+    : "Não há letras de unidade disponíveis. Libere uma letra entre D e Z antes de criar uma conexão.");
+  const create = await screen.findByRole("button", { name: english ? "+ New connection" : "+ Nova conexão" });
+  expect((create as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: english ? "Add my first connection" : "Adicionar minha primeira conexão" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText(english
+    ? "No drive letters are available. Free a letter between D and Z before creating a connection."
+    : "Não há letras de unidade disponíveis. Libere uma letra entre D e Z antes de criar uma conexão.")).toBeDefined();
+  fireEvent.click(create);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(api.begin).not.toHaveBeenCalled();
+});
+
+test("letters becoming unavailable blocks authentication in an open wizard", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, letters: [] });
+  await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(true), { timeout: 4000 });
+  expect(api.begin).not.toHaveBeenCalled();
+});
+
+async function openAuthenticatedFolder() {
+  vi.mocked(api.begin).mockResolvedValue("draft");
+  vi.mocked(api.status).mockResolvedValue({ id: "draft", busy: false, complete: false, authenticated: true, question: null, error: "" });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  fireEvent.click(screen.getByText("Continue"));
+  fireEvent.click(screen.getByText("Sign in with Google Drive"));
+  const connect = await screen.findByRole("button", { name: "Connect drive" });
+  await waitFor(() => expect((connect as HTMLButtonElement).disabled).toBe(false));
+  return connect;
+}
+
+test("wizard uses a chosen letter for its first mount", async () => {
+  const connect = await openAuthenticatedFolder();
+  fireEvent.change(screen.getByLabelText("Windows drive letter"), { target: { value: "T" } });
+  fireEvent.click(connect);
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", "T");
+  expect(api.mount).toHaveBeenCalledExactlyOnceWith("connected-id");
+  expect(screen.getByText("Your files are available on Windows drive T:.")).toBeDefined();
+});
+
+test("occupied letter before confirmation can be corrected without restarting authentication", async () => {
+  vi.mocked(api.confirm).mockImplementationOnce(async () => {
+    vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, letters: ["T"] });
+    throw new Error("letter S: is already in use");
+  });
+  const connect = await openAuthenticatedFolder();
+  fireEvent.click(connect);
+  await screen.findByText("letter S: is already in use");
+  expect((screen.getByLabelText("Windows drive letter") as HTMLSelectElement).value).toBe("");
+  expect((screen.getByRole("button", { name: "Connect drive" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(api.mount).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Windows drive letter"), { target: { value: "T" } });
+  fireEvent.click(screen.getByRole("button", { name: "Connect drive" }));
+  await screen.findByText("Drive connected");
+  expect(api.begin).toHaveBeenCalledTimes(1);
+  expect(api.confirm).toHaveBeenLastCalledWith("draft", "", "T");
+  expect(api.mount).toHaveBeenCalledExactlyOnceWith("connected-id");
+});
+
+test("wizard saves a corrected letter on the same connection after a mount failure", async () => {
+  vi.mocked(api.mount).mockRejectedValueOnce(new Error("Letter occupied"));
+  const connect = await openAuthenticatedFolder();
+  fireEvent.click(connect);
+  await screen.findByText("Letter occupied");
+  await screen.findByText("Configuration saved. Retry uses this connection without creating another. You can also close setup and connect from My drives.");
+  fireEvent.change(screen.getByLabelText("Windows drive letter"), { target: { value: "T" } });
+  fireEvent.click(await screen.findByRole("button", { name: "Retry connection" }));
+  await screen.findByText("Drive connected");
+  expect(api.begin).toHaveBeenCalledTimes(1);
+  expect(api.confirm).toHaveBeenNthCalledWith(1, "draft", "", "S");
+  expect(api.confirm).toHaveBeenNthCalledWith(2, "draft", "", "T");
+  expect(api.mount).toHaveBeenNthCalledWith(1, "connected-id");
+  expect(api.mount).toHaveBeenNthCalledWith(2, "connected-id");
+});
+
+test("uncertain mount recovery locks letter correction and still reuses the saved connection", async () => {
+  vi.mocked(api.mount).mockImplementationOnce(async () => {
+    vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, id: "connected-id", recovery: true, pending: null }] });
+    throw new Error("Mount state unknown");
+  });
+  const connect = await openAuthenticatedFolder();
+  fireEvent.click(connect);
+  await screen.findByText("Mount state unknown");
+  await waitFor(() => expect((screen.getByLabelText("Windows drive letter") as HTMLSelectElement).disabled).toBe(true));
+  expect(screen.getByText("Keep the saved letter while recovery or an operation is pending. Resolve pending files before changing it.")).toBeDefined();
+  fireEvent.click(await screen.findByRole("button", { name: "Retry connection" }));
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledTimes(1);
+});
+
+test.each(["drive", "ftp"])("edit read-only control follows provider rules (%s)", async (provider) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider }] });
+  vi.mocked(api.update).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  const mode = screen.getByLabelText("Mount read only") as HTMLInputElement;
+  expect(mode.disabled).toBe(provider === "drive");
+  if (provider === "drive") expect(screen.getByText("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")).toBeDefined();
+  else fireEvent.click(mode);
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ readOnly: provider !== "drive" })));
+});
+
+test.each(["en", "pt-BR"])("successful access test explains the write-permission limit (%s)", async (language) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection], settings: { ...snapshot.settings, language: language as "en" | "pt-BR" } });
+  vi.mocked(api.test).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByText(language === "en" ? "Test access" : "Testar acesso"));
+  await screen.findByText(language === "en"
+    ? "Access test succeeded. Listing folders does not verify write permission."
+    : "Teste de acesso concluído com sucesso. A listagem de pastas não verifica a permissão de escrita.");
+  expect(api.test).toHaveBeenCalledExactlyOnceWith(connection.id);
+});
+
+test("failed access test never displays success", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  vi.mocked(api.test).mockRejectedValue(new Error("Account unavailable"));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Test access"));
+  await screen.findByText("Account unavailable");
+  expect(screen.queryByText("Access test succeeded. Listing folders does not verify write permission.")).toBeNull();
+});
+
+test("wizard distinguishes destination validation from mounting", async () => {
+  let confirm!: (id: string) => void;
+  let mounted!: () => void;
+  vi.mocked(api.confirm).mockReturnValue(new Promise<string>((resolve) => { confirm = resolve; }));
+  vi.mocked(api.mount).mockReturnValue(new Promise<void>((resolve) => { mounted = resolve; }));
+  const connect = await openAuthenticatedFolder();
+  fireEvent.click(connect);
+  await screen.findByRole("button", { name: "Validating destination…" });
+  expect(api.mount).not.toHaveBeenCalled();
+  await act(async () => confirm("connected-id"));
+  await screen.findByRole("button", { name: "Mounting drive…" });
+  expect(screen.queryByText("Drive connected")).toBeNull();
+  await act(async () => mounted());
+  await screen.findByText("Drive connected");
+});
+
+test("automatic connection errors are visible on the saved drive card", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, autoMount: true, error: "run the SDrive installer again to prepare virtual drives" }] });
+  render(<App />);
+  await screen.findByText("run the SDrive installer again to prepare virtual drives");
+  expect(screen.getByRole("button", { name: "Connect" })).toBeDefined();
+  expect(screen.queryByText("Connected", { exact: true })).toBeNull();
+});
+
+test("operation stages use the saved Portuguese language", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, connections: [{ ...connection, busy: true, operation: "waitingUploads", pending: null }] });
+  render(<App />);
+  await screen.findByText("Aguardando uploads…");
+  expect(screen.queryByText("Conectado", { exact: true })).toBeNull();
+});
+
+test.each([
+  ["validating", "Validating account…"],
+  ["mounting", "Mounting drive…"],
+  ["checkingUploads", "Checking pending uploads…"],
+  ["waitingUploads", "Waiting for uploads…"],
+  ["unmounting", "Unmounting drive…"],
+] as const)("drive displays backend operation %s without declaring unknown uploads safe", async (operation, text) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, busy: true, operation, pending: null }] });
+  render(<App />);
+  await screen.findByText(text);
+  expect(screen.queryByText("Connected", { exact: true })).toBeNull();
+  expect((screen.getByRole("button", { name: "Connect" }) as HTMLButtonElement).disabled).toBe(true);
 });

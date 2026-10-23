@@ -45,7 +45,7 @@ func TestSlowFolderCallsAllowCancellationAndRejectLateResults(t *testing.T) {
 			result := make(chan error, 1)
 			go func() {
 				if confirm {
-					_, err := s.ConfirmConfig(id, "")
+					_, err := s.ConfirmConfig(id, "", "S")
 					result <- err
 				} else {
 					_, err := s.ListConfigFolders(id, "")
