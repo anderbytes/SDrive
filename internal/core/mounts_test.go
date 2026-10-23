@@ -16,12 +16,12 @@ func TestPendingCombinesLiveAndDurableUploads(t *testing.T) {
 		want      int
 		wantError bool
 	}{
-		{"clean", map[string]any{}, `{"Dirty":false}`, 0, false},
-		{"live uploads", map[string]any{"uploadsInProgress": 2, "uploadsQueued": 3, "erroredFiles": 1}, `{"Dirty":true}`, 6, false},
-		{"durable upload", map[string]any{}, `{"Dirty":true}`, 1, false},
-		{"corrupt metadata", map[string]any{}, `broken`, 0, true},
+		{"clean", cleanCacheStats(), `{"Dirty":false}`, 0, false},
+		{"live uploads", map[string]any{"uploadsInProgress": 2, "uploadsQueued": 3, "erroredFiles": 1, "files": 6, "bytesUsed": 0, "outOfSpace": false}, `{"Dirty":true}`, 5, false},
+		{"durable upload", cleanCacheStats(), `{"Dirty":true}`, 1, false},
+		{"corrupt metadata", cleanCacheStats(), `broken`, 0, true},
 		{"missing stats", nil, `{"Dirty":false}`, 0, true},
-		{"disk full", map[string]any{"outOfSpace": true}, `{"Dirty":false}`, 0, true},
+		{"disk full", map[string]any{"uploadsInProgress": 0, "uploadsQueued": 0, "erroredFiles": 0, "files": 0, "bytesUsed": 0, "outOfSpace": true}, `{"Dirty":false}`, 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := testService(t, &fakeRPC{handle: func(_ context.Context, method string, _ any) (any, error) {
@@ -51,7 +51,7 @@ func TestUnmountFailurePreservesRecoveryAndCanRetry(t *testing.T) {
 				if fail && method == failure {
 					return nil, context.DeadlineExceeded
 				}
-				return map[string]any{"diskCache": map[string]any{}}, nil
+				return map[string]any{"diskCache": cleanCacheStats()}, nil
 			}}
 			s := testService(t, rpc)
 			c := testConnection()

@@ -204,6 +204,7 @@ func (s *Service) RestoreSettings() error {
 		return fmt.Errorf("could not restore settings; original data and backup are preserved")
 	}
 	s.store = backup
+	s.inspections = nil
 	s.settingsError = ""
 	s.maintenanceError = ""
 	s.startupWarning = "Restored startup preferences have not been applied. Save preferences to reconcile Windows startup."

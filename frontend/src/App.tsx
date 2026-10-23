@@ -11,6 +11,12 @@ import {
 
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+const bytes = (value: number | null) => {
+  if (value === null) return "—";
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  const index = value > 0 ? Math.min(Math.floor(Math.log2(value) / 10), units.length - 1) : 0;
+  return `${(value / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
+};
 const blank = (letter = "S"): Connection => ({
   id: "",
   remote: "",
@@ -298,11 +304,21 @@ function AppContent() {
             </div>
             <div>
               <strong>
-                {data.connections.reduce((n, c) => n + c.pending, 0)}
+                {data.connections.some((c) => c.pending === null)
+                  ? t("{count} known; others unknown", {
+                      count: data.connections.reduce((n, c) => n + (c.pending ?? 0), 0),
+                    })
+                  : data.connections.reduce((n, c) => n + (c.pending ?? 0), 0)}
               </strong>{" "}
               {t("pending uploads")}
             </div>
           </div>
+        )}
+        {data && !data.settingsError && (
+          <p className="hint">{t("Cache target: {count} GiB per connection", { count: data.settings.cacheGiB })}
+            {" · "}{t("Free on cache disk: {size}", { size: bytes(data.freeBytes) })}
+            {" · "}{t("Pending files are preserved even when the target is exceeded.")}
+          </p>
         )}
         <section aria-label="Unidades" className="drives">
           {data?.connections.map((c) => (
@@ -452,14 +468,37 @@ function Drive({
         <div className="state">
           {busy
             ? t("Operation in progress…")
-            : c.mounted
-              ? c.pending
-                ? t("{count} pending upload(s)", { count: c.pending })
-                : t("Connected")
-              : c.recovery
-                ? t("Recovery required")
-                : t("Disconnected")}
+            : c.pending === null
+              ? t("Pending uploads unknown")
+              : c.mounted
+                ? c.pending
+                  ? t("{count} pending upload(s)", { count: c.pending })
+                  : t("Connected")
+                : c.recovery
+                  ? t("Recovery required")
+                  : t("Disconnected")}
         </div>
+        {c.uploads && (
+          <p>{t("{active} uploading · {queued} queued · {errors} cache errors", {
+            active: c.uploads.active, queued: c.uploads.queued, errors: c.uploads.cacheErrors,
+          })}</p>
+        )}
+        {c.recovery && !c.mounted && (
+          <p>{t("Preserved destination: {provider} · {path}", { provider: t(p.name), path: c.path || t("Root") })}
+            {c.pending !== null && <> · {t("{count} pending upload(s)", { count: c.pending })}</>}
+            {" "}{t("Recover using the original account and destination, wait for uploads, then disconnect.")}
+          </p>
+        )}
+        <p>{t("Approximate cache used: {used} · Pending file sizes: {pending}", {
+          used: bytes(c.cache.usedBytes), pending: bytes(c.cache.pendingBytes),
+        })}</p>
+        <small>{t("Pending sizes are whole local files, not bytes remaining to upload.")}</small>
+        <br />
+        <small>{c.cache.checkedAt
+          ? t("Local inspection: {time} (updated every 30 s)", { time: new Date(c.cache.checkedAt).toLocaleTimeString() })
+          : t("Local cache inspection unavailable")}</small>
+        {c.mounted && c.pending !== null && c.pending > 0 && <p>{t("Close open files and wait for uploads before disconnecting.")}</p>}
+        {c.cache.error && <p className="inline-error" role="status">{t(c.cache.error)}</p>}
         {c.error && <p className="inline-error">{t(c.error)}</p>}
       </div>
       <div className="actions">

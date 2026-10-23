@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -72,6 +73,33 @@ func TestWindowsMountLifecycle(t *testing.T) {
 		t.Fatal("temporary remote content was not confirmed")
 	}
 	waitFile(filepath.Join(remote, name), "initial")
+	// Keep the strict cache reader aligned with the actual pinned engine, not just mocks.
+	var stats struct {
+		DiskCache *struct {
+			UploadsInProgress *int
+			UploadsQueued     *int
+			ErroredFiles      *int
+			Files             *int
+			BytesUsed         *int64
+			OutOfSpace        *bool
+			PathMeta          string
+		}
+	}
+	if err = rpc.Call(ctx, "vfs/stats", map[string]string{"fs": remote}, &stats); err != nil {
+		t.Fatal(err)
+	}
+	d := stats.DiskCache
+	if d == nil || d.UploadsInProgress == nil || d.UploadsQueued == nil || d.ErroredFiles == nil || d.Files == nil || d.BytesUsed == nil || d.OutOfSpace == nil {
+		t.Fatal("pinned engine cache schema changed")
+	}
+	metadata, err := os.ReadFile(filepath.Join(d.PathMeta, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var info struct{ Dirty *bool }
+	if err = json.Unmarshal(metadata, &info); err != nil || info.Dirty == nil {
+		t.Fatalf("pinned engine Dirty schema changed: %v", err)
+	}
 	if err = os.WriteFile(mountedFile, []byte("updated"), 0600); err != nil {
 		t.Fatal(err)
 	}

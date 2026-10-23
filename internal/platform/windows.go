@@ -16,6 +16,33 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// AllocatedBytes accounts for sparse files rather than their full logical length.
+func AllocatedBytes(path string) (uint64, error) {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	h, err := windows.CreateFile(p, windows.FILE_READ_ATTRIBUTES, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer windows.CloseHandle(h)
+	var info struct {
+		AllocationSize int64
+		EndOfFile      int64
+		NumberOfLinks  uint32
+		DeletePending  byte
+		Directory      byte
+	}
+	if err = windows.GetFileInformationByHandleEx(h, windows.FileStandardInfo, (*byte)(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info))); err != nil {
+		return 0, err
+	}
+	if info.AllocationSize < 0 || info.Directory != 0 {
+		return 0, fmt.Errorf("invalid cache file allocation")
+	}
+	return uint64(info.AllocationSize), nil
+}
+
 func DataDir() (string, error) {
 	root, err := os.UserCacheDir()
 	if err != nil {

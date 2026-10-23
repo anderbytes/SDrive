@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+func cleanCacheStats() map[string]any {
+	return map[string]any{"uploadsInProgress": 0, "uploadsQueued": 0, "erroredFiles": 0, "files": 0, "bytesUsed": 0, "outOfSpace": false}
+}
+
 type fakeRPC struct {
 	mu     sync.Mutex
 	calls  []string
@@ -29,7 +33,7 @@ func (f *fakeRPC) Call(ctx context.Context, method string, input, out any) error
 		result = map[string]any{"remotes": []string{}}
 	}
 	if method == "vfs/stats" {
-		result = map[string]any{"diskCache": map[string]any{}}
+		result = map[string]any{"diskCache": cleanCacheStats()}
 	}
 	if f.handle != nil {
 		result, err = f.handle(ctx, method, input)
@@ -272,7 +276,7 @@ func TestRecoveryPreventsDestinationChangesAndRemoval(t *testing.T) {
 func TestUnmountChecksDurableDirtyFiles(t *testing.T) {
 	rpc := &fakeRPC{handle: func(_ context.Context, method string, input any) (any, error) {
 		if method == "vfs/stats" {
-			return map[string]any{"diskCache": map[string]any{"outOfSpace": true}}, nil
+			return map[string]any{"diskCache": map[string]any{"uploadsInProgress": 0, "uploadsQueued": 0, "erroredFiles": 0, "files": 0, "bytesUsed": 0, "outOfSpace": true}}, nil
 		}
 		return map[string]any{}, nil
 	}}
@@ -293,7 +297,7 @@ func TestUnmountChecksDurableDirtyFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "file"), []byte(`{"Dirty":true}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	n, err := s.cachedPending(c)
+	n, err := s.cachedPending(context.Background(), c)
 	if err != nil || n != 1 {
 		t.Fatalf("pending files: %d %v", n, err)
 	}
@@ -310,7 +314,7 @@ func TestUnmountRetainsRecoveryOnLastMomentWrite(t *testing.T) {
 			_ = os.MkdirAll(root, 0700)
 			_ = os.WriteFile(filepath.Join(root, "file"), []byte(`{"Dirty":true}`), 0600)
 		}
-		return map[string]any{"diskCache": map[string]any{}}, nil
+		return map[string]any{"diskCache": cleanCacheStats()}, nil
 	}}
 	if s.Unmount(c.ID) == nil {
 		t.Fatal("final pending file not detected")

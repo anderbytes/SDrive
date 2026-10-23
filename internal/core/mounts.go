@@ -5,9 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"time"
 
 	"sdrive/internal/platform"
@@ -98,6 +96,7 @@ func (s *Service) Mount(id string) error {
 		return err
 	}
 	s.busy[id] = true
+	delete(s.inspections, id)
 	cacheGiB := s.store.Settings.CacheGiB
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -106,6 +105,7 @@ func (s *Service) Mount(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.busy[id] = false
+	delete(s.inspections, id)
 	if err != nil {
 		s.errors[id] = err.Error()
 		checkCtx, done := context.WithTimeout(context.Background(), 3*time.Second)
@@ -121,7 +121,7 @@ func (s *Service) Mount(id string) error {
 			if active {
 				s.mounted[id] = true
 			} else if !previous {
-				count, cacheErr := s.cachedPending(c)
+				count, cacheErr := s.cachedPending(checkCtx, c)
 				if cacheErr == nil && count == 0 {
 					s.store.Connections[i].Recovery = false
 					if saveErr := saveStore(s.dir, s.store); saveErr != nil {
@@ -161,61 +161,18 @@ func checkDestination(c Connection, config map[string]string) (string, error) {
 }
 
 func (s *Service) pending(ctx context.Context, c Connection) (int, error) {
-	var stats struct {
-		DiskCache *struct {
-			UploadsInProgress int
-			UploadsQueued     int
-			ErroredFiles      int
-			OutOfSpace        bool
-		}
-	}
-	if err := s.call(ctx, "vfs/stats", map[string]string{"fs": remote(c)}, &stats); err != nil {
-		return 0, err
-	}
-	if stats.DiskCache == nil {
-		return 0, fmt.Errorf("rclone did not confirm cache state; preserve the connection")
-	}
-	if stats.DiskCache.OutOfSpace {
-		return 0, fmt.Errorf("cache disk is full; preserve the cache and free up space")
-	}
-	cached, err := s.cachedPending(c)
+	s.mu.Lock()
+	rpc := s.rpc
+	s.mu.Unlock()
+	uploads, _, err := readCacheStats(ctx, rpc, c)
 	if err != nil {
 		return 0, err
 	}
-	return max(cached, stats.DiskCache.UploadsInProgress+stats.DiskCache.UploadsQueued+stats.DiskCache.ErroredFiles), nil
-}
-
-// shortcut: Dirty is rclone v1.75.2 cache metadata; revalidate this reader on engine upgrades.
-func (s *Service) cachedPending(c Connection) (int, error) {
-	root := filepath.Join(s.dataPath(), "vfsMeta", "sd_"+c.Remote)
-	count := 0
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if os.IsNotExist(err) && path == root {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("unexpected link in cache")
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		var info struct{ Dirty bool }
-		if err = json.Unmarshal(data, &info); err != nil {
-			return fmt.Errorf("could not check cache metadata; preserve the files")
-		}
-		if info.Dirty {
-			count++
-		}
-		return nil
-	})
-	return count, err
+	cached, err := s.cachedPending(ctx, c)
+	if err != nil {
+		return 0, err
+	}
+	return max(cached, uploads.Active+uploads.Queued, uploads.CacheErrors), nil
 }
 
 func (s *Service) Unmount(id string) error {
@@ -235,11 +192,13 @@ func (s *Service) Unmount(id string) error {
 		return fmt.Errorf("drive is not mounted; use Connect to recover pending files")
 	}
 	s.busy[id] = true
+	delete(s.inspections, id)
 	s.mu.Unlock()
 	unmounted, err := s.drainAndUnmount(c)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.busy[id] = false
+	delete(s.inspections, id)
 	if unmounted {
 		delete(s.mounted, id)
 	}
@@ -279,7 +238,7 @@ func (s *Service) drainAndUnmount(c Connection) (bool, error) {
 		return false, fmt.Errorf("could not unmount; close open files and try again")
 	}
 	// Shutdown removes the VFS from RC, so inspect durable metadata after unmount.
-	pending, err := s.cachedPending(c)
+	pending, err := s.cachedPending(ctx, c)
 	if err != nil {
 		return true, err
 	}
@@ -327,13 +286,25 @@ func (s *Service) Exit() error {
 			return fmt.Errorf("wait for operations before exiting")
 		}
 	}
-	for _, c := range s.store.Connections {
+	connections := append([]Connection{}, s.store.Connections...)
+	for _, c := range connections {
 		if c.Recovery {
 			s.mu.Unlock()
 			return fmt.Errorf("recover connection %s before exiting safely", c.Name)
 		}
 	}
 	s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+	for _, c := range connections {
+		pending, err := s.cachedPending(ctx, c)
+		if err != nil {
+			return fmt.Errorf("could not verify local cache before exiting; preserve the files")
+		}
+		if pending > 0 {
+			return fmt.Errorf("recover connection %s before exiting safely", c.Name)
+		}
+	}
 	success = true
 	if s.quit != nil {
 		s.quit()

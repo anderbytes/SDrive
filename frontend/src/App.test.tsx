@@ -47,9 +47,12 @@ const connection: ConnectionView = {
   mounted: false,
   busy: false,
   pending: 0,
+  uploads: null,
+  cache: { checkedAt: null, pendingBytes: 0, usedBytes: 0, error: "" },
   error: "",
 };
 const snapshot = {
+  freeBytes: null,
   providers: [
     {
       id: "drive",
@@ -465,6 +468,53 @@ test("destination validation failure does not mount and allows retry", async () 
   expect(api.confirm).toHaveBeenCalledTimes(2);
   expect(api.confirm).toHaveBeenLastCalledWith("draft", "");
   expect(api.mount).toHaveBeenCalledExactlyOnceWith("connected-id");
+});
+
+test("unknown uploads never display Connected or a complete zero total", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({
+    ...snapshot,
+    connections: [{ ...connection, mounted: true, pending: null,
+      uploads: { active: 1, queued: 2, cacheErrors: 0 },
+      cache: { checkedAt: null, usedBytes: null, pendingBytes: null, error: "Could not inspect local cache; preserve the files and try again." },
+    }, { ...connection, id: "other", name: "Other drive", pending: 3 }],
+  });
+  render(<App />);
+  await screen.findByText("Pending uploads unknown");
+  expect(screen.queryByText("Connected", { exact: true })).toBeNull();
+  expect(screen.getByText("3 known; others unknown")).toBeDefined();
+  expect(screen.getByText("1 uploading · 2 queued · 0 cache errors")).toBeDefined();
+  expect(screen.getByText("Approximate cache used: — · Pending file sizes: —")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Disconnect" })).toBeDefined();
+});
+
+test("recovery explains the preserved destination and measured cache", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({
+    ...snapshot, freeBytes: 10 * 1024 ** 3,
+    connections: [{ ...connection, recovery: true, path: "Original library", pending: 2,
+      cache: { checkedAt: "2026-10-23T12:00:00Z", usedBytes: 1024, pendingBytes: 2048, error: "" },
+    }],
+  });
+  render(<App />);
+  await screen.findByText("Preserved destination: Google Drive · Original library", { exact: false });
+  expect(screen.getByText(/Recover using the original account and destination/)).toBeDefined();
+  expect(screen.getByText("Approximate cache used: 1.0 KiB · Pending file sizes: 2.0 KiB")).toBeDefined();
+  expect(screen.getByText(/Free on cache disk: 10.0 GiB/)).toBeDefined();
+  expect(screen.getByText(/updated every 30 s/)).toBeDefined();
+  expect(screen.getByRole("button", { name: "Recover" })).toBeDefined();
+});
+
+test("unknown pending status and recovery messages are translated", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({
+    ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" },
+    connections: [{ ...connection, recovery: true, pending: null,
+      cache: { ...connection.cache, error: "Could not inspect local cache; preserve the files and try again." },
+    }],
+  });
+  render(<App />);
+  await screen.findByText("Envios pendentes desconhecidos");
+  expect(screen.getByText("0 conhecidos; demais desconhecidos")).toBeDefined();
+  expect(screen.getByText(/Recupere usando a conta e o destino originais/)).toBeDefined();
+  expect(screen.getByText("Não foi possível inspecionar o cache local; preserve os arquivos e tente novamente.")).toBeDefined();
 });
 
 test("failed disconnect keeps the drive visible and allows retry", async () => {

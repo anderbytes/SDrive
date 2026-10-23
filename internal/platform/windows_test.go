@@ -8,7 +8,38 @@ import (
 	"sync"
 	"testing"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
+
+func TestAllocatedBytesIncludesSparseFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache-file")
+	if err := os.WriteFile(path, []byte("cached content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AllocatedBytes(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AllocatedBytes(path + "-missing"); err == nil {
+		t.Fatal("missing file reported as zero")
+	}
+	f, err := os.OpenFile(path, os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var returned uint32
+	if err = windows.DeviceIoControl(windows.Handle(f.Fd()), windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, &returned, nil); err != nil {
+		t.Skipf("sparse files unsupported: %v", err)
+	}
+	if err = f.Truncate(64 << 20); err != nil {
+		t.Fatal(err)
+	}
+	used, err := AllocatedBytes(path)
+	if err != nil || used >= 64<<20 {
+		t.Fatalf("sparse allocation = %d, %v", used, err)
+	}
+}
 
 func TestDPAPIKeyRoundTrip(t *testing.T) {
 	dir := t.TempDir()

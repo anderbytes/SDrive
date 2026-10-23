@@ -36,7 +36,14 @@ export interface Connection {
 export interface ConnectionView extends Connection {
   mounted: boolean;
   busy: boolean;
-  pending: number;
+  pending: number | null;
+  uploads: { active: number; queued: number; cacheErrors: number } | null;
+  cache: {
+    checkedAt: string | null;
+    pendingBytes: number | null;
+    usedBytes: number | null;
+    error: string;
+  };
   error: string;
 }
 export interface Settings {
@@ -45,6 +52,7 @@ export interface Settings {
   cacheGiB: number;
 }
 export interface Snapshot {
+  freeBytes: number | null;
   providers: Provider[];
   connections: ConnectionView[];
   settings: Settings;

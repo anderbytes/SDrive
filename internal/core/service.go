@@ -35,13 +35,16 @@ type View struct {
 	RecoveryHold     bool             `json:"recoveryHold"`
 	MaintenanceError string           `json:"maintenanceError"`
 	StartupWarning   string           `json:"startupWarning"`
+	FreeBytes        *uint64          `json:"freeBytes"`
 }
 type ConnectionView struct {
 	Connection
-	Mounted bool   `json:"mounted"`
-	Pending int    `json:"pending"`
-	Busy    bool   `json:"busy"`
-	Error   string `json:"error"`
+	Mounted bool        `json:"mounted"`
+	Pending *int        `json:"pending"`
+	Busy    bool        `json:"busy"`
+	Error   string      `json:"error"`
+	Uploads *UploadView `json:"uploads"`
+	Cache   CacheView   `json:"cache"`
 }
 type Example struct {
 	Value string
@@ -109,6 +112,7 @@ type Service struct {
 	restart              func() (RPC, error)
 	pickFile             func(string) (string, error)
 	languageChanged      func(string)
+	inspections          map[string]*cacheInspection
 }
 
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
@@ -206,6 +210,7 @@ func remote(c Connection) string { return "sd_" + c.Remote + ":" + c.Path }
 
 func (s *Service) Snapshot() View {
 	s.mu.Lock()
+	rpc := s.rpc
 	_, backupErr := s.backupStore()
 	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: platform.WinFspInstalled(), EngineError: s.engineError}
 	if s.rpc != nil && !s.rpc.Alive() {
@@ -225,17 +230,45 @@ func (s *Service) Snapshot() View {
 		v.Connections = append(v.Connections, cv)
 	}
 	s.mu.Unlock()
+	if free, err := platform.FreeBytes(s.dir); err == nil {
+		v.FreeBytes = &free
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	for i := range v.Connections {
 		cv := &v.Connections[i]
+		var statsErr error
+		var used *uint64
 		if cv.Mounted {
-			pending, err := s.pending(ctx, cv.Connection)
-			cv.Pending = pending
-			if err != nil {
-				cv.Error = "Could not check pending uploads"
+			cv.Uploads, used, statsErr = readCacheStats(ctx, rpc, cv.Connection)
+		}
+		sample := s.sampleCache(ctx, cv.Connection)
+		cv.Cache = sample.CacheView
+		if sample.err == nil {
+			count := sample.pending
+			cv.Pending = &count
+		}
+		if sample.err != nil && cv.Cache.Error == "" {
+			cv.Cache.Error = "Could not inspect local cache; preserve the files and try again."
+		}
+		if cv.Mounted {
+			cv.Cache.UsedBytes = used
+			if statsErr != nil {
+				cv.Pending = nil
+				cv.Cache.Error = statsErr.Error()
+			} else if cv.Pending != nil {
+				count := max(*cv.Pending, cv.Uploads.Active+cv.Uploads.Queued, cv.Uploads.CacheErrors)
+				cv.Pending = &count
 			}
 		}
+		s.mu.Lock()
+		inspection := s.inspections[cv.ID]
+		if inspection == nil || inspection.result.CheckedAt != cv.Cache.CheckedAt || inspection.connection != cv.Connection || s.rpc != rpc {
+			cv.Pending = nil
+			cv.Uploads = nil
+			cv.Cache = CacheView{Error: "Could not inspect local cache; preserve the files and try again."}
+		}
+		s.mu.Unlock()
 	}
 	return v
 }
@@ -356,6 +389,7 @@ func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 		c.TargetHash = ""
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	delete(s.inspections, c.ID)
 	s.session = &ConfigSession{ID: newID(), Busy: true, connection: c, ConnectionID: c.ID, oldRemote: oldRemote, cancel: cancel, inPlace: inPlace, guided: input.Guided}
 	id := s.session.ID
 	method := "config/create"
@@ -435,6 +469,7 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 		return "Could not save preferences; cancel and try again"
 	}
 	ss.Complete = true
+	delete(s.inspections, ss.connection.ID)
 	if ss.oldRemote != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -542,6 +577,7 @@ func (s *Service) ProbeSSH(host, port string) (HostIdentity, error) {
 
 func (s *Service) UpdateConnection(c Connection) error {
 	s.mu.Lock()
+	delete(s.inspections, c.ID)
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err
@@ -586,6 +622,7 @@ func (s *Service) UpdateConnection(c Connection) error {
 }
 func (s *Service) Remove(id string) error {
 	s.mu.Lock()
+	delete(s.inspections, id)
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err
@@ -772,6 +809,7 @@ func (s *Service) RestartEngine() error {
 	s.rpc = rpc
 	s.engineError = ""
 	s.mounted = map[string]bool{}
+	s.inspections = nil
 	s.errors = map[string]string{}
 	_ = s.cleanup()
 	return nil
