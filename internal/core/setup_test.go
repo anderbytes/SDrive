@@ -141,7 +141,7 @@ func TestFolderPickerAcceptsExistingPathWithTrailingSlash(t *testing.T) {
 	}}
 	s := testService(t, rpc)
 	c := testConnection()
-	folders, err := s.listFolders(c, "Documents/")
+	folders, err := listFolders(context.Background(), s.rpc, c, "Documents/")
 	if err != nil || len(folders) != 1 || folders[0].Path != "Documents/Fotos" {
 		t.Fatalf("trailing slash hid folders: %v %v", folders, err)
 	}

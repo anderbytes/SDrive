@@ -171,7 +171,7 @@ func AutoStartMatches(enabled bool) (bool, error) {
 	exe, err := os.Executable()
 	return value == `"`+exe+`" --background`, err
 }
-func SingleInstance() (func(), error) {
+func SingleInstance(dir string) (func(), error) {
 	name, _ := windows.UTF16PtrFromString(`Local\SDrive-` + os.Getenv("USERNAME"))
 	h, err := windows.CreateMutex(nil, false, name)
 	if err != nil {
@@ -179,6 +179,24 @@ func SingleInstance() (func(), error) {
 			windows.CloseHandle(h)
 		}
 		return nil, fmt.Errorf("SDrive is already running; look for the tray icon")
+	}
+	unlock, err := lockDataDir(dir)
+	if err != nil {
+		windows.CloseHandle(h)
+		return nil, err
+	}
+	return func() { unlock(); windows.CloseHandle(h) }, nil
+}
+
+// The open file, rather than its path or session namespace, defines ownership.
+func lockDataDir(dir string) (func(), error) {
+	path, err := windows.UTF16PtrFromString(filepath.Join(dir, "instance.lock"))
+	if err != nil {
+		return nil, err
+	}
+	h, err := windows.CreateFile(path, windows.GENERIC_READ|windows.GENERIC_WRITE, 0, nil, windows.OPEN_ALWAYS, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return nil, fmt.Errorf("could not lock the data directory; SDrive may already be running in another Windows session")
 	}
 	return func() { windows.CloseHandle(h) }, nil
 }

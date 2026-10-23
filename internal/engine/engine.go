@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -206,6 +207,102 @@ func (e *Engine) Alive() bool {
 	}
 }
 func (e *Engine) Call(ctx context.Context, method string, input any, out any) error {
+	if method == "config/create" || method == "config/update" {
+		return e.configure(ctx, method, input, out)
+	}
+	return e.call(ctx, method, input, out)
+}
+
+// A finished HTTP request is not proof that a configuration job stopped.
+func (e *Engine) configure(ctx context.Context, method string, input, out any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	data, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	var params map[string]any
+	if err = json.Unmarshal(data, &params); err != nil || params == nil {
+		return fmt.Errorf("invalid configuration request")
+	}
+	group := "sdrive-config-" + randomSecret()
+	params["_async"], params["_group"] = true, group
+	var job struct {
+		ID int64 `json:"jobid"`
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err = e.call(startCtx, method, params, &job)
+	cancel()
+	var rejection *rpcRejection
+	if errors.As(err, &rejection) && rejection.status >= 400 && rejection.status < 500 {
+		return err
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for e.Alive() {
+		pollCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Recover the job after a lost start response, without starting another write.
+		if job.ID <= 0 {
+			var jobs struct {
+				IDs []int64 `json:"jobids"`
+			}
+			if e.call(pollCtx, "job/list", map[string]any{}, &jobs) == nil {
+				for _, id := range jobs.IDs {
+					var status struct{ Group string }
+					if e.call(pollCtx, "job/status", map[string]any{"jobid": id}, &status) == nil && status.Group == group {
+						job.ID = id
+						break
+					}
+				}
+			}
+		}
+		if job.ID > 0 {
+			args := map[string]any{"jobid": job.ID}
+			if ctx.Err() != nil {
+				_ = e.call(pollCtx, "job/stop", args, nil)
+			}
+			var status struct {
+				Finished, Success *bool
+				Output            json.RawMessage
+			}
+			if e.call(pollCtx, "job/status", args, &status) == nil && status.Finished != nil && *status.Finished && status.Success != nil {
+				cancel()
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if !*status.Success {
+					return fmt.Errorf("could not configure the account; check credentials and permissions")
+				}
+				if out == nil {
+					return nil
+				}
+				if len(status.Output) == 0 || status.Output[0] != '{' {
+					return fmt.Errorf("invalid configuration result")
+				}
+				return json.Unmarshal(status.Output, out)
+			}
+		}
+		cancel()
+		// Unknown completion preserves the setup until proof or engine termination.
+		select {
+		case <-e.done:
+		case <-ticker.C:
+		}
+	}
+	return fmt.Errorf("rclone engine stopped; restart SDrive to recover your drives")
+}
+
+type rpcRejection struct {
+	method string
+	status int
+}
+
+func (e *rpcRejection) Error() string {
+	return fmt.Sprintf("rclone rejected %s (HTTP %d); check authentication, permissions and destination", e.method, e.status)
+}
+
+func (e *Engine) call(ctx context.Context, method string, input any, out any) error {
 	if !e.Alive() {
 		return fmt.Errorf("rclone engine stopped; restart SDrive to recover your drives")
 	}
@@ -226,7 +323,7 @@ func (e *Engine) Call(ctx context.Context, method string, input any, out any) er
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
-		return fmt.Errorf("rclone rejected %s (HTTP %d); check authentication, permissions and destination", method, resp.StatusCode)
+		return &rpcRejection{method: method, status: resp.StatusCode}
 	}
 	if out == nil {
 		_, err = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<20))

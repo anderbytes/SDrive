@@ -89,6 +89,11 @@ type ConfigSession struct {
 	oldRemote     string
 	inPlace       bool
 	cancel        context.CancelFunc
+	ctx           context.Context
+	stop          context.CancelFunc
+	done          chan struct{}
+	closing       bool
+	rpc           RPC
 }
 type Service struct {
 	mu                   sync.Mutex
@@ -101,6 +106,7 @@ type Service struct {
 	maintenanceError     string
 	startupWarning       string
 	autoStart            func(bool) error
+	winFsp               func() bool
 	engineError          string
 	mounted              map[string]bool
 	busy                 map[string]bool
@@ -112,12 +118,13 @@ type Service struct {
 	restart              func() (RPC, error)
 	pickFile             func(string) (string, error)
 	languageChanged      func(string)
+	snapshotID           uint64
 	inspections          map[string]*cacheInspection
 }
 
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
 	store, loadErr := loadStore(dir)
-	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, mounted: map[string]bool{}, busy: map[string]bool{}, errors: map[string]string{}}
+	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, winFsp: platform.WinFspInstalled, mounted: map[string]bool{}, busy: map[string]bool{}, errors: map[string]string{}}
 	s.initializeRecovery(loadErr)
 	if s.settingsError == "" {
 		_ = s.cleanup()
@@ -185,11 +192,19 @@ func SetDesktop(s *Service, open func(string) error, quit func(), restart func()
 	s.quit = quit
 	s.restart = restart
 }
+
+// Caller holds s.mu, or owns the service before publication.
 func (s *Service) call(ctx context.Context, method string, in, out any) error {
 	if s.rpc == nil {
 		return fmt.Errorf("engine unavailable: %s", s.engineError)
 	}
 	return s.rpc.Call(ctx, method, in, out)
+}
+func callRPC(ctx context.Context, rpc RPC, method string, in, out any) error {
+	if rpc == nil {
+		return fmt.Errorf("engine unavailable")
+	}
+	return rpc.Call(ctx, method, in, out)
 }
 func (s *Service) index(id string) int {
 	for i, c := range s.store.Connections {
@@ -210,9 +225,11 @@ func remote(c Connection) string { return "sd_" + c.Remote + ":" + c.Path }
 
 func (s *Service) Snapshot() View {
 	s.mu.Lock()
+	s.snapshotID++
+	snapshotID := s.snapshotID
 	rpc := s.rpc
 	_, backupErr := s.backupStore()
-	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: platform.WinFspInstalled(), EngineError: s.engineError}
+	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.winFsp(), EngineError: s.engineError}
 	if s.rpc != nil && !s.rpc.Alive() {
 		v.EngineError = "Engine stopped. Restart SDrive to recover your drives."
 	}
@@ -235,8 +252,48 @@ func (s *Service) Snapshot() View {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+	var mounts []engineMount
+	var mountsErr error
+	if len(v.Connections) > 0 && rpc != nil && rpc.Alive() {
+		mounts, mountsErr = readMounts(ctx, rpc)
+	}
 	for i := range v.Connections {
 		cv := &v.Connections[i]
+		s.mu.Lock()
+		current := s.index(cv.ID)
+		if s.snapshotID == snapshotID && s.rpc == rpc && current >= 0 && s.store.Connections[current] == cv.Connection && !s.busy[cv.ID] && mountsErr == nil && rpc != nil && rpc.Alive() {
+			active := false
+			for _, m := range mounts {
+				if mountLetter(m.MountPoint) == cv.Letter+":" {
+					active = m.Fs == remote(cv.Connection)
+					if !active {
+						cv.Error = "drive letter belongs to a different mount; preserve the cache"
+					}
+				}
+			}
+			if s.mounted[cv.ID] && !active {
+				cv.Error = "drive was unexpectedly unmounted; use Connect to recover pending files"
+			}
+			if active && !platform.DriveUsed(cv.Letter) {
+				cv.Error = "engine reports a mount but the Windows drive is unavailable; try Disconnect and preserve the cache"
+			}
+			if !active && platform.DriveUsed(cv.Letter) {
+				cv.Error = "drive letter is occupied outside this connection; preserve the cache"
+			}
+			if cv.Error != "" {
+				s.errors[cv.ID] = cv.Error
+			}
+			s.mounted[cv.ID] = active
+			cv.Mounted = active
+			if active && !cv.Recovery {
+				s.store.Connections[current].Recovery = true
+				cv.Recovery = true
+				if err := saveStore(s.dir, s.store); err != nil {
+					cv.Error = "could not save mount recovery state; preserve the data directory"
+				}
+			}
+		}
+		s.mu.Unlock()
 		var statsErr error
 		var used *uint64
 		if cv.Mounted {
@@ -260,6 +317,10 @@ func (s *Service) Snapshot() View {
 				count := max(*cv.Pending, cv.Uploads.Active+cv.Uploads.Queued, cv.Uploads.CacheErrors)
 				cv.Pending = &count
 			}
+		}
+		if mountsErr != nil {
+			cv.Pending = nil
+			cv.Cache.Error = mountsErr.Error()
 		}
 		s.mu.Lock()
 		inspection := s.inspections[cv.ID]
@@ -324,15 +385,40 @@ func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	sessionCtx, stop := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(sessionCtx, 10*time.Minute)
+	ss := &ConfigSession{ID: newID(), Busy: true, connection: c, ConnectionID: c.ID, cancel: cancel, ctx: sessionCtx, stop: stop, rpc: s.rpc, done: make(chan struct{}), inPlace: inPlace, guided: input.Guided}
+	s.session = ss
+	done := ss.done
+	started := false
+	defer func() {
+		if !started {
+			stop()
+			cancel()
+			close(done)
+			if s.session == ss {
+				s.session = nil
+			}
+		}
+	}()
+	getConfig := func(name string, out any) error {
+		getCtx, stop := context.WithTimeout(ctx, 5*time.Second)
+		defer stop()
+		s.mu.Unlock()
+		err := callRPC(getCtx, ss.rpc, "config/get", map[string]string{"name": name}, out)
+		s.mu.Lock()
+		if s.session != ss || ss.closing || ctx.Err() != nil {
+			return fmt.Errorf("setup changed; try again")
+		}
+		return err
+	}
 	if input.Guided {
 		if err = oauthParameters(p, params); err != nil {
 			if oldRemote == "" {
 				return "", err
 			}
 			var existing map[string]string
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if getErr := s.call(ctx, "config/get", map[string]string{"name": "sd_" + oldRemote}, &existing); getErr != nil || existing["client_id"] == "" {
+			if getErr := getConfig("sd_"+oldRemote, &existing); getErr != nil || existing["client_id"] == "" {
 				return "", err
 			}
 			params["client_id"], params["client_secret"] = existing["client_id"], existing["client_secret"]
@@ -355,9 +441,7 @@ func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 	params["config_is_local"] = "true"
 	if inPlace {
 		var existing map[string]string
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err = s.call(ctx, "config/get", map[string]string{"name": "sd_" + c.Remote}, &existing); err != nil {
+		if err = getConfig("sd_"+c.Remote, &existing); err != nil {
 			return "", err
 		}
 		for key, value := range params {
@@ -388,31 +472,36 @@ func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 		c.Recovery = false
 		c.TargetHash = ""
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	delete(s.inspections, c.ID)
-	s.session = &ConfigSession{ID: newID(), Busy: true, connection: c, ConnectionID: c.ID, oldRemote: oldRemote, cancel: cancel, inPlace: inPlace, guided: input.Guided}
-	id := s.session.ID
+	ss.connection, ss.oldRemote = c, oldRemote
+	id := ss.ID
+	started = true
 	method := "config/create"
 	if inPlace {
 		method = "config/update"
 	}
 	go func() {
 		defer cancel()
-		s.configure(ctx, id, method, map[string]any{"name": "sd_" + c.Remote, "type": p.Backend, "parameters": params, "opt": map[string]any{"nonInteractive": true, "obscure": true}})
+		defer close(done)
+		s.configure(ctx, id, ss.rpc, method, map[string]any{"name": "sd_" + c.Remote, "type": p.Backend, "parameters": params, "opt": map[string]any{"nonInteractive": true, "obscure": true}})
 	}()
 	return id, nil
 }
 
-func (s *Service) configure(ctx context.Context, id, method string, input any) {
+func (s *Service) configure(ctx context.Context, id string, rpc RPC, method string, input any) {
 	var result ConfigResult
-	err := s.call(ctx, method, input, &result)
+	err := callRPC(ctx, rpc, method, input, &result)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.session == nil || s.session.ID != id {
+	if s.session == nil || s.session.ID != id || s.session.closing {
 		return
 	}
 	ss := s.session
 	ss.Busy = false
+	if ctx.Err() != nil {
+		ss.Error = "Setup expired; cancel and try again"
+		return
+	}
 	if err != nil {
 		if ss.guided {
 			ss.Error = "Could not sign in. Check your credentials, internet connection and service permissions."
@@ -470,14 +559,22 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 	}
 	ss.Complete = true
 	delete(s.inspections, ss.connection.ID)
+
 	if ss.oldRemote != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := s.call(ctx, "config/delete", map[string]string{"name": "sd_" + ss.oldRemote}, nil); err != nil {
+		name := ss.oldRemote
+		ss.Busy = true
+		s.mu.Unlock()
+		err := callRPC(ctx, ss.rpc, "config/delete", map[string]string{"name": "sd_" + name}, nil)
+		s.mu.Lock()
+		ss.Busy = false
+		if err != nil {
 			return "Connection saved; old credential cleanup failed. Try Done again."
 		}
 		ss.oldRemote = ""
 	}
+
 	return ""
 }
 
@@ -493,7 +590,7 @@ func (s *Service) AnswerConfig(id, answer string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ss := s.session
-	if ss == nil || ss.ID != id || ss.Busy || ss.Complete || ss.Question == nil {
+	if ss == nil || ss.ID != id || ss.closing || ss.Busy || ss.Complete || ss.Question == nil {
 		return fmt.Errorf("setup is not waiting for an answer")
 	}
 	if len(answer) > 65536 || strings.ContainsRune(answer, 0) {
@@ -501,40 +598,62 @@ func (s *Service) AnswerConfig(id, answer string) error {
 	}
 	ss.Busy = true
 	ss.Error = ""
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(ss.ctx, 10*time.Minute)
 	ss.cancel = cancel
+	ss.done = make(chan struct{})
+	done := ss.done
 	input := map[string]any{"name": "sd_" + ss.connection.Remote, "parameters": map[string]string{}, "opt": map[string]any{"nonInteractive": true, "continue": true, "state": ss.state, "result": answer, "obscure": true}}
-	go func() { defer cancel(); s.configure(ctx, id, "config/update", input) }()
+	go func() { defer cancel(); defer close(done); s.configure(ctx, id, ss.rpc, "config/update", input) }()
 	return nil
 }
 func (s *Service) EndConfig(id string) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	ss := s.session
 	if ss == nil || ss.ID != id {
+		s.mu.Unlock()
 		return nil
+	}
+	ss.closing = true
+	if ss.stop != nil {
+		ss.stop()
 	}
 	if ss.cancel != nil {
 		ss.cancel()
 	}
-	if s.rpc == nil || !s.rpc.Alive() {
-		s.session = nil
-		return nil
-	}
+	rpc, done, complete := ss.rpc, ss.done, ss.Complete
+	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if ss.Complete && ss.oldRemote != "" {
-		if err := s.call(ctx, "config/delete", map[string]string{"name": "sd_" + ss.oldRemote}, nil); err != nil {
-			return err
+	if rpc != nil && rpc.Alive() && !complete {
+		_ = rpc.Call(ctx, "config/oauthstop", map[string]any{}, nil)
+	}
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return fmt.Errorf("setup is still stopping; try Cancel again")
 		}
 	}
-	if !ss.Complete {
-		_ = s.call(ctx, "config/oauthstop", map[string]any{}, nil)
-		if !ss.inPlace {
-			if err := s.call(ctx, "config/delete", map[string]string{"name": "sd_" + ss.connection.Remote}, nil); err != nil {
-				return err
-			}
-		}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.session != ss {
+		return nil
+	}
+	name := ss.oldRemote
+	if !ss.Complete && !ss.inPlace {
+		name = ss.connection.Remote
+	}
+	s.mu.Unlock()
+	var cleanupErr error
+	if rpc != nil && rpc.Alive() && name != "" {
+		cleanupErr = rpc.Call(ctx, "config/delete", map[string]string{"name": "sd_" + name}, nil)
+	}
+	s.mu.Lock()
+	if cleanupErr != nil {
+		return cleanupErr
+	}
+	if s.session != ss {
+		return nil
 	}
 	s.session = nil
 	return nil
@@ -670,12 +789,20 @@ func (s *Service) ConnectionFields(id string) (map[string]string, error) {
 		return nil, fmt.Errorf("connection not found")
 	}
 	c := s.store.Connections[i]
+	rpc := s.rpc
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var config map[string]string
-	if err := s.call(ctx, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config); err != nil {
+	if err := callRPC(ctx, rpc, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config); err != nil {
 		return nil, err
+	}
+	s.mu.Lock()
+	current := s.index(id)
+	valid := s.rpc == rpc && current >= 0 && s.store.Connections[current] == c
+	s.mu.Unlock()
+	if !valid {
+		return nil, fmt.Errorf("connection changed; try again")
 	}
 	p, _ := provider(c.Provider)
 	values := map[string]string{}
@@ -743,12 +870,20 @@ func (s *Service) TestConnection(id string) error {
 		return fmt.Errorf("connection not found")
 	}
 	c := s.store.Connections[i]
+	rpc := s.rpc
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var result struct{ List []struct{ Name string } }
-	if err := s.call(ctx, "operations/list", map[string]any{"fs": remote(c), "remote": "", "opt": map[string]bool{"dirsOnly": true, "recurse": false}}, &result); err != nil {
+	if err := callRPC(ctx, rpc, "operations/list", map[string]any{"fs": remote(c), "remote": "", "opt": map[string]bool{"dirsOnly": true, "recurse": false}}, &result); err != nil {
 		return err
+	}
+	s.mu.Lock()
+	current := s.index(id)
+	valid := s.rpc == rpc && current >= 0 && s.store.Connections[current] == c
+	s.mu.Unlock()
+	if !valid {
+		return fmt.Errorf("connection changed; try again")
 	}
 	if result.List == nil {
 		return fmt.Errorf("provider did not return a valid listing")

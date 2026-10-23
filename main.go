@@ -91,12 +91,6 @@ func main() {
 		}
 		return
 	}
-	unlock, err := platform.SingleInstance()
-	if err != nil {
-		platform.Alert(err.Error())
-		return
-	}
-	defer unlock()
 	dir, err := platform.DataDir()
 	if err != nil {
 		platform.Alert(err.Error())
@@ -110,6 +104,12 @@ func main() {
 		platform.Alert("Could not restrict the data directory to the Windows user.")
 		return
 	}
+	unlock, err := platform.SingleInstance(dir)
+	if err != nil {
+		platform.Alert(err.Error())
+		return
+	}
+	defer unlock()
 	var rpc *engine.Engine
 	var engineMu sync.Mutex
 	defer func() {

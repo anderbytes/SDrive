@@ -6,10 +6,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"sdrive/internal/platform"
 )
+
+type engineMount struct{ Fs, MountPoint string }
+
+func readMounts(ctx context.Context, rpc RPC) ([]engineMount, error) {
+	var result struct{ MountPoints *[]engineMount }
+	if err := callRPC(ctx, rpc, "mount/listmounts", map[string]any{}, &result); err != nil || result.MountPoints == nil {
+		return nil, fmt.Errorf("could not verify mounted drives; preserve the cache and try again")
+	}
+	seen := map[string]bool{}
+	for _, m := range *result.MountPoints {
+		point := mountLetter(m.MountPoint)
+		if len(point) != 2 || point[0] < 'A' || point[0] > 'Z' || point[1] != ':' || m.Fs == "" || seen[point] {
+			return nil, fmt.Errorf("could not verify mounted drives; preserve the cache and try again")
+		}
+		seen[point] = true
+	}
+	return *result.MountPoints, nil
+}
+
+func mountLetter(point string) string { return strings.TrimRight(strings.ToUpper(point), `\/`) }
 
 func (s *Service) Mount(id string) error {
 	s.mu.Lock()
@@ -46,7 +67,7 @@ func (s *Service) Mount(id string) error {
 		s.mu.Unlock()
 		return fmt.Errorf("complete or cancel reconfiguration")
 	}
-	if !platform.WinFspInstalled() {
+	if !s.winFsp() {
 		s.mu.Unlock()
 		return fmt.Errorf("run the SDrive installer again to prepare virtual drives")
 	}
@@ -73,16 +94,30 @@ func (s *Service) Mount(id string) error {
 		return fmt.Errorf("keep at least 5 GiB free on the cache disk")
 	}
 	previous := c.Recovery
+	rpc := s.rpc
+	s.busy[id] = true
+	s.snapshotID++
+	delete(s.inspections, id)
+	s.mu.Unlock()
 	ctxTarget, cancelTarget := context.WithTimeout(context.Background(), 5*time.Second)
 	var config map[string]string
-	err = s.call(ctxTarget, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config)
+	err = callRPC(ctxTarget, rpc, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config)
 	cancelTarget()
+	s.mu.Lock()
+	i = s.index(id)
+	if err == nil && (i < 0 || s.rpc != rpc || s.exiting) {
+		err = fmt.Errorf("connection operation changed; try again")
+	}
 	if err != nil {
+		s.busy[id] = false
+		s.snapshotID++
 		s.mu.Unlock()
 		return err
 	}
 	targetHash, err := checkDestination(c, config)
 	if err != nil {
+		s.busy[id] = false
+		s.snapshotID++
 		s.mu.Unlock()
 		return err
 	}
@@ -92,29 +127,40 @@ func (s *Service) Mount(id string) error {
 	if err = saveStore(s.dir, s.store); err != nil {
 		s.store.Connections[i].Recovery = previous
 		s.store.Connections[i].TargetHash = previousHash
+		s.busy[id] = false
+		s.snapshotID++
 		s.mu.Unlock()
 		return err
 	}
 	s.busy[id] = true
+	s.snapshotID++
 	delete(s.inspections, id)
 	cacheGiB := s.store.Settings.CacheGiB
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	err = s.call(ctx, "mount/mount", map[string]any{"fs": remote(c), "mountPoint": c.Letter + ":", "mountOpt": map[string]any{"NetworkMode": true, "VolumeName": c.Name}, "vfsOpt": map[string]any{"CacheMode": "full", "CacheMaxSize": int64(cacheGiB) << 30, "CacheMinFreeSpace": int64(5) << 30, "CacheMaxAge": int64(24 * time.Hour), "WriteBack": int64(5 * time.Second), "ReadOnly": c.ReadOnly}}, nil)
+	err = callRPC(ctx, rpc, "mount/mount", map[string]any{"fs": remote(c), "mountPoint": c.Letter + ":", "mountOpt": map[string]any{"NetworkMode": true, "VolumeName": c.Name}, "vfsOpt": map[string]any{"CacheMode": "full", "CacheMaxSize": int64(cacheGiB) << 30, "CacheMinFreeSpace": int64(5) << 30, "CacheMaxAge": int64(24 * time.Hour), "WriteBack": int64(5 * time.Second), "ReadOnly": c.ReadOnly}}, nil)
+	var actual []engineMount
+	var checkErr error
+	if err != nil {
+		checkCtx, done := context.WithTimeout(context.Background(), 3*time.Second)
+		actual, checkErr = readMounts(checkCtx, rpc)
+		done()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	i = s.index(id)
 	s.busy[id] = false
+	s.snapshotID++
 	delete(s.inspections, id)
 	if err != nil {
 		s.errors[id] = err.Error()
 		checkCtx, done := context.WithTimeout(context.Background(), 3*time.Second)
 		defer done()
-		var mounts struct{ MountPoints []struct{ MountPoint string } }
-		if checkErr := s.call(checkCtx, "mount/listmounts", map[string]any{}, &mounts); checkErr == nil {
+		if checkErr == nil {
 			active := false
-			for _, mount := range mounts.MountPoints {
-				if mount.MountPoint == c.Letter+":" {
+			for _, mount := range actual {
+				if mountLetter(mount.MountPoint) == c.Letter+":" && mount.Fs == remote(c) {
 					active = true
 				}
 			}
@@ -164,6 +210,10 @@ func (s *Service) pending(ctx context.Context, c Connection) (int, error) {
 	s.mu.Lock()
 	rpc := s.rpc
 	s.mu.Unlock()
+	return s.pendingOn(ctx, rpc, c)
+}
+
+func (s *Service) pendingOn(ctx context.Context, rpc RPC, c Connection) (int, error) {
 	uploads, _, err := readCacheStats(ctx, rpc, c)
 	if err != nil {
 		return 0, err
@@ -192,12 +242,14 @@ func (s *Service) Unmount(id string) error {
 		return fmt.Errorf("drive is not mounted; use Connect to recover pending files")
 	}
 	s.busy[id] = true
+	s.snapshotID++
 	delete(s.inspections, id)
 	s.mu.Unlock()
 	unmounted, err := s.drainAndUnmount(c)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.busy[id] = false
+	s.snapshotID++
 	delete(s.inspections, id)
 	if unmounted {
 		delete(s.mounted, id)
@@ -218,10 +270,13 @@ func (s *Service) Unmount(id string) error {
 }
 
 func (s *Service) drainAndUnmount(c Connection) (bool, error) {
+	s.mu.Lock()
+	rpc := s.rpc
+	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 	for {
-		pending, err := s.pending(ctx, c)
+		pending, err := s.pendingOn(ctx, rpc, c)
 		if err != nil {
 			return false, err
 		}
@@ -234,7 +289,7 @@ func (s *Service) drainAndUnmount(c Connection) (bool, error) {
 		case <-time.After(time.Second):
 		}
 	}
-	if err := s.call(ctx, "mount/unmount", map[string]string{"mountPoint": c.Letter + ":"}, nil); err != nil {
+	if err := callRPC(ctx, rpc, "mount/unmount", map[string]string{"mountPoint": c.Letter + ":"}, nil); err != nil {
 		return false, fmt.Errorf("could not unmount; close open files and try again")
 	}
 	// Shutdown removes the VFS from RC, so inspect durable metadata after unmount.

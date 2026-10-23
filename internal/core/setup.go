@@ -13,12 +13,12 @@ type Folder struct {
 	Path string `json:"path"`
 }
 
-func (s *Service) listFolders(c Connection, path string) ([]Folder, error) {
+func listFolders(ctx context.Context, rpc RPC, c Connection, path string) ([]Folder, error) {
 	c.Path = path
 	if err := validateConnection(&c); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var result struct {
 		List []struct {
@@ -26,7 +26,7 @@ func (s *Service) listFolders(c Connection, path string) ([]Folder, error) {
 			IsDir      bool
 		}
 	}
-	if err := s.call(ctx, "operations/list", map[string]any{"fs": "sd_" + c.Remote + ":", "remote": path, "opt": map[string]bool{"dirsOnly": true, "recurse": false}}, &result); err != nil {
+	if err := callRPC(ctx, rpc, "operations/list", map[string]any{"fs": "sd_" + c.Remote + ":", "remote": path, "opt": map[string]bool{"dirsOnly": true, "recurse": false}}, &result); err != nil {
 		return nil, fmt.Errorf("could not access this folder; check the destination and account permissions")
 	}
 	if result.List == nil {
@@ -65,20 +65,27 @@ func (s *Service) ListConfigFolders(id, path string) ([]Folder, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ss := s.session
-	if ss == nil || ss.ID != id || ss.Busy || !ss.Authenticated || ss.Complete {
+	if ss == nil || ss.ID != id || ss.closing || ss.Busy || !ss.Authenticated || ss.Complete {
 		return nil, fmt.Errorf("sign in before choosing a folder")
 	}
 	if ss.inPlace && path != ss.connection.Path {
 		return nil, fmt.Errorf("keep the destination during recovery")
 	}
-	return s.listFolders(ss.connection, path)
+	c, rpc := ss.connection, ss.rpc
+	s.mu.Unlock()
+	folders, err := listFolders(ss.ctx, rpc, c, path)
+	s.mu.Lock()
+	if s.session != ss || ss.closing || ss.Complete || ss.connection != c {
+		return nil, fmt.Errorf("setup changed; choose the folder again")
+	}
+	return folders, err
 }
 
 func (s *Service) ConfirmConfig(id, path string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ss := s.session
-	if ss == nil || ss.ID != id || ss.Busy || !ss.Authenticated {
+	if ss == nil || ss.ID != id || ss.closing || ss.Busy || !ss.Authenticated {
 		return "", fmt.Errorf("setup is not ready")
 	}
 	if ss.Complete {
@@ -87,7 +94,16 @@ func (s *Service) ConfirmConfig(id, path string) (string, error) {
 	if ss.inPlace && path != ss.connection.Path {
 		return "", fmt.Errorf("keep the destination during recovery")
 	}
-	if _, err := s.listFolders(ss.connection, path); err != nil {
+	c, rpc := ss.connection, ss.rpc
+	ss.Busy = true
+	s.mu.Unlock()
+	_, err := listFolders(ss.ctx, rpc, c, path)
+	s.mu.Lock()
+	ss.Busy = false
+	if s.session != ss || ss.closing || ss.connection != c {
+		return "", fmt.Errorf("setup changed; choose the folder again")
+	}
+	if err != nil {
 		return "", err
 	}
 	ss.connection.Path = path

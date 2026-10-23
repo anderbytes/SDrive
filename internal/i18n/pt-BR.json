@@ -395,5 +395,22 @@
   "could not check pending uploads; preserve the cache": "não foi possível verificar os envios pendentes; preserve o cache",
   "invalid cache statistics; preserve the connection": "estatísticas de cache inválidas; preserve a conexão",
   "could not verify local cache before exiting; preserve the files": "não foi possível verificar o cache local antes de sair; preserve os arquivos",
-  "Pending sizes are whole local files, not bytes remaining to upload.": "Os tamanhos pendentes correspondem aos arquivos locais inteiros, não aos bytes restantes para envio."
+  "Pending sizes are whole local files, not bytes remaining to upload.": "Os tamanhos pendentes correspondem aos arquivos locais inteiros, não aos bytes restantes para envio.",
+  "engine unavailable": "Mecanismo indisponível",
+  "setup changed; choose the folder again": "A configuração mudou; escolha a pasta novamente",
+  "setup changed; try again": "A configuração mudou; tente novamente",
+  "Setup expired; cancel and try again": "A configuração expirou; cancele e tente novamente",
+  "setup is still stopping; try Cancel again": "A configuração ainda está sendo interrompida; tente Cancelar novamente",
+  "connection changed; try again": "A conexão mudou; tente novamente",
+  "connection operation changed; try again": "A operação da conexão mudou; tente novamente",
+  "could not verify mounted drives; preserve the cache and try again": "Não foi possível verificar as unidades montadas; preserve o cache e tente novamente",
+  "drive letter belongs to a different mount; preserve the cache": "A letra da unidade pertence a outra montagem; preserve o cache",
+  "drive was unexpectedly unmounted; use Connect to recover pending files": "A unidade foi desmontada inesperadamente; use Conectar para recuperar os arquivos pendentes",
+  "could not save mount recovery state; preserve the data directory": "Não foi possível salvar o estado de recuperação da montagem; preserve o diretório de dados",
+  "engine reports a mount but the Windows drive is unavailable; try Disconnect and preserve the cache": "O mecanismo informa uma montagem, mas a unidade do Windows está indisponível; tente Desconectar e preserve o cache",
+  "drive letter is occupied outside this connection; preserve the cache": "A letra da unidade está ocupada fora desta conexão; preserve o cache",
+  "could not configure the account; check credentials and permissions": "Não foi possível configurar a conta; verifique as credenciais e permissões",
+  "invalid configuration result": "Resposta de configuração inválida",
+  "invalid configuration request": "Solicitação de configuração inválida",
+  "could not lock the data directory; SDrive may already be running in another Windows session": "Não foi possível bloquear o diretório de dados; o SDrive pode estar em execução em outra sessão do Windows"
 }

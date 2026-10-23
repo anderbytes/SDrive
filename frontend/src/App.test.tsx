@@ -1,6 +1,7 @@
 import React from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -646,4 +647,34 @@ test("Portuguese wizard translates provider metadata and keeps library names", a
   await waitFor(() =>
     expect(api.answer).toHaveBeenCalledWith("draft", "library-id"),
   );
+});
+
+
+test.each([false, true])("obsolete snapshot data and errors are ignored (reject=%s)", async (rejectOld) => {
+  let resolveOld!: (value: typeof snapshot) => void;
+  let reject!: (reason: Error) => void;
+  const old = new Promise<typeof snapshot>((resolve, fail) => { resolveOld = resolve; reject = fail; });
+  vi.mocked(api.snapshot).mockReturnValueOnce(old).mockResolvedValue({ ...snapshot, maintenanceError: "Current maintenance warning" });
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Exit safely" }));
+  await screen.findByText("Current maintenance warning");
+  await act(async () => {
+    if (rejectOld) reject(new Error("Obsolete failure"));
+    else resolveOld({ ...snapshot, maintenanceError: "Obsolete maintenance warning" });
+  });
+  expect(screen.queryByText("Obsolete failure")).toBeNull();
+  expect(screen.queryByText("Obsolete maintenance warning")).toBeNull();
+  expect(screen.getByText("Current maintenance warning")).toBeDefined();
+});
+
+
+test("an action completing after unmount cannot start another snapshot", async () => {
+  let finish!: () => void;
+  vi.mocked(api.exit).mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+  const view = render(<App />);
+  await screen.findByRole("button", { name: "+ New connection" });
+  fireEvent.click(screen.getByRole("button", { name: "Exit safely" }));
+  view.unmount();
+  await act(async () => finish());
+  expect(api.snapshot).toHaveBeenCalledTimes(1);
 });

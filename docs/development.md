@@ -38,6 +38,26 @@ npm --prefix frontend run build
 
 The settings tests use temporary profiles, injected startup operations and temporary file locks to exercise failed replacements. Platform tests exercise real DPAPI under the current Windows user and exclusive atomic key creation, including concurrent callers. Frontend tests cover restoration confirmation/cancellation, failure feedback, protected recovery and maintenance retries in jsdom. These checks do not prove native WebView interaction, abrupt power-loss durability, real mounted-cache recovery or installer behavior. See [local settings recovery](security.md#local-settings-recovery) for the persisted format, backup policy and manual recovery limits.
 
+## Concurrency and real-engine checks
+
+After bootstrap, run the Windows race detector with:
+
+```powershell
+./scripts/test-race.ps1
+```
+
+This uses Go 1.26.10 and SHA-256-verified w64devkit 2.10.1 (GCC 16.2.0) in `.tools/`, sets `CGO_ENABLED=1` and `CC` for the command, and restores their previous values. It does not modify PATH or install a system compiler. The Windows workflow runs the same script with the disposable real-engine checks enabled.
+
+```powershell
+$env:SDRIVE_TEST_ENGINE = '1'
+try { ./scripts/test-race.ps1 }
+finally { Remove-Item Env:SDRIVE_TEST_ENGINE }
+```
+
+The opt-in engine test uses a temporary DPAPI-protected profile and the pinned local rclone binary. It verifies asynchronous configuration, cancellation after an accepted write, terminal job status and remote deletion. It needs no provider account, browser login or drive mount. HTTP tests additionally simulate delayed writes, lost start responses and unknown completion. Core concurrency tests use channels for folder cancellation, late confirmation, snapshot/restart, overlapping snapshots, duplicate mounts, removal during mounting and exit during mounting. Mount tests inject only the WinFsp availability check and use RPC doubles; they do not install WinFsp or mount native drives.
+
+Ownership tests use separate processes and a hard-link alias of the lock file, check the installer's native sharing-violation probe, preserve the legacy mutex marker and verify release after process termination. They do not create an interactive second Windows session. Native WinFsp mounting remains covered by the separate opt-in `SDRIVE_TEST_MOUNT=1` lifecycle test.
+
 ## Sign-in identities
 
 `internal/core/oauth.json` is embedded in the application and starts empty. Registration is a maintainer task: register the desktop application with the provider, configure rclone-compatible local redirects, complete required consent/approvals and test sign-in. This is not an end-user installation step.

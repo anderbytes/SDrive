@@ -58,7 +58,23 @@ Function FinishShow
   ${EndIf}
 FunctionEnd
 
+; Probe the same file handle lock used across Windows sessions by the application.
+!macro CheckDataLock MESSAGE
+  System::Call 'kernel32::CreateFileW(w "$LOCALAPPDATA\SDrive\instance.lock", i 0xC0000000, i 0, p 0, i 3, i 0x80, p 0) p.r0 ?e'
+  Pop $1
+  ${If} $0 == -1
+    ${If} $1 != 2
+    ${AndIf} $1 != 3
+      MessageBox MB_OK|MB_ICONEXCLAMATION "${MESSAGE}"
+      Abort
+    ${EndIf}
+  ${Else}
+    System::Call 'kernel32::CloseHandle(p r0)'
+  ${EndIf}
+!macroend
+
 Function CheckRunning
+  !insertmacro CheckDataLock "Close SDrive in all Windows sessions using Exit safely before installing or updating."
   ReadEnvStr $1 "USERNAME"
   System::Call 'kernel32::OpenMutexW(i 0x100000, i 0, w "Local\SDrive-$1") p.r0'
   ${If} $0 <> 0
@@ -180,6 +196,7 @@ Section "SDrive"
 SectionEnd
 
 Section "Uninstall"
+  !insertmacro CheckDataLock "Close SDrive in all Windows sessions using Exit safely before uninstalling."
   ReadRegStr $2 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "InstallLocation"
   ${If} $2 != $INSTDIR
     MessageBox MB_OK|MB_ICONEXCLAMATION "The installation directory does not match SDrive's registry entry."

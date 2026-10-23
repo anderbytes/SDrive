@@ -95,16 +95,22 @@ function AppContent() {
   const [working, setWorking] = useState<string[]>([]);
   const [settings, setSettings] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const snapshotRequest = useRef(0);
+  const snapshotActive = useRef(true);
   const refresh = async () => {
+    if (!snapshotActive.current) return;
+    const request = ++snapshotRequest.current;
     try {
       const snapshot = await api.snapshot();
+      if (!snapshotActive.current || request !== snapshotRequest.current) return;
       setData(snapshot);
       setLanguage(snapshot.settings.language === "pt-BR" ? "pt-BR" : "en");
     } catch (e) {
-      setError(message(e));
+      if (snapshotActive.current && request === snapshotRequest.current) setError(message(e));
     }
   };
   useEffect(() => {
+    snapshotActive.current = true;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -115,6 +121,8 @@ function AppContent() {
     void poll();
     return () => {
       active = false;
+      snapshotActive.current = false;
+      ++snapshotRequest.current;
       clearTimeout(timer);
     };
   }, []);
@@ -123,17 +131,22 @@ function AppContent() {
     action: () => Promise<void>,
     success = "",
   ) => {
+    ++snapshotRequest.current;
     setWorking((v) => [...v, key]);
     setError("");
     setNotice("");
     try {
       await action();
+      if (!snapshotActive.current) return;
+      ++snapshotRequest.current;
       setNotice(success);
       await refresh();
     } catch (e) {
+      if (!snapshotActive.current) return;
+      ++snapshotRequest.current;
       setError(message(e));
     } finally {
-      setWorking((v) => v.filter((x) => x !== key));
+      if (snapshotActive.current) setWorking((v) => v.filter((x) => x !== key));
     }
   };
   return (

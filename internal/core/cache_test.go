@@ -191,7 +191,12 @@ func TestFailedSamplesAreCachedButSafetyChecksAreFresh(t *testing.T) {
 }
 
 func TestSnapshotUnknownAndSampleExpiry(t *testing.T) {
-	s := testService(t, &fakeRPC{})
+	s := testService(t, &fakeRPC{handle: func(_ context.Context, method string, _ any) (any, error) {
+		if method == "mount/listmounts" {
+			return map[string]any{"mountPoints": []engineMount{{Fs: remote(testConnection()), MountPoint: "S:"}}}, nil
+		}
+		return map[string]any{"diskCache": cleanCacheStats()}, nil
+	}})
 	c := testConnection()
 	s.store.Connections = []Connection{c}
 	s.mounted[c.ID] = true

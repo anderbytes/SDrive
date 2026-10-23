@@ -17,6 +17,11 @@ jobs:
       - name: Build, tests, self-check and installer
         shell: pwsh
         run: ./scripts/build.ps1 -Check -Installer
+      - name: Race detector (Windows x64, GCC)
+        env:
+          SDRIVE_TEST_ENGINE: '1'
+        shell: pwsh
+        run: ./scripts/test-race.ps1
       - name: Static checks
         shell: pwsh
         run: ./.tools/go/bin/go.exe vet ./...
