@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -128,10 +127,10 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 			return nil, fmt.Errorf("field not allowed: %s", k)
 		}
 		if strings.ContainsAny(v, "\x00\r\n") {
-			return nil, fmt.Errorf("invalid field: %s", f.Label)
+			return nil, &FieldError{k, fmt.Sprintf("invalid field: %s", f.Label)}
 		}
 		if len(v) > 32768 {
-			return nil, fmt.Errorf("field too long: %s", f.Label)
+			return nil, &FieldError{k, fmt.Sprintf("field too long: %s", f.Label)}
 		}
 		if v != "" {
 			result[k] = v
@@ -139,7 +138,7 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 	}
 	for _, f := range p.Fields {
 		if f.Required && result[f.Key] == "" {
-			return nil, fmt.Errorf("fill in %s", f.Label)
+			return nil, &FieldError{f.Key, fmt.Sprintf("fill in %s", f.Label)}
 		}
 		if len(f.Choices) > 0 && result[f.Key] != "" {
 			valid := false
@@ -149,7 +148,7 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 				}
 			}
 			if !valid {
-				return nil, fmt.Errorf("invalid option: %s", f.Label)
+				return nil, &FieldError{f.Key, fmt.Sprintf("invalid option: %s", f.Label)}
 			}
 		}
 	}
@@ -157,24 +156,18 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 		if value := result[key]; value != "" {
 			u, err := url.Parse(value)
 			if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && !(insecure && u.Scheme == "http")) {
-				return nil, fmt.Errorf("%s must be an HTTPS URL without embedded credentials", key)
+				return nil, &FieldError{key, fmt.Sprintf("%s must be an HTTPS URL without embedded credentials", key)}
 			}
 		}
 	}
 	if v := result["host"]; v != "" {
-		if strings.ContainsAny(v, "/\\@ \t") || (strings.Contains(v, ":") && net.ParseIP(strings.Trim(v, "[]")) == nil) {
-			return nil, fmt.Errorf("enter only the server hostname or IP")
+		if err := validateServer(v, result["port"]); err != nil {
+			return nil, err
 		}
 		result["host"] = strings.Trim(v, "[]")
 	}
-	if v := result["port"]; v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 || n > 65535 {
-			return nil, fmt.Errorf("invalid port")
-		}
-	}
 	if p.ID == "azureblob" && result["key"] == "" && result["sas_url"] == "" {
-		return nil, fmt.Errorf("enter the account key or SAS URL")
+		return nil, &FieldError{"key", "enter the account key or SAS URL"}
 	}
 	if p.ID == "ftp" {
 		result["tls"], result["explicit_tls"] = "false", "false"

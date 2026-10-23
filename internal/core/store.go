@@ -153,18 +153,21 @@ func atomicWrite(path string, data []byte) error { return platform.AtomicWrite(p
 func validateConnection(c *Connection) error {
 	c.Name = strings.TrimSpace(c.Name)
 	if c.Name == "" || len(c.Name) > 80 {
-		return fmt.Errorf("name must contain between 1 and 80 characters")
+		return &FieldError{"name", "name must contain between 1 and 80 characters"}
+	}
+	if strings.ContainsAny(c.Name, "\x00\r\n") {
+		return &FieldError{"name", "name must not contain NUL or line breaks"}
 	}
 	c.Letter = strings.ToUpper(strings.TrimSpace(c.Letter))
 	if len(c.Letter) != 1 || c.Letter[0] < 'D' || c.Letter[0] > 'Z' {
-		return fmt.Errorf("choose a letter between D and Z")
+		return &FieldError{"letter", "choose a letter between D and Z"}
 	}
-	if strings.ContainsAny(c.Name+c.Path, "\x00\r\n") || strings.ContainsAny(c.Path, "\\:") || strings.HasPrefix(c.Path, "/") {
-		return fmt.Errorf("enter a relative remote path, separated by /")
+	if strings.ContainsAny(c.Path, "\x00\r\n\\:") || strings.HasPrefix(c.Path, "/") {
+		return &FieldError{"path", "enter a relative remote path, separated by /"}
 	}
 	for _, part := range strings.Split(c.Path, "/") {
 		if part == ".." {
-			return fmt.Errorf("path must not contain ..")
+			return &FieldError{"path", "path must not contain .."}
 		}
 	}
 	_, err := provider(c.Provider)

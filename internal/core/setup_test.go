@@ -57,6 +57,48 @@ func TestGuidedDraftIsOnlySavedAfterDestinationValidation(t *testing.T) {
 	}
 }
 
+func TestFolderListingRetriesAndRestrictedDirectDestination(t *testing.T) {
+	for _, restrictedRoot := range []bool{false, true} {
+		t.Run(fmt.Sprint("restrictedRoot=", restrictedRoot), func(t *testing.T) {
+			rootCalls := 0
+			rpc := &fakeRPC{handle: func(_ context.Context, method string, input any) (any, error) {
+				if method != "operations/list" {
+					return ConfigResult{}, nil
+				}
+				if input.(map[string]any)["remote"] == "" {
+					rootCalls++
+					if restrictedRoot || rootCalls == 1 {
+						return nil, fmt.Errorf("permission denied with private details")
+					}
+				}
+				return map[string]any{"list": []any{}}, nil
+			}}
+			s := testService(t, rpc)
+			id, err := s.BeginConfig(ConfigInput{Connection: Connection{Name: "Files", Provider: "webdav", Letter: "S"}, Values: map[string]string{"url": "https://example.test/dav"}, Guided: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitSession(t, s, id)
+			if _, err = s.ListConfigFolders(id, ""); err == nil || strings.Contains(err.Error(), "private") {
+				t.Fatal("first listing should fail without leaking provider details")
+			}
+			_, err = s.ListConfigFolders(id, "")
+			if (err != nil) != restrictedRoot || rootCalls != 2 || len(s.store.Connections) != 0 {
+				t.Fatalf("retry changed the draft or failed unexpectedly: %v", err)
+			}
+			if _, err = s.ListConfigFolders(id, "allowed/destination"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.ConfirmConfig(id, "allowed/destination", "S"); err != nil || len(s.store.Connections) != 1 || s.store.Connections[0].Path != "allowed/destination" {
+				t.Fatalf("root failure blocked an authorized direct destination: %v", err)
+			}
+			if err = s.EndConfig(id); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestCancelAuthenticatedDraftPreservesOldRemote(t *testing.T) {
 	s := testService(t, &fakeRPC{})
 	c := testConnection()

@@ -11,7 +11,10 @@ import {
 import { App } from "./App";
 import { api, type ConnectionView } from "./api";
 
-vi.mock("./api", () => ({
+vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
+
+vi.mock("./api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./api")>(),
   api: {
     snapshot: vi.fn(),
     begin: vi.fn(),
@@ -932,6 +935,247 @@ test("automatic connection errors are visible on the saved drive card", async ()
   await screen.findByText("run the SDrive installer again to prepare virtual drives");
   expect(screen.getByRole("button", { name: "Connect" })).toBeDefined();
   expect(screen.queryByText("Connected", { exact: true })).toBeNull();
+});
+
+test("folder listing retries the same draft and path without signing in again", async () => {
+  vi.mocked(api.folders).mockRejectedValueOnce(new Error("Temporary folder error"));
+  const connect = await openAuthenticatedFolder();
+  await screen.findByText(/Temporary folder error/);
+  fireEvent.change(screen.getByLabelText("Filter folders"), { target: { value: "keep this filter" } });
+  fireEvent.click(screen.getByRole("button", { name: "Retry folder listing" }));
+  await screen.findByText("No subfolders here.");
+  expect((screen.getByLabelText("Filter folders") as HTMLInputElement).value).toBe("keep this filter");
+  expect(api.folders).toHaveBeenNthCalledWith(1, "draft", "");
+  expect(api.folders).toHaveBeenNthCalledWith(2, "draft", "");
+  expect(api.begin).toHaveBeenCalledTimes(1);
+  fireEvent.click(connect);
+  await screen.findByText("Drive connected");
+});
+
+test("local filtering leaves the destination intact and breadcrumbs return to ancestors and root", async () => {
+  vi.mocked(api.folders).mockImplementation(async (_id, path) => path === ""
+    ? [{ name: "Documents", path: "Documents" }, { name: "Pictures", path: "Pictures" }]
+    : path === "Documents" ? [{ name: "Work", path: "Documents/Work" }] : []);
+  await openAuthenticatedFolder();
+  fireEvent.change(screen.getByLabelText("Filter folders"), { target: { value: "dOc" } });
+  expect(screen.queryByRole("button", { name: "▱ Pictures" })).toBeNull();
+  expect(api.folders).toHaveBeenCalledTimes(1);
+  fireEvent.change(screen.getByLabelText("Filter folders"), { target: { value: "missing" } });
+  expect(screen.getByText("No folders match your filter.")).toBeDefined();
+  expect(screen.queryByText("No subfolders here.")).toBeNull();
+  expect(api.folders).toHaveBeenCalledTimes(1);
+  fireEvent.change(screen.getByLabelText("Filter folders"), { target: { value: "" } });
+  fireEvent.click(screen.getByRole("button", { name: "▱ Documents" }));
+  fireEvent.click(await screen.findByRole("button", { name: "▱ Work" }));
+  await screen.findByText("No subfolders here.");
+  expect((screen.getByLabelText("Folder, bucket or share") as HTMLInputElement).value).toBe("Documents/Work");
+  expect(screen.getByRole("button", { name: "Work" }).getAttribute("aria-current")).toBe("location");
+  fireEvent.click(screen.getByRole("button", { name: "Documents" }));
+  await screen.findByRole("button", { name: "▱ Work" });
+  expect((screen.getByLabelText("Filter folders") as HTMLInputElement).value).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Entire storage" }));
+  await screen.findByRole("button", { name: "▱ Pictures" });
+  expect((screen.getByLabelText("Folder, bucket or share") as HTMLInputElement).value).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Connect drive" }));
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", "S");
+});
+
+test("root failure allows a direct destination and unapplied text cannot confirm the previous path", async () => {
+  vi.mocked(api.folders).mockRejectedValueOnce(new Error("Root access denied"));
+  const connect = await openAuthenticatedFolder();
+  const input = screen.getByLabelText("Folder, bucket or share");
+  fireEvent.change(input, { target: { value: "allowed/folder" } });
+  expect((connect as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText("Destination not applied. Choose Open destination before connecting.")).toBeDefined();
+  expect(api.folders).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByText("Enter destination directly"));
+  fireEvent.click(screen.getByRole("button", { name: "Open destination" }));
+  await screen.findByText("No subfolders here.");
+  await waitFor(() => expect((connect as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(connect);
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "allowed/folder", "S");
+});
+
+test("stale folder success and failure cannot replace the latest destination", async () => {
+  let resolveOld!: (items: { name: string; path: string }[]) => void;
+  let rejectOld!: (error: Error) => void;
+  const connect = await openAuthenticatedFolder();
+  vi.mocked(api.folders).mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
+  fireEvent.change(screen.getByLabelText("Folder, bucket or share"), { target: { value: "slow" } });
+  fireEvent.click(screen.getByRole("button", { name: "Open destination" }));
+  await waitFor(() => expect(api.folders).toHaveBeenLastCalledWith("draft", "slow"));
+  vi.mocked(api.folders).mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject; }));
+  fireEvent.click(screen.getByRole("button", { name: "Entire storage" }));
+  await waitFor(() => expect(api.folders).toHaveBeenLastCalledWith("draft", ""));
+  fireEvent.change(screen.getByLabelText("Folder, bucket or share"), { target: { value: "latest" } });
+  fireEvent.click(screen.getByRole("button", { name: "Open destination" }));
+  await screen.findByText("No subfolders here.");
+  await act(async () => {
+    resolveOld([{ name: "Old result", path: "slow/old" }]);
+    rejectOld(new Error("Old failure"));
+  });
+  expect(screen.queryByRole("button", { name: "▱ Old result" })).toBeNull();
+  expect(screen.queryByText(/Old failure/)).toBeNull();
+  fireEvent.click(connect);
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledWith("draft", "latest", "S");
+});
+
+test("listing retries cannot overlap and late results are ignored after closing", async () => {
+  vi.mocked(api.folders).mockRejectedValueOnce(new Error("Retry me"));
+  await openAuthenticatedFolder();
+  let finish!: (items: { name: string; path: string }[]) => void;
+  vi.mocked(api.folders).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const retry = screen.getByRole("button", { name: "Retry folder listing" });
+  fireEvent.click(retry);
+  fireEvent.click(retry);
+  await screen.findByText("Loading folders…");
+  expect(api.folders).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole("button", { name: "Close setup" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await act(async () => finish([{ name: "Late", path: "Late" }]));
+  expect(screen.queryByText("▱ Late")).toBeNull();
+  expect(api.end).toHaveBeenCalledExactlyOnceWith("draft");
+});
+
+test("saved setup locks destination navigation and filtering after a mount failure", async () => {
+  vi.mocked(api.mount).mockRejectedValueOnce(new Error("Mount failed"));
+  fireEvent.click(await openAuthenticatedFolder());
+  await screen.findByText("Mount failed");
+  for (const label of ["Filter folders", "Folder, bucket or share"]) {
+    expect((screen.getByLabelText(label) as HTMLInputElement).disabled).toBe(true);
+  }
+  for (const name of ["Entire storage", "Open destination"]) {
+    expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledTimes(1);
+});
+
+test.each(["en", "pt-BR"])("folder controls and retry feedback are translated (%s)", async (language) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: language as "en" | "pt-BR" } });
+  vi.mocked(api.begin).mockResolvedValue("draft");
+  vi.mocked(api.status).mockResolvedValue({ id: "draft", busy: false, complete: false, authenticated: true, question: null, error: "" });
+  vi.mocked(api.folders).mockRejectedValueOnce(new Error("could not access this folder; check the destination and account permissions"));
+  render(<App />);
+  fireEvent.click(await screen.findByText(language === "en" ? "Add my first connection" : "Adicionar minha primeira conexão"));
+  fireEvent.click(screen.getByText(language === "en" ? "Continue" : "Continuar"));
+  fireEvent.click(screen.getByText(language === "en" ? "Sign in with Google Drive" : "Entrar com Google Drive"));
+  const retry = await screen.findByRole("button", { name: language === "en" ? "Retry folder listing" : "Tentar listar pastas novamente" });
+  expect(screen.getByRole("navigation", { name: language === "en" ? "Folder navigation" : "Navegação de pastas" })).toBeDefined();
+  expect(screen.getByLabelText(language === "en" ? "Filter folders" : "Filtrar pastas")).toBeDefined();
+  fireEvent.click(retry);
+  await screen.findByText(language === "en" ? "No subfolders here." : "Nenhuma subpasta neste local.");
+});
+
+test.each([
+  ["host", "Server", "bad-host", "enter only the server hostname or IP"],
+  ["port", "Port (optional)", "65536", "invalid port"],
+  ["pass", "Password", "synthetic-secret", "invalid field: Password"],
+])("access errors identify %s, reveal advanced fields and preserve entered values", async (field, label, value, message) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, {
+    ...ftpProvider, fields: [...ftpProvider.fields, { key: "port", label: "Port (optional)", secret: false, required: false, default: "", advanced: true }],
+  }], connections: [{ ...connection, provider: "ftp" }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "explicit" });
+  vi.mocked(api.begin).mockRejectedValue(new Error(message, { cause: { field, message } }));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await waitFor(() => expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("original"));
+  const input = screen.getByLabelText(label) as HTMLInputElement;
+  fireEvent.change(input, { target: { value } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const error = await screen.findByText(message);
+  await waitFor(() => expect(document.activeElement).toBe(input));
+  expect(input.value).toBe(value);
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  if (field === "port") expect(input.closest("details")?.open).toBe(true);
+  expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("original");
+  fireEvent.change(input, { target: { value: "corrected" } });
+  expect(input.getAttribute("aria-invalid")).toBe("false");
+  expect(screen.queryByText(message)).toBeNull();
+});
+
+test("destination errors open the direct field, preserve it and prevent confirmation", async () => {
+  await openAuthenticatedFolder();
+  const input = screen.getByLabelText("Folder, bucket or share") as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "../outside" } });
+  vi.mocked(api.folders).mockRejectedValueOnce(new Error("path must not contain ..", { cause: { field: "path", message: "path must not contain .." } }));
+  fireEvent.click(screen.getByRole("button", { name: "Open destination" }));
+  const error = await screen.findByText("path must not contain ..");
+  await waitFor(() => expect(document.activeElement).toBe(input));
+  expect(input.closest("details")?.open).toBe(true);
+  expect(input.value).toBe("../outside");
+  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect((screen.getByRole("button", { name: "Connect drive" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(api.confirm).not.toHaveBeenCalled();
+  fireEvent.change(input, { target: { value: "allowed" } });
+  fireEvent.click(screen.getByRole("button", { name: "Open destination" }));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Connect drive" }) as HTMLButtonElement).disabled).toBe(false));
+});
+
+test("edit path errors remain associated with the entered path", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  vi.mocked(api.update).mockRejectedValue(new Error("path must not contain ..", { cause: { field: "path", message: "path must not contain .." } }));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  const input = screen.getByLabelText("Folder / bucket / share") as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "../outside" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  const error = await screen.findByText("path must not contain ..");
+  expect(input.value).toBe("../outside");
+  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  await waitFor(() => expect(document.activeElement).toBe(input));
+});
+
+test.each(["en", "pt-BR"])("URL errors are accessible and preserve the address (%s)", async (language) => {
+  const english = language === "en";
+  const value = "https://user:synthetic-secret@example.test/dav";
+  const message = "url must be an HTTPS URL without embedded credentials";
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot,
+    settings: { ...snapshot.settings, language: language as "en" | "pt-BR" },
+    providers: [...snapshot.providers, { id: "webdav", name: "WebDAV", backend: "webdav", experimental: false,
+      fields: [{ key: "url", label: "WebDAV HTTPS URL", secret: false, required: true, default: "" }] }],
+    connections: [{ ...connection, provider: "webdav" }],
+  });
+  vi.mocked(api.fields).mockResolvedValue({ values: { url: value }, transport: "" });
+  vi.mocked(api.begin).mockRejectedValue(new Error(message, { cause: { field: "url", message } }));
+  render(<App />);
+  fireEvent.click(await screen.findByText(english ? "Reconfigure account" : "Reconfigurar conta"));
+  const input = await screen.findByLabelText(english ? "WebDAV HTTPS URL" : "URL HTTPS do WebDAV") as HTMLInputElement;
+  await waitFor(() => expect(input.value).toBe(value));
+  fireEvent.click(screen.getByRole("button", { name: english ? "Continue" : "Continuar" }));
+  const error = await screen.findByText(english ? message : "url deve ser uma URL HTTPS sem credenciais embutidas");
+  await waitFor(() => expect(document.activeElement).toBe(input));
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect(input.value).toBe(value);
+  expect(error.textContent).not.toContain("synthetic-secret");
+});
+
+test("recovery keeps its original folder and disables all breadcrumb destinations", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, recovery: true, path: "Original/library" }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: {}, transport: "" });
+  vi.mocked(api.begin).mockResolvedValue("recovery");
+  vi.mocked(api.status).mockResolvedValue({ id: "recovery", busy: false, complete: false, authenticated: true, question: null, error: "" });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(await screen.findByRole("button", { name: "Sign in with Google Drive" }));
+  await screen.findByRole("heading", { name: "Choose what to connect" });
+  await waitFor(() => expect(api.folders).toHaveBeenCalledExactlyOnceWith("recovery", "Original/library"));
+  for (const name of ["Entire storage", "Original", "library"]) {
+    expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+  }
+  expect(screen.queryByLabelText("Filter folders")).toBeNull();
+  expect(screen.queryByLabelText("Folder, bucket or share")).toBeNull();
+  expect(screen.queryByRole("button", { name: "↑ Parent folder" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Connect drive" }));
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("recovery", "Original/library", "S");
 });
 
 test("operation stages use the saved Portuguese language", async () => {

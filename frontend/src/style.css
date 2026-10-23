@@ -24,6 +24,20 @@ body {
 .folder-list button {
   text-align: left;
 }
+.folder-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.folder-breadcrumbs button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+[aria-invalid="true"] {
+  border-color: #f0a1ab;
+}
 .modal details {
   margin: 16px 0;
 }

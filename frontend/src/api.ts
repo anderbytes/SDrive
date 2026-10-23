@@ -96,6 +96,19 @@ export interface ConfigInput {
   guided?: boolean;
 }
 
+export interface FieldError {
+  field: string;
+  message: string;
+}
+
+export function validationError(error: unknown): FieldError | undefined {
+  const cause = error instanceof Error ? error.cause : undefined;
+  if (cause && typeof cause === "object" && "field" in cause && "message" in cause &&
+      typeof cause.field === "string" && typeof cause.message === "string") {
+    return { field: cause.field, message: cause.message };
+  }
+}
+
 function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }

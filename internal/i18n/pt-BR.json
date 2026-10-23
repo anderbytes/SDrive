@@ -452,5 +452,11 @@
   "Choose a free letter. If connecting fails, you can correct it here and retry the saved connection.": "Escolha uma letra livre. Se a conexão falhar, você pode corrigi-la aqui e tentar novamente com a conexão salva.",
   "Retry connection": "Tentar conexão novamente",
   "Use Reconfigure account to change Google Drive access mode and update OAuth consent.": "Use Reconfigurar conta para alterar o modo de acesso do Google Drive e atualizar o consentimento OAuth.",
-  "Access test succeeded. Listing folders does not verify write permission.": "Teste de acesso concluído com sucesso. A listagem de pastas não verifica a permissão de escrita."
+  "Access test succeeded. Listing folders does not verify write permission.": "Teste de acesso concluído com sucesso. A listagem de pastas não verifica a permissão de escrita.",
+  "Folder navigation": "Navegação de pastas",
+  "Retry folder listing": "Tentar listar pastas novamente",
+  "Filter folders": "Filtrar pastas",
+  "No folders match your filter.": "Nenhuma pasta corresponde ao filtro.",
+  "Destination not applied. Choose Open destination before connecting.": "Destino não aplicado. Escolha Abrir destino antes de conectar.",
+  "name must not contain NUL or line breaks": "nome não deve conter NUL nem quebras de linha"
 }

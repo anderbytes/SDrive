@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -713,16 +712,12 @@ type HostIdentity struct {
 }
 
 func (s *Service) ProbeSSH(host, port string) (HostIdentity, error) {
-	host = strings.Trim(host, "[]")
-	if strings.ContainsAny(host, "/\\@\r\n\x00") || host == "" {
-		return HostIdentity{}, fmt.Errorf("invalid server")
+	if err := validateServer(host, port); err != nil {
+		return HostIdentity{}, err
 	}
+	host = strings.Trim(host, "[]")
 	if port == "" {
 		port = "22"
-	}
-	n, err := strconv.Atoi(port)
-	if err != nil || n < 1 || n > 65535 {
-		return HostIdentity{}, fmt.Errorf("invalid port")
 	}
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), 8*time.Second)
 	if err != nil {

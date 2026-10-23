@@ -2,6 +2,8 @@ import { LanguageProvider, useLanguage, type Language } from "./i18n";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   api,
+  validationError,
+  type FieldError,
   type Connection,
   type ConnectionView,
   type Provider,
@@ -594,11 +596,12 @@ function Drive({
   );
 }
 
-function SecretInput({ label, value, required, onChange }: {
+function SecretInput({ label, value, required, onChange, validation }: {
   label: string;
   value: string;
   required: boolean;
   onChange: (value: string) => void;
+  validation?: { "data-field": string; "aria-invalid": boolean; "aria-describedby": string | undefined };
 }) {
   const { t } = useLanguage();
   const id = useId();
@@ -608,6 +611,7 @@ function SecretInput({ label, value, required, onChange }: {
       <label htmlFor={id}>{label}</label>
       <div className="secret-control">
         <input id={id} type={revealed ? "text" : "password"} autoComplete="off"
+          {...validation}
           required={required} value={value} onChange={(e) => onChange(e.target.value)} />
         <button type="button" aria-controls={id} aria-pressed={revealed}
           aria-label={t(revealed ? "Hide {field}" : "Show {field}", { field: label })}
@@ -653,6 +657,10 @@ function ConnectionEditor({
   const [fieldsLoaded, setFieldsLoaded] = useState(!initial.id || !auth);
   const [error, setError] = useState("");
   const [folderError, setFolderError] = useState("");
+  const [fieldError, setFieldError] = useState<FieldError>();
+  const fieldID = useId();
+  const [folderRequest, setFolderRequest] = useState(0);
+  const [filter, setFilter] = useState("");
   const [folders, setFolders] = useState<{ name: string; path: string }[]>([]);
   const [path, setPath] = useState(initial.path);
   const [directPath, setDirectPath] = useState(initial.path);
@@ -660,15 +668,20 @@ function ConnectionEditor({
   const [savedLetter, setSavedLetter] = useState("");
   const [operation, setOperation] = useState("");
   const p = data.providers.find((p) => p.id === connection.provider)!;
-  const change = (patch: Partial<Connection>) =>
+  const change = (patch: Partial<Connection>) => {
     setConnection((c) => ({ ...c, ...patch }));
+    if (fieldError && fieldError.field in patch) setFieldError(undefined);
+  };
   const action = async (work: () => Promise<void>) => {
     setBusy(true);
     setError("");
+    setFieldError(undefined);
     try {
       await work();
     } catch (e) {
-      setError(message(e));
+      const invalid = validationError(e);
+      if (invalid) setFieldError(invalid);
+      else setError(message(e));
     } finally {
       setOperation("");
       setBusy(false);
@@ -732,7 +745,11 @@ function ConnectionEditor({
         if (active) setFolders(items);
       })
       .catch((e) => {
-        if (active) setFolderError(message(e));
+        if (active) {
+          const invalid = validationError(e);
+          if (invalid) setFieldError(invalid);
+          else setFolderError(message(e));
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -740,7 +757,7 @@ function ConnectionEditor({
     return () => {
       active = false;
     };
-  }, [step, sessionID, path, savedID]);
+  }, [step, sessionID, path, savedID, folderRequest]);
   const close = () => {
     if (!busy)
       void action(async () => {
@@ -749,6 +766,21 @@ function ConnectionEditor({
       });
   };
   const dialog = useDialog(close);
+  useEffect(() => {
+    if (!fieldError || busy || loading) return;
+    const input = Array.from(dialog.current?.querySelectorAll<HTMLElement>("[data-field]") || [])
+      .find((element) => element.dataset.field === fieldError.field);
+    if (!input) {
+      setError(fieldError.message);
+      return;
+    }
+    let parent = input.parentElement;
+    while (parent && parent !== dialog.current) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      parent = parent.parentElement;
+    }
+    input.focus();
+  }, [fieldError, busy, loading]);
   useEffect(() => {
     const heading = dialog.current?.querySelector<HTMLElement>("h3");
     if (heading) {
@@ -770,8 +802,28 @@ function ConnectionEditor({
     ...((initial.id || savedID) ? [connection.letter] : []), ...data.letters,
   ])).sort();
   const question = session?.question;
+  const destinationLocked = initial.recovery || !!savedID || busy;
+  const visibleFolders = folders.filter((item) => item.name.toLowerCase().includes(filter.toLowerCase()));
+  const navigate = (next: string) => {
+    setPath(next);
+    setDirectPath(next);
+    setFilter("");
+    setFieldError(undefined);
+    setFolderError("");
+    setLoading(true);
+    setFolderRequest((request) => request + 1);
+  };
+  const validationProps = (key: string) => ({
+    "data-field": key,
+    "aria-invalid": fieldError?.field === key,
+    "aria-describedby": fieldError?.field === key ? `${fieldID}-${key}-error` : undefined,
+  });
+  const fieldFeedback = (key: string) => fieldError?.field === key && (
+    <p id={`${fieldID}-${key}-error`} className="inline-error" role="alert">{t(fieldError.message)}</p>
+  );
   const setValue = (key: string, value: string) => {
     setValues((v) => ({ ...v, [key]: value }));
+    if (fieldError?.field === key) setFieldError(undefined);
     if (["host", "port"].includes(key)) {
       setIdentity(undefined);
       setTrusted(false);
@@ -788,12 +840,14 @@ function ConnectionEditor({
         <div className="credential-field" key={`${p.id}-${f.key}`}>
           {f.secret ? (
             <SecretInput label={t(f.label)}
+              validation={validationProps(f.key)}
               value={values[f.key] ?? f.default ?? ""} required={f.required}
               onChange={(value) => setValue(f.key, value)} />
           ) : <label>
           {t(f.label)}
           {f.choices ? (
             <select
+              {...validationProps(f.key)}
               value={values[f.key] ?? f.default}
               onChange={(e) => setValue(f.key, e.target.value)}
             >
@@ -809,6 +863,7 @@ function ConnectionEditor({
             </select>
           ) : (
             <input
+              {...validationProps(f.key)}
               type="text"
               autoComplete="off"
               required={f.required}
@@ -817,6 +872,7 @@ function ConnectionEditor({
             />
           )}
           </label>}
+          {fieldFeedback(f.key)}
           {f.hint && <small>{t(f.hint)}</small>}
           {f.file && (
             <button
@@ -1187,40 +1243,63 @@ function ConnectionEditor({
               <strong>{t("Current folder:")}</strong>{" "}
               {path || t("Entire storage")}
             </p>
+            <nav className="folder-breadcrumbs" aria-label={t("Folder navigation")}>
+              <button disabled={destinationLocked} aria-current={!path ? "location" : undefined}
+                onClick={() => navigate("")}>{t("Entire storage")}</button>
+              {path.split("/").map((part, index, parts) => part && (
+                <span key={index}>
+                  <span aria-hidden="true"> / </span>
+                  <button disabled={destinationLocked} aria-current={index === parts.length - 1 ? "location" : undefined}
+                    onClick={() => navigate(parts.slice(0, index + 1).join("/"))}>{part}</button>
+                </span>
+              ))}
+            </nav>
             {folderError && (
-              <p role="alert">
-                {t(folderError)}{" "}
-                {t(
-                  "If your account only allows access to a specific destination, enter its address below.",
-                )}
-              </p>
+              <div>
+                <p role="alert">
+                  {t(folderError)}{" "}
+                  {t("If your account only allows access to a specific destination, enter its address below.")}
+                </p>
+                <button disabled={busy || loading || !!savedID}
+                  onClick={() => { setLoading(true); setFolderRequest((request) => request + 1); }}>
+                  {t("Retry folder listing")}
+                </button>
+              </div>
             )}
+            {!initial.recovery && <label>
+              {t("Filter folders")}
+              <input type="search" value={filter} disabled={destinationLocked}
+                onChange={(e) => setFilter(e.target.value)} />
+            </label>}
             {loading ? (
               <p role="status">{t("Loading folders…")}</p>
             ) : (
               <div className="folder-list" aria-label={t("Available folders")}>
                 {path && !initial.recovery && (
                   <button
-                    disabled={!!savedID || busy}
+                    disabled={destinationLocked}
                     onClick={() =>
-                      setPath(path.split("/").slice(0, -1).join("/"))
+                      navigate(path.replace(/\/$/, "").split("/").slice(0, -1).join("/"))
                     }
                   >
                     {t("↑ Parent folder")}
                   </button>
                 )}
                 {!initial.recovery &&
-                  folders.map((item) => (
+                  visibleFolders.map((item) => (
                     <button
                       key={item.path}
-                      disabled={!!savedID || busy}
-                      onClick={() => setPath(item.path)}
+                      disabled={destinationLocked}
+                      onClick={() => navigate(item.path)}
                     >
                       ▱ {item.name}
                     </button>
                   ))}
-                {!folderError && folders.length === 0 && (
+                {!folderError && fieldError?.field !== "path" && folders.length === 0 && (
                   <p>{t("No subfolders here.")}</p>
+                )}
+                {!folderError && folders.length > 0 && visibleFolders.length === 0 && (
+                  <p role="status">{t("No folders match your filter.")}</p>
                 )}
               </div>
             )}
@@ -1230,28 +1309,30 @@ function ConnectionEditor({
                 <label>
                   {t("Folder, bucket or share")}
                   <input
+                    {...validationProps("path")}
                     value={directPath}
-                    disabled={!!savedID || busy}
+                    disabled={destinationLocked}
                     placeholder={t("Example: documents or my-bucket/folder")}
-                    onChange={(e) => setDirectPath(e.target.value)}
+                    onChange={(e) => {
+                      setDirectPath(e.target.value);
+                      if (fieldError?.field === "path") setFieldError(undefined);
+                    }}
                   />
-                  <small>
-                    {t(
-                      "Use the path provided by your administrator, separated by /.",
-                    )}
-                  </small>
                 </label>
+                <small>{t("Use the path provided by your administrator, separated by /.")}</small>
+                {fieldFeedback("path")}
                 <button
-                  disabled={!!savedID || busy}
-                  onClick={() => setPath(directPath)}
+                  disabled={destinationLocked}
+                  onClick={() => navigate(directPath)}
                 >
                   {t("Open destination")}
                 </button>
               </details>
             )}
+            {directPath !== path && <p role="status">{t("Destination not applied. Choose Open destination before connecting.")}</p>}
             <label>
               {t("Windows drive letter")}
-              <select aria-label={t("Windows drive letter")} value={letters.includes(connection.letter) ? connection.letter : ""} disabled={busy || letterLocked || noLetters}
+              <select {...validationProps("letter")} aria-label={t("Windows drive letter")} value={letters.includes(connection.letter) ? connection.letter : ""} disabled={busy || letterLocked || noLetters}
                 onChange={(e) => change({ letter: e.target.value })}>
                 {!letters.includes(connection.letter) && <option value="" disabled>{t("Select…")}</option>}
                 {letters.map((letter) => <option key={letter} value={letter}>{letter}:</option>)}
@@ -1262,13 +1343,14 @@ function ConnectionEditor({
                   : "Choose a free letter. If connecting fails, you can correct it here and retry the saved connection.")}
               </small>
             </label>
+            {fieldFeedback("letter")}
             <div className="modal-actions">
               <button disabled={busy} onClick={close}>
                 {savedID ? t("Close") : t("Cancel")}
               </button>
               <button
                 className="primary"
-                disabled={busy || loading || !data.winFsp || noLetters || (!savedID && !initial.id && !data.letters.includes(connection.letter))}
+                disabled={busy || loading || directPath !== path || fieldError?.field === "path" || !data.winFsp || noLetters || (!savedID && !initial.id && !data.letters.includes(connection.letter))}
                 onClick={() =>
                   void action(async () => {
                     try {
@@ -1332,15 +1414,18 @@ function ConnectionEditor({
             <label>
               {t("Drive name")}
               <input
+                {...validationProps("name")}
                 required
                 maxLength={80}
                 value={connection.name}
                 onChange={(e) => change({ name: e.target.value })}
               />
             </label>
+            {fieldFeedback("name")}
             <label>
               {t("Windows drive letter")}
               <select
+                {...validationProps("letter")}
                 value={connection.letter}
                 onChange={(e) => change({ letter: e.target.value })}
               >
@@ -1353,13 +1438,16 @@ function ConnectionEditor({
                   ))}
               </select>
             </label>
+            {fieldFeedback("letter")}
             <label>
               {t("Folder / bucket / share")}
               <input
+                {...validationProps("path")}
                 value={connection.path}
                 onChange={(e) => change({ path: e.target.value })}
               />
             </label>
+            {fieldFeedback("path")}
             <label className="check">
               <input
                 type="checkbox"

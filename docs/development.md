@@ -76,6 +76,14 @@ Use a disposable Windows VM with WinFsp, an explicitly selected test account/fol
 
 These are manual acceptance scenarios, not completed validation. Report native mount availability, recovery after resume and any intervention needed separately; local tests do not certify automatic reconnection or live providers.
 
+## Folder navigation and validation
+
+The folder picker retries a failed listing in the same authenticated draft. Breadcrumbs and the root action change the selected destination; the filter only matches names in the current listing and never searches remotely. Direct text must be applied with **Open destination** before connecting. A denied root listing does not prevent confirming a directly entered destination that the account can list. Recovery and saved drafts lock destination changes.
+
+Validation errors from the existing service methods retain their error message and serialize `{field, message}` into Wails `RuntimeError.cause`. The frontend associates these errors with the corresponding input, opens containing options and focuses the field without clearing entered values. Provider/network errors remain general messages; validation errors never include the submitted value. Go remains responsible for path traversal protection and validates host/port before SSH probing.
+
+Core regressions cover retry, restricted-root access, unsafe paths rejected before RPC, recovery locks, host/port/URL validation and error serialization. Frontend regressions cover breadcrumbs, local filtering, stale responses, duplicate retries, unapplied paths, saved/recovery locks, field accessibility and English/Portuguese feedback. The runtime test uses the installed Wails `RuntimeError` class; it does not exercise a native WebView bridge. Run the core/i18n tests and vet, frontend tests/build and a production build. These checks use temporary profiles and RPC doubles; they do not authenticate live accounts or mount drives.
+
 ## Sign-in identities
 
 Authentication regressions also verify strict completion response fields against the pinned local rclone binary, all three FTP transports and password obscuring in a temporary encrypted profile. The FTP configuration checks do not contact a storage server. Setup verifies saved remotes before success; frontend tests cover failed access-detail loading, renewed transport/consent, sensitive-question masking, show/hide controls and service-account availability. `ConnectionFields` returns `{values, transport}` to the frontend; `values` includes only non-secret catalog fields. See the [provider identity limits](provider-validation.md#recovery-identity-limits) before describing these checks as account verification.
