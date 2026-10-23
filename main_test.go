@@ -4,9 +4,26 @@ import (
 	"bytes"
 	"encoding/binary"
 	"os"
+	"reflect"
 	"testing"
 	"unicode/utf16"
 )
+
+func TestSmokeDebuggerIsBuildOnly(t *testing.T) {
+	previous := uiSmoke
+	t.Cleanup(func() { uiSmoke = previous })
+	t.Setenv("SDRIVE_UI_SMOKE", "true")
+	for _, value := range []string{"", "false", "TRUE"} {
+		uiSmoke = value
+		if args := smokeBrowserArgs(); len(args) != 0 {
+			t.Fatalf("normal build enables debugger: %v", args)
+		}
+	}
+	uiSmoke = "true"
+	if !reflect.DeepEqual(smokeBrowserArgs(), []string{"--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1"}) {
+		t.Fatal("smoke debugger must use ephemeral loopback port")
+	}
+}
 
 func TestMain(m *testing.M) {
 	if len(os.Args) == 3 && os.Args[1] == "--config-key" {

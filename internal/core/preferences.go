@@ -16,6 +16,9 @@ func Language(s *Service) string {
 
 func SetLanguageChanged(s *Service, changed func(string)) { s.languageChanged = changed }
 
+// SetAutoStart installs the desktop callback before publishing the service.
+func SetAutoStart(s *Service, update func(bool) error) { s.autoStart = update }
+
 func (s *Service) SaveSettings(settings Settings) error {
 	if settings.Language == "" {
 		settings.Language = "en"

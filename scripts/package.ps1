@@ -3,7 +3,11 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 Push-Location $projectRoot
 try {
     & "$PSScriptRoot/prerequisites.ps1"
-    & "$projectRoot/.tools/go/bin/go.exe" test ./internal/platform -run TestOfficialPrerequisiteSignatures -count=1
+    New-Item -ItemType Directory -Force -Path '.tools/check-results' | Out-Null
+    & "$projectRoot/.tools/go/bin/go.exe" test -json ./internal/platform -run TestOfficialPrerequisiteSignatures -count=1 | Tee-Object -FilePath '.tools/check-results/signatures.jsonl' | ForEach-Object {
+        $event = $_ | ConvertFrom-Json
+        if ($event.Action -eq 'output') { Write-Host $event.Output -NoNewline }
+    }
     if ($LASTEXITCODE) { throw 'Native component signature verification failed' }
     $toolsDir = Join-Path $projectRoot '.tools'
     $compiler = Join-Path $toolsDir 'nsis/nsis-3.12/makensis.exe'

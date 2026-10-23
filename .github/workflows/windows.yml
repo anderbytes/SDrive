@@ -17,6 +17,10 @@ jobs:
       - name: Build, tests, self-check and installer
         shell: pwsh
         run: ./scripts/build.ps1 -Check -Installer
+      - name: Native Wails and WebView2 smoke (required)
+        timeout-minutes: 6
+        shell: pwsh
+        run: node scripts/ui-smoke.mjs
       - name: Race detector (Windows x64, GCC)
         env:
           SDRIVE_TEST_ENGINE: '1'
@@ -25,6 +29,21 @@ jobs:
       - name: Static checks
         shell: pwsh
         run: ./.tools/go/bin/go.exe vet ./...
+      - name: Report conditional check results
+        if: always()
+        shell: pwsh
+        run: node scripts/check-results.mjs
+      - name: Native smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SDrive-check-results
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            .tools/check-results/summary.md
+            .tools/check-results/ui-smoke/*/result.json
+            .tools/check-results/ui-smoke/*/*.png
       - uses: actions/upload-artifact@v4
         with:
           name: SDrive-windows-x64

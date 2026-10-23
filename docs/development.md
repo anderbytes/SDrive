@@ -26,7 +26,20 @@ npm --prefix frontend run build
 node scripts/ui-smoke.mjs
 ```
 
-The smoke test opens a hidden WebView2 using an isolated profile in `.tools/ui-check/`. It checks all 18 options, creates a temporary connection to a local test WebDAV server, browses folders, cancels without persisting the connection, saves a test preference and exits. It does not use personal accounts or mount drives. Debugging port 9337 exists only in that test process. Do not run it while another SDrive instance is open.
+The native smoke test requires Windows, WebView2, the bootstrapped tools and a built frontend. It opens a visible, disposable Wails window and uses ordinary Playwright clicks/checks, including actionability checks. It checks all 18 provider options, authenticates against a read-only local WebDAV fixture, browses folders, cancels setup, saves a cache preference, switches English/Portuguese and exits safely. It does not use personal accounts, mount drives or change the user's Windows startup entry; the smoke build substitutes only the startup-write callback.
+
+Each execution builds its own executable and creates its own profile under `.tools/ui-smoke/run-*`. Only its child receives the temporary `LOCALAPPDATA`; inherited `WEBVIEW2_*` overrides are removed. The debugger uses an ephemeral loopback port, discovered from that profile's `webview/EBWebView/DevToolsActivePort`. Only the explicitly linked smoke binary enables it; normal builds do not add debugger arguments. Images come directly from the connected WebView2, without launching another browser or assuming an Edge installation path. Repeated/concurrent runs can coexist with independent profiles.
+
+Build/startup/scenario failures and handled SIGINT/SIGTERM interrupts enter cleanup. Cleanup stops only the launched application's PID and descendants, closes the local fixture and removes that execution's profile/executable. It has finite deadlines/retries and reports cleanup failure as a failed smoke. Reports and synthetic screenshots remain in `.tools/check-results/ui-smoke/run-*`; profiles, DPAPI keys and raw application output are not published. Forced termination of the harness or the machine can bypass cleanup; any leftover directory is named in the run output. Never point the harness at a personal profile.
+
+The Windows workflow runs the native smoke as a required step after the build. Missing runtime, an unavailable graphical session, failed interaction and timeout fail the step; they never become successful skips. The hosted runner still needs to be validated by an actual workflow execution. Mounting remains separately opt-in and requires WinFsp.
+
+```powershell
+node --test scripts/ui-smoke-runtime.test.mjs
+node scripts/check-results.mjs
+```
+
+`build.ps1 -Check` includes the harness regressions and records Go test events in `.tools/check-results/go-tests.jsonl`; packaging records the actual prerequisite signature tests separately in `signatures.jsonl`. The report distinguishes `passed`, `failed`, `skipped` (with the test's reason) and `not_run`. A passing signature parent cannot hide skipped component checks. Later packaging results supersede earlier results for the same signature test. Native smoke reports include every recorded local run, including deliberately injected failures; use their reasons to distinguish those experiments. The workflow always generates the summary and uploads only the summary, smoke result records and images, including on failure. Raw Go event files stay local. Local reports reflect the files currently present; CI uses a fresh checkout.
 
 Settings and key regressions can be run without mounting drives or changing the Windows startup registry:
 

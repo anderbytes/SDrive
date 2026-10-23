@@ -13,7 +13,16 @@ try {
         npm run build
         if ($LASTEXITCODE) { throw 'Interface build failed' }
     } finally { Pop-Location }
-    if ($Check) { & $go test ./...; if ($LASTEXITCODE) { throw 'Go tests failed' } }
+    if ($Check) {
+        node --test scripts/ui-smoke-runtime.test.mjs
+        if ($LASTEXITCODE) { throw 'Native smoke harness tests failed' }
+        New-Item -ItemType Directory -Force -Path '.tools/check-results' | Out-Null
+        & $go test -json ./... | Tee-Object -FilePath '.tools/check-results/go-tests.jsonl' | ForEach-Object {
+            $event = $_ | ConvertFrom-Json
+            if ($event.Action -eq 'output') { Write-Host $event.Output -NoNewline }
+        }
+        if ($LASTEXITCODE) { throw 'Go tests failed' }
+    }
     New-Item -ItemType Directory -Force -Path bin | Out-Null
     & $go build -trimpath -tags production -ldflags '-s -w -H windowsgui' -o bin/SDrive.exe .
     if ($LASTEXITCODE) { throw 'Go build failed' }

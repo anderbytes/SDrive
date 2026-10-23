@@ -152,14 +152,16 @@ func main() {
 			application.InvokeAsync(show)
 		}
 	}}}
-	if uiSmoke == "true" {
-		options.Windows.AdditionalBrowserArgs = []string{"--remote-debugging-port=9337"}
-	}
+	options.Windows.AdditionalBrowserArgs = smokeBrowserArgs()
 	app := application.New(options)
 	service, err := core.New(dir, nil, "")
 	if err != nil {
 		platform.Alert(err.Error())
 		return
+	}
+	if uiSmoke == "true" {
+		// Disposable preferences must never change the user's Windows startup entry.
+		core.SetAutoStart(service, func(bool) error { return nil })
 	}
 	core.SetDiagnostics(service, diagnosticLog)
 	app.RegisterService(application.NewService(service))
@@ -225,6 +227,13 @@ func main() {
 		diagnosticLog.Operation("application", err)
 		platform.Alert("Could not open SDrive. Run the SDrive installer again to repair the required components.")
 	}
+}
+
+func smokeBrowserArgs() []string {
+	if uiSmoke != "true" {
+		return nil
+	}
+	return []string{"--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1"}
 }
 
 func trayIcon() []byte {
