@@ -30,7 +30,7 @@ func TestWindowsMountLifecycle(t *testing.T) {
 	if err = engine.Init(binary, dir); err != nil {
 		t.Fatal(err)
 	}
-	rpc, err := engine.Start(binary, dir)
+	rpc, err := engine.Start(binary, dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

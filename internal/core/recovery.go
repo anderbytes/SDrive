@@ -152,7 +152,8 @@ func (s *Service) cleanup() error {
 	return err
 }
 
-func (s *Service) RestoreSettings() error {
+func (s *Service) RestoreSettings() (resultErr error) {
+	defer func() { s.diagnostics.Operation("recovery", resultErr) }()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.settingsError == "" || s.incompatibleSettings || s.session != nil || s.exiting {
@@ -217,7 +218,8 @@ func (s *Service) RestoreSettings() error {
 	return nil
 }
 
-func (s *Service) VerifyRecovery() error {
+func (s *Service) VerifyRecovery() (resultErr error) {
+	defer func() { s.diagnostics.Operation("recovery", resultErr) }()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {

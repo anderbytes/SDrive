@@ -9,6 +9,9 @@ test("English defaults, Portuguese translations and unknown text fallback", () =
     "Unknown provider message",
   );
   expect(translate("pt-BR", "constructor")).toBe("constructor");
+  expect(translate("pt-BR", "Engine stopped (exit code 17; last signal: network). Restart SDrive to recover your drives.")).toBe(
+    "O mecanismo parou (código de saída 17; último sinal: network). Reinicie o SDrive para recuperar suas unidades.",
+  );
   expect(translate("pt-BR", "More actions for {name}", { name: "Root" })).toBe(
     "Mais ações para Root",
   );

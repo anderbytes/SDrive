@@ -21,6 +21,18 @@ The tray shows connected-drive counts and distinguishes uploads, recovery, unkno
 
 Window position, size and maximization are remembered and adjusted to available monitors. **About SDrive** lists application, running rclone, Windows and installed WinFsp/WebView2 versions; unavailable components are shown explicitly.
 
+## Update, repair and collect diagnostics
+
+1. Before updating, close files in other applications, let uploads finish and choose **Exit safely**. If exit is blocked, complete recovery at the original destination first. Closing the window only hides SDrive in the tray.
+2. Run the compatible online or offline installer for your Windows installation. Both preserve your profile; the offline installer is useful when prerequisite downloads are restricted. Updates are manual. Do not run the installer while SDrive is active.
+3. Reopen SDrive and check **About SDrive**. If installation fails or components are missing, preserve the profile and rerun the compatible installer to repair it. Installer failure/interruption is not a successful update; replacement is not guaranteed to be transactional.
+
+If SDrive reports an unsupported settings version, use the application version that created it or a compatible newer version. Do not downgrade by deleting or editing settings, restore an older backup to bypass incompatibility, or remove keys/cache/recovery markers. For damaged preferences, use the application's deliberate recovery flow described in [local settings recovery](docs/security.md#local-settings-recovery).
+
+For support, open **About SDrive → View diagnostics**, review the technical text, then choose **Copy report** and paste it into your support request. This remains available when settings or the engine cannot load. The controls follow your selected language; the technical report is in English. Include what you were doing and whether the issue repeats, without adding private names, destinations or files.
+
+Minimal technical events are collected automatically and kept only in your local profile: at most 256 events in memory and two rotating files of 128 KiB each. There is no automatic transmission or telemetry. Reports contain versions, aggregate state, failure stages and sanitized engine-exit context; they exclude credentials, account/connection names, URLs, private paths and file contents. Unknown causes remain generic. Storage failures never authorize cache deletion or bypass safe exit. See [diagnostic privacy and limits](docs/security.md#local-diagnostics).
+
 ## Language
 
 English is the application's default and the language of the repository, source messages and documentation. The interface supports **English** and **Português (Brasil)**. Choose **Preferences → Language** and save. The choice is stored in your settings and applies to the interface, connection wizard and tray menu. Missing translations fall back to English. Account names, remote paths and file contents are preserved.

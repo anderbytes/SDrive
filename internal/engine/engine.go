@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -21,6 +20,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"sdrive/internal/diagnostics"
 )
 
 const Version = "v1.75.2"
@@ -32,6 +32,12 @@ type Engine struct {
 	done                chan struct{}
 	client              *http.Client
 	mu                  sync.Mutex
+	statusMu            sync.Mutex
+	diagnostics         *diagnostics.Collector
+	lastSignal          string
+	lastRPCFailure      string
+	exitCode            *int64
+	requested, forced   bool
 }
 
 func FindBinary() (string, error) {
@@ -97,8 +103,9 @@ func Init(binary, dir string) error {
 	return nil
 }
 
-func Start(binary, dir string) (*Engine, error) {
-	e := &Engine{user: randomSecret(), password: randomSecret(), done: make(chan struct{}), client: &http.Client{Timeout: 6 * time.Minute, Transport: &http.Transport{Proxy: nil}}}
+func Start(binary, dir string, log *diagnostics.Collector) (*Engine, error) {
+	e := &Engine{diagnostics: log, user: randomSecret(), password: randomSecret(), done: make(chan struct{}), client: &http.Client{Timeout: 6 * time.Minute, Transport: &http.Transport{Proxy: nil}}}
+	log.Record("engine_start", "started", "none", nil)
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -106,20 +113,19 @@ func Start(binary, dir string) (*Engine, error) {
 	cmd := exec.Command(binary, "rcd", "--config", filepath.Join(dir, "rclone.conf"), "--cache-dir", filepath.Join(dir, "cache"), "--rc-addr", "127.0.0.1:0", "--use-json-log", "--log-level", "INFO", "--ask-password=false", "--password-command", quote(exe)+" --config-key "+quote(dir))
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	cmd.Env = environment("RCLONE_RC_USER="+e.user, "RCLONE_RC_PASS="+e.password)
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
+	cmd.WaitDelay = time.Second
+	ready := make(chan string, 1)
+	logs := &logWriter{e: e, ready: ready}
+	cmd.Stderr = logs
 	cmd.Stdout = io.Discard
 	if err = cmd.Start(); err != nil {
+		log.Operation("engine_start", err)
 		return nil, err
 	}
 	e.cmd = cmd
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
-		cmd.Process.Kill()
-		cmd.Wait()
-		return nil, err
+		return nil, e.supervisionFailure(cmd, logs)
 	}
 	e.job = job
 	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
@@ -135,46 +141,28 @@ func Start(binary, dir string) (*Engine, error) {
 		}
 	}
 	if err != nil {
-		cmd.Process.Kill()
-		cmd.Wait()
+		failure := e.supervisionFailure(cmd, logs)
 		windows.CloseHandle(job)
-		return nil, fmt.Errorf("could not supervise the rclone process: %w", err)
+		e.job = 0
+		return nil, failure
 	}
-	ready := make(chan string, 1)
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		scanner.Buffer(make([]byte, 4096), 1024*1024)
-		for scanner.Scan() {
-			var record struct {
-				Msg string `json:"msg"`
-			}
-			if json.Unmarshal(scanner.Bytes(), &record) == nil {
-				const marker = "Serving remote control on "
-				if strings.HasPrefix(record.Msg, marker) {
-					address := strings.TrimSpace(strings.TrimPrefix(record.Msg, marker))
-					if strings.HasPrefix(address, "http://127.0.0.1:") {
-						select {
-						case ready <- strings.TrimRight(address, "/"):
-						default:
-						}
-					}
-				}
-			}
-		}
-	}()
-	go func() { cmd.Wait(); close(e.done) }()
+	go e.wait(cmd, logs)
 	select {
 	case e.url = <-ready:
 		if err = e.checkAuthentication(); err != nil {
+			log.Operation("engine_auth", err)
 			e.Close()
 			return nil, err
 		}
+		log.Operation("engine_auth", nil)
+		log.Operation("engine_start", nil)
 		return e, nil
 	case <-e.done:
 		e.Close()
-		return nil, fmt.Errorf("rclone exited during startup")
+		return nil, fmt.Errorf("%s", e.exitSummary("rclone exited during startup"))
 	case <-time.After(30 * time.Second):
 		e.Close()
+		log.Record("engine_start", "failed", "engine", nil)
 		return nil, fmt.Errorf("rclone did not start the local API in time")
 	}
 }
@@ -206,7 +194,19 @@ func (e *Engine) Alive() bool {
 		return true
 	}
 }
-func (e *Engine) Call(ctx context.Context, method string, input any, out any) error {
+func (e *Engine) Call(ctx context.Context, method string, input any, out any) (err error) {
+	defer func() {
+		if err != nil {
+			kind := diagnostics.Kind(err)
+			e.statusMu.Lock()
+			changed := e.lastRPCFailure != kind
+			e.lastRPCFailure = kind
+			e.statusMu.Unlock()
+			if changed {
+				e.diagnostics.Operation("engine_rpc", err)
+			}
+		}
+	}()
 	if method == "config/create" || method == "config/update" {
 		return e.configure(ctx, method, input, out)
 	}
@@ -343,13 +343,23 @@ func (e *Engine) Close() {
 	defer e.mu.Unlock()
 	if e.cmd != nil {
 		if e.Alive() {
+			e.statusMu.Lock()
+			e.requested = true
+			e.statusMu.Unlock()
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			_ = e.Call(ctx, "core/quit", map[string]any{}, nil)
 			cancel()
 			select {
 			case <-e.done:
 			case <-time.After(3 * time.Second):
+				e.statusMu.Lock()
+				e.forced = true
+				e.statusMu.Unlock()
 				_ = e.cmd.Process.Kill()
+				select {
+				case <-e.done:
+				case <-time.After(time.Second):
+				}
 			}
 		}
 		e.cmd = nil

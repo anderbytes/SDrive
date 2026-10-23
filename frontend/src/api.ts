@@ -1,4 +1,4 @@
-import { Call, Events } from "@wailsio/runtime";
+import { Call, Clipboard, Events } from "@wailsio/runtime";
 
 export interface AboutInfo {
   appVersion: string;
@@ -123,6 +123,8 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
 }
 export const api = {
   about: () => invoke<AboutInfo>("About"),
+  diagnostics: () => invoke<string>("Diagnostics"),
+  copyDiagnostics: (report: string) => Clipboard.SetText(report),
   desktopVisible: () => invoke<boolean>("DesktopVisible"),
   onDesktopVisibility: (callback: (visible: boolean) => void) =>
     Events.On("desktop:visibility", (event) => { if (typeof event.data === "boolean") callback(event.data); }),

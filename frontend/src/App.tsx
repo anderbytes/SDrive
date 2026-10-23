@@ -455,12 +455,45 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
   const dialog = useDialog(onClose);
   const [info, setInfo] = useState<AboutInfo>();
   const [error, setError] = useState("");
+  const [report, setReport] = useState("");
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [reportError, setReportError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const active = useRef(true);
   useEffect(() => {
-    let active = true;
-    void api.about().then((value) => { if (active) setInfo(value); })
-      .catch((e) => { if (active) setError(message(e)); });
-    return () => { active = false; };
+    active.current = true;
+    let current = true;
+    void api.about().then((value) => { if (current) setInfo(value); })
+      .catch((e) => { if (current) setError(message(e)); });
+    return () => { current = false; active.current = false; };
   }, []);
+  const loadReport = async () => {
+    setLoadingReport(true);
+    setReportError("");
+    setCopied(false);
+    try {
+      const text = await api.diagnostics();
+      if (active.current) setReport(text);
+    } catch {
+      if (active.current) setReportError("Could not load the diagnostic report. Try again.");
+    } finally {
+      if (active.current) setLoadingReport(false);
+    }
+  };
+  const copyReport = async () => {
+    setCopying(true);
+    setReportError("");
+    setCopied(false);
+    try {
+      await api.copyDiagnostics(report);
+      if (active.current) setCopied(true);
+    } catch {
+      if (active.current) setReportError("Could not copy the report. Select and copy the text manually.");
+    } finally {
+      if (active.current) setCopying(false);
+    }
+  };
   return <dialog ref={dialog} className="modal small" role="dialog" aria-modal="true" aria-labelledby="about-title">
     <h2 id="about-title">{t("About SDrive")}</h2>
     <p>{t("Open source · GPLv3")}</p>
@@ -471,6 +504,15 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       ["Windows", info.windowsVersion], ["WinFsp (installed)", info.winFspVersion],
       ["WebView2 (installed)", info.webView2Version], ["Architecture", info.architecture],
     ]).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
+    <p>{t("Minimal diagnostics are kept locally with fixed limits. Nothing is sent automatically. Review the report before sharing.")}</p>
+    <button disabled={loadingReport || copying} onClick={() => void loadReport()}>{t(loadingReport ? "Loading diagnostic report…" : "View diagnostics")}</button>
+    {reportError && <p role="alert" className="alert error">{t(reportError)}</p>}
+    {report && <>
+      <label htmlFor="diagnostic-report">{t("Diagnostic report (technical text in English)")}</label>
+      <textarea id="diagnostic-report" className="diagnostic-report" readOnly value={report} spellCheck={false} />
+      <button disabled={copying || loadingReport} onClick={() => void copyReport()}>{t("Copy report")}</button>
+    </>}
+    {copied && <p role="status">{t("Report copied.")}</p>}
     <div className="modal-actions"><button onClick={onClose}>{t("Close")}</button></div>
   </dialog>;
 }

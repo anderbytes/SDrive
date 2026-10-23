@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"sdrive/internal/diagnostics"
 	"sdrive/internal/i18n"
 	"sdrive/internal/platform"
 )
@@ -150,6 +151,7 @@ type Service struct {
 	desktopVisible       func() bool
 	snapshotChanged      func(uint64, View)
 	appVersion           string
+	diagnostics          *diagnostics.Collector
 }
 
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
@@ -262,6 +264,11 @@ func (s *Service) Snapshot() View {
 	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.winFsp(), EngineError: s.engineError}
 	if s.rpc != nil && !s.rpc.Alive() {
 		v.EngineError = "Engine stopped. Restart SDrive to recover your drives."
+		if stopped, ok := s.rpc.(interface{ EngineExitSummary() string }); ok {
+			if summary := stopped.EngineExitSummary(); summary != "" {
+				v.EngineError = summary
+			}
+		}
 	}
 	reserved := map[string]bool{}
 	for _, c := range s.store.Connections {
@@ -371,7 +378,8 @@ func (s *Service) Snapshot() View {
 	return v
 }
 
-func (s *Service) BeginConfig(input ConfigInput) (string, error) {
+func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr error) {
+	defer func() { s.diagnostics.Operation("setup", resultErr) }()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
@@ -553,6 +561,13 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 	}
 	ss := s.session
 	ss.Busy = false
+	defer func() {
+		failure := err
+		if failure == nil && ss.Error != "" {
+			failure = fmt.Errorf("setup failed")
+		}
+		s.diagnostics.Operation("setup", failure)
+	}()
 	if ctx.Err() != nil {
 		ss.Error = "Setup expired; cancel and try again"
 		return
@@ -663,7 +678,8 @@ func (s *Service) AnswerConfig(id, answer string) error {
 	go func() { defer cancel(); defer close(done); s.configure(ctx, id, ss.rpc, "config/update", input) }()
 	return nil
 }
-func (s *Service) EndConfig(id string) error {
+func (s *Service) EndConfig(id string) (resultErr error) {
+	defer func() { s.diagnostics.Operation("setup", resultErr) }()
 	s.mu.Lock()
 	ss := s.session
 	if ss == nil || ss.ID != id {
@@ -1016,7 +1032,8 @@ func (s *Service) Prerequisite(which string) error {
 	return s.open(url)
 }
 
-func (s *Service) RestartEngine() error {
+func (s *Service) RestartEngine() (resultErr error) {
+	defer func() { s.diagnostics.Operation("engine_start", resultErr) }()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {

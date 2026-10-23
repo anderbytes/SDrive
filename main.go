@@ -23,6 +23,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 	"sdrive/internal/core"
+	"sdrive/internal/diagnostics"
 	"sdrive/internal/engine"
 	"sdrive/internal/i18n"
 	"sdrive/internal/platform"
@@ -124,6 +125,9 @@ func main() {
 		return
 	}
 	defer unlock()
+	diagnosticLog := diagnostics.New(dir)
+	diagnosticLog.Record("application", "started", "none", nil)
+	defer func() { diagnosticLog.Operation("application", nil); diagnosticLog.Close() }()
 	var rpc *engine.Engine
 	var engineMu sync.Mutex
 	defer func() {
@@ -157,6 +161,7 @@ func main() {
 		platform.Alert(err.Error())
 		return
 	}
+	core.SetDiagnostics(service, diagnosticLog)
 	app.RegisterService(application.NewService(service))
 	core.SetDesktop(service, func(target string) error {
 		if len(target) == 3 && target[1:] == `:\` {
@@ -170,16 +175,21 @@ func main() {
 			rpc.Close()
 		}
 		binary, err := engine.FindBinary()
+		diagnosticLog.Operation("engine_find", err)
 		if err != nil {
 			return nil, err
 		}
 		if _, err = platform.Key(dir); err != nil {
+			diagnosticLog.Operation("key", err)
 			return nil, err
 		}
+		diagnosticLog.Operation("key", nil)
 		if err = engine.Init(binary, dir); err != nil {
+			diagnosticLog.Operation("engine_init", err)
 			return nil, err
 		}
-		rpc, err = engine.Start(binary, dir)
+		diagnosticLog.Operation("engine_init", nil)
+		rpc, err = engine.Start(binary, dir, diagnosticLog)
 		if err != nil {
 			return nil, err
 		}
@@ -212,6 +222,7 @@ func main() {
 	})
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) { go core.AutoMount(service) })
 	if err = app.Run(); err != nil {
+		diagnosticLog.Operation("application", err)
 		platform.Alert("Could not open SDrive. Run the SDrive installer again to repair the required components.")
 	}
 }
@@ -259,7 +270,7 @@ func selfCheck() error {
 	if err = engine.Init(binary, dir); err != nil {
 		return err
 	}
-	rpc, err := engine.Start(binary, dir)
+	rpc, err := engine.Start(binary, dir, nil)
 	if err != nil {
 		return err
 	}

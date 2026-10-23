@@ -75,6 +75,7 @@ button:disabled {
 }
 button:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible {
   outline: 2px solid #48dfb4;
@@ -533,6 +534,7 @@ summary::-webkit-details-marker {
 }
 .about-versions > div { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 0; }
 .about-versions dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.diagnostic-report { display: block; width: 100%; min-height: 12rem; margin: .5rem 0; resize: vertical; font-family: monospace; }
 
 .sr-only {
   position: absolute;

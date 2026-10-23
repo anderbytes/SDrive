@@ -33,6 +33,7 @@ func readMounts(ctx context.Context, rpc RPC) ([]engineMount, error) {
 func mountLetter(point string) string { return strings.TrimRight(strings.ToUpper(point), `\/`) }
 
 func (s *Service) Mount(id string) (resultErr error) {
+	defer func() { s.diagnostics.Operation("mount", resultErr) }()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, owned := false, false
@@ -217,7 +218,8 @@ func (s *Service) pendingOn(ctx context.Context, rpc RPC, c Connection) (int, er
 	return max(cached, uploads.Active+uploads.Queued, uploads.CacheErrors), nil
 }
 
-func (s *Service) Unmount(id string) error {
+func (s *Service) Unmount(id string) (resultErr error) {
+	defer func() { s.diagnostics.Operation("unmount", resultErr) }()
 	s.mu.Lock()
 	i := s.index(id)
 	if i < 0 {
@@ -263,7 +265,8 @@ func (s *Service) Unmount(id string) error {
 	return nil
 }
 
-func (s *Service) drainAndUnmount(c Connection) (bool, error) {
+func (s *Service) drainAndUnmount(c Connection) (unmounted bool, resultErr error) {
+	defer func() { s.diagnostics.Operation("cache", resultErr) }()
 	s.mu.Lock()
 	rpc := s.rpc
 	s.mu.Unlock()
@@ -305,7 +308,8 @@ func (s *Service) drainAndUnmount(c Connection) (bool, error) {
 	return true, nil
 }
 
-func (s *Service) Exit() error {
+func (s *Service) Exit() (resultErr error) {
+	defer func() { s.diagnostics.Operation("exit", resultErr) }()
 	s.mu.Lock()
 	if s.exiting {
 		s.mu.Unlock()

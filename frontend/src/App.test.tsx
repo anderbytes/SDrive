@@ -24,6 +24,8 @@ vi.mock("./api", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api")>(),
   api: {
     about: vi.fn(),
+    diagnostics: vi.fn(),
+    copyDiagnostics: vi.fn(),
     desktopVisible: vi.fn(),
     onDesktopVisibility: vi.fn(),
     snapshot: vi.fn(),
@@ -125,6 +127,71 @@ test("About uses Portuguese and reports a failed version request", async () => {
   await screen.findByText("version request failed");
   fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("diagnostics previews and copies exactly the reviewed report during settings recovery", async () => {
+  const report = "SDrive diagnostic report v1\nengine_exit unexpected network exit=17\n";
+  vi.mocked(api.about).mockRejectedValue(new Error("versions unavailable"));
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settingsError: "Settings damaged" });
+  vi.mocked(api.diagnostics).mockResolvedValue(report);
+  vi.mocked(api.copyDiagnostics).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "About SDrive" }));
+  expect(api.diagnostics).not.toHaveBeenCalled();
+  expect(screen.queryByRole("button", { name: "Copy report" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
+  const preview = await screen.findByRole("textbox", { name: "Diagnostic report (technical text in English)" });
+  expect((preview as HTMLTextAreaElement).value).toBe(report);
+  expect((preview as HTMLTextAreaElement).readOnly).toBe(true);
+  expect(api.copyDiagnostics).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Copy report" }));
+  await screen.findByText("Report copied.");
+  expect(api.copyDiagnostics).toHaveBeenCalledWith(report);
+});
+
+test("diagnostics offers retry and manual selection when loading or copying fails", async () => {
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
+  vi.mocked(api.diagnostics).mockRejectedValueOnce(new Error("private backend error")).mockResolvedValue("safe report");
+  vi.mocked(api.copyDiagnostics).mockRejectedValue(new Error("private clipboard error"));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "About SDrive" }));
+  fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
+  await screen.findByText("Could not load the diagnostic report. Try again.");
+  fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
+  await screen.findByRole("textbox");
+  fireEvent.click(screen.getByRole("button", { name: "Copy report" }));
+  await screen.findByText("Could not copy the report. Select and copy the text manually.");
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("safe report");
+  expect(screen.queryByText(/private/)).toBeNull();
+  cancelDialog();
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("diagnostics controls and clipboard feedback use Portuguese", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" } });
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
+  vi.mocked(api.diagnostics).mockResolvedValue("SDrive diagnostic report v1");
+  vi.mocked(api.copyDiagnostics).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Sobre o SDrive" }));
+  fireEvent.click(screen.getByRole("button", { name: "Ver diagnóstico" }));
+  await screen.findByRole("textbox", { name: "Relatório de diagnóstico (texto técnico em inglês)" });
+  fireEvent.click(screen.getByRole("button", { name: "Copiar relatório" }));
+  await screen.findByText("Relatório copiado.");
+});
+
+test("closing About ignores a late diagnostic response", async () => {
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
+  let resolve!: (report: string) => void;
+  vi.mocked(api.diagnostics).mockImplementation(() => new Promise((done) => { resolve = done; }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "About SDrive" }));
+  fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
+  expect((screen.getByRole("button", { name: "Loading diagnostic report…" }) as HTMLButtonElement).disabled).toBe(true);
+  cancelDialog();
+  await act(async () => { resolve("late report"); });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(api.copyDiagnostics).not.toHaveBeenCalled();
 });
 
 test("hidden polling stops and showing refreshes immediately without accepting a late snapshot", async () => {

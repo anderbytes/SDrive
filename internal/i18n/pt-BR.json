@@ -482,5 +482,16 @@
   "FTPS encrypts the connection. Unencrypted FTP exposes credentials and file content to the network.": "FTPS criptografa a conexão. FTP sem criptografia expõe credenciais e conteúdo dos arquivos à rede.",
   "Unencrypted connections expose credentials and file content to the network.": "Conexões sem criptografia expõem credenciais e conteúdo dos arquivos à rede.",
   "Prevents changes through this drive. Account permissions remain unchanged.": "Impede alterações por esta unidade. As permissões da conta permanecem iguais.",
-  "SDrive attempts to connect this drive when it starts. Recovery may require your attention.": "O SDrive tenta conectar esta unidade ao iniciar. A recuperação pode exigir sua atenção."
+  "SDrive attempts to connect this drive when it starts. Recovery may require your attention.": "O SDrive tenta conectar esta unidade ao iniciar. A recuperação pode exigir sua atenção.",
+  "Minimal diagnostics are kept locally with fixed limits. Nothing is sent automatically. Review the report before sharing.": "Diagnósticos mínimos são mantidos localmente com limites fixos. Nada é enviado automaticamente. Revise o relatório antes de compartilhar.",
+  "View diagnostics": "Ver diagnóstico",
+  "Loading diagnostic report…": "Carregando relatório de diagnóstico…",
+  "Diagnostic report (technical text in English)": "Relatório de diagnóstico (texto técnico em inglês)",
+  "Copy report": "Copiar relatório",
+  "Report copied.": "Relatório copiado.",
+  "Could not load the diagnostic report. Try again.": "Não foi possível carregar o relatório de diagnóstico. Tente novamente.",
+  "Could not copy the report. Select and copy the text manually.": "Não foi possível copiar o relatório. Selecione e copie o texto manualmente.",
+  "Engine stopped (exit code %d; last signal: %s). Restart SDrive to recover your drives.": "O mecanismo parou (código de saída %d; último sinal: %s). Reinicie o SDrive para recuperar suas unidades.",
+  "rclone exited during startup (exit code %d; last signal: %s). Restart SDrive to recover your drives.": "O rclone encerrou durante a inicialização (código de saída %d; último sinal: %s). Reinicie o SDrive para recuperar suas unidades.",
+  "could not supervise the rclone process (exit code %d; last signal: %s). Restart SDrive to recover your drives.": "Não foi possível supervisionar o processo rclone (código de saída %d; último sinal: %s). Reinicie o SDrive para recuperar suas unidades."
 }

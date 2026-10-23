@@ -74,6 +74,24 @@ The root tests start a disposable child process with the real Wails message-only
 
 For native acceptance, use a new temporary profile by setting `LOCALAPPDATA` only in the child process environment. Check background startup, second launch and focus, close-to-tray, minimization, geometry after restart, About and safe exit. Stop only that profile's own rclone child to verify that a new background engine failure reveals the window and an unchanged failure does not reveal it again. Verify taskbar/DPI and monitor-removal behavior separately on suitable hardware. Do not reuse a personal profile or terminate another instance to run these checks. Use the native UI smoke harness separately.
 
+## Diagnostic checks
+
+`Service.Diagnostics()` returns a sanitized text report through the existing Wails bridge. The About dialog previews it and uses the installed runtime's `Clipboard.SetText` to copy exactly that preview. Collection is installed before service publication and engine initialization; tests can leave the collector nil. The engine and service share one collector, while its disk worker never takes service or engine locks. Snapshot reads do not emit routine status events; repeated engine failure categories are deduplicated.
+
+Run the root and affected-package tests, frontend checks and production build:
+
+```powershell
+./.tools/go/bin/go.exe test . ./internal/diagnostics ./internal/engine ./internal/core ./internal/platform ./internal/i18n
+./.tools/go/bin/go.exe vet ./...
+npm --prefix frontend test
+npm --prefix frontend run build
+./.tools/go/bin/go.exe build -tags production -o .tools/diagnostics-check.exe .
+```
+
+Diagnostics tests use temporary profiles, injected errors, fake RPC responses and disposable helper child processes. They exercise redaction, malformed/oversized history, file rotation, bounded memory/queue, concurrent recording, unavailable storage and bounded writer shutdown. Engine helper tests cover early and unexpected exit, graceful shutdown, forced termination and the final unterminated stderr record. Oversized/malformed stderr is drained without retaining it or blocking readiness. Engine stderr copying completes before exit context is published; `WaitDelay` bounds inherited pipes after process termination. These helpers do not load real credentials or mount drives.
+
+Frontend regressions cover explicit preview/copy, exact copied text, clipboard and loading failures, retry, English/Portuguese controls, settings-recovery availability and late responses after closing. They mock the clipboard and bridge. To validate native clipboard behavior separately, use a disposable profile, inspect the preview and paste it into a temporary editor; check keyboard selection/scrolling and focus at the minimum window size in both languages. Never attach a personal profile or raw logs to test evidence. Native WebView, actual clipboard integration and interrupted-update VM acceptance must be reported separately from unit tests and build success.
+
 ## Accessibility checks
 
 The four application dialogs use native `dialog.showModal()` in WebView2. The browser supplies modal background isolation and keyboard navigation; cancellation remains controlled by the application so busy operations and asynchronous authentication cleanup cannot be bypassed with Escape. Closing returns focus to the opener when it still exists. Action disclosures retain ordinary Tab navigation and close on an action, outside pointer interaction, focus departure or Escape; actions and Escape return focus to the summary.
