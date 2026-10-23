@@ -333,19 +333,15 @@ header p {
 .inline-error {
   color: #f5b0b7 !important;
 }
-.overlay {
-  position: fixed;
-  inset: 0;
+.modal::backdrop {
   background: #000a;
   backdrop-filter: blur(5px);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 36px;
-  overflow-y: auto;
-  z-index: 10;
 }
 .modal {
+  color: inherit;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  overflow: auto;
   background: #131d28;
   border: 1px solid #354454;
   border-radius: 15px;
@@ -537,3 +533,45 @@ summary::-webkit-details-marker {
 }
 .about-versions > div { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 0; }
 .about-versions dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+main, fieldset, .form-grid > *, .about-versions dt { min-width: 0; }
+.modal { overflow-wrap: anywhere; }
+header, .summary, .actions, .modal-actions, .alert { flex-wrap: wrap; }
+.actions > details { flex-shrink: 0; }
+.check + small { display: block; margin: -8px 0 18px; }
+@media (max-width: 650px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  aside { position: static; height: auto; padding: 16px; }
+  .brand { margin-bottom: 16px; }
+  aside footer { margin-top: 16px; }
+  main { padding: 24px 16px; }
+  .summary { gap: 16px; }
+  .drive { padding: 16px; gap: 12px; }
+  .drive-info { flex-basis: calc(100% - 80px); }
+  .actions { margin-left: 0; width: 100%; }
+  .actions > details { margin-left: auto; }
+  .modal { padding: 18px; }
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .secret-control, .about-versions > div { flex-wrap: wrap; }
+  .secret-control input { flex-basis: 100%; }
+  .about-versions dd { text-align: left; }
+}
+@media (forced-colors: active) {
+  :root { color-scheme: light dark; }
+  .modal::backdrop { background: Canvas; opacity: .75; backdrop-filter: none; }
+  button:disabled { opacity: 1; color: GrayText; border-color: GrayText; }
+  button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline-color: Highlight; }
+  .nav-active, .letter.connected, .state, .warning, .error, .success { border: 1px solid CanvasText; }
+  [aria-invalid="true"] { border: 2px solid LinkText; }
+  .modal, .dropdown { box-shadow: none; }
+}

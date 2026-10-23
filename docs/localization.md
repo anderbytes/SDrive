@@ -10,6 +10,10 @@ English (`en`) is the source language and default for new or older settings file
 
 Translate display fields explicitly: labels, hints, notices, known authentication questions and errors. Never translate configuration keys, provider IDs, account names, user-supplied labels, remote folder names, paths, example values or file content. Provider-owned library/site names stay as returned by the service. The installer and its helper progress use English; native system dialogs may follow Windows language settings.
 
+Accessibility text follows the same catalog: the drive-list name, experimental indicators, control descriptions and drive-state announcements use English source keys. Announcements preserve the connection name as a placeholder, establish a silent initial baseline and report state changes rather than repeating unchanged polls or upload counters. Changing language alone does not announce existing drives again.
+
+Use `aria-describedby` to associate instructions and consequences with their controls. Keep help and validation-error IDs together while an error is present; clearing an error must retain the help. Password visibility controls preserve that association. Keep explanatory text outside checkbox labels so it does not become part of their accessible name.
+
 ## Adding a language
 
 1. Add an English-to-translation JSON catalog beside `pt-BR.json`, preserving named and Go format placeholders.

@@ -9,7 +9,14 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { App } from "./App";
-import { api, type ConnectionView } from "./api";
+import { api, type ConnectionView, type Snapshot } from "./api";
+
+// JSDOM has no modal top layer; native focus and isolation are checked in WebView2.
+Object.defineProperties(HTMLDialogElement.prototype, {
+  showModal: { configurable: true, value() { this.setAttribute("open", ""); } },
+  close: { configurable: true, value() { this.removeAttribute("open"); } },
+});
+const cancelDialog = () => fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
 
 vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
 
@@ -105,7 +112,7 @@ test("About shows actual versions and unavailable components, and returns focus 
   fireEvent.click(button);
   await screen.findByText("v-running");
   expect(screen.getByRole("dialog").textContent).toContain("Unavailable or not installed");
-  fireEvent.keyDown(document, { key: "Escape" });
+  cancelDialog();
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(document.activeElement).toBe(button);
 });
@@ -252,23 +259,19 @@ test("recovery and startup warnings use the saved interface language", async () 
   expect(screen.getByText("A inicialização do Windows pode diferir das preferências salvas. Salve as preferências para sincronizá-la.")).toBeDefined();
 });
 
-test("dialog traps keyboard focus and Escape restores the opener", async () => {
-  render(<App />);
+test("dialog opens modally, handles cancellation and restores the opener", async () => {
+  const show = vi.spyOn(HTMLDialogElement.prototype, "showModal");
+  render(<React.StrictMode><App /></React.StrictMode>);
   const opener = await screen.findByText("Add my first connection");
   opener.focus();
   fireEvent.click(opener);
-  const first = screen.getByRole("button", { name: "Close setup" });
-  expect(document.activeElement).toBe(first);
-  opener.focus();
-  fireEvent.keyDown(document, { key: "Tab" });
-  expect(document.activeElement).toBe(first);
-  fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
-  expect(document.activeElement).toBe(
-    screen.getByRole("button", { name: "Continue" }),
-  );
-  fireEvent.keyDown(document, { key: "Escape" });
+  expect(show).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole("dialog").hasAttribute("open")).toBe(true);
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close setup" }));
+  cancelDialog();
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(document.activeElement).toBe(opener);
+  show.mockRestore();
 });
 
 test("empty state opens accessible connection form", async () => {
@@ -350,6 +353,7 @@ test("provider question accepts MFA and does not persist it in browser storage",
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   const code = await screen.findByLabelText("MFA code");
   expect(code.getAttribute("type")).toBe("password");
+  expect(document.getElementById(code.getAttribute("aria-describedby")!)?.textContent).toBe("Confirme o segundo fator");
   fireEvent.change(code, { target: { value: "123456" } });
   fireEvent.click(screen.getByRole("button", { name: "Show MFA code" }));
   expect(code.getAttribute("type")).toBe("text");
@@ -370,6 +374,145 @@ const ftpProvider = {
     { key: "pass", label: "Password", secret: true, required: false, default: "" },
   ],
 };
+
+test.each(["en", "pt-BR"])("drive labels and experimental text follow %s without translating account content", async (language) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot,
+    settings: { ...snapshot.settings, language: language as "en" | "pt-BR" },
+    providers: [{ ...snapshot.providers[0], experimental: true }],
+    connections: [{ ...connection, name: "Root", path: "My drives" }],
+  });
+  render(<App />);
+  await screen.findByRole("region", { name: language === "en" ? "Drives" : "Unidades" });
+  expect(screen.getByRole("heading", { name: "Root" })).toBeDefined();
+  expect(screen.getByText("Google Drive · Experimental · My drives")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: language === "en" ? "+ New connection" : "+ Nova conexão" }));
+  expect(screen.getByRole("option", { name: "Google Drive (experimental)" })).toBeDefined();
+});
+
+test("drive announcements ignore initial state, unchanged polling, counters and language changes", async () => {
+  vi.useFakeTimers();
+  let current: Snapshot = { ...snapshot, connections: [connection] };
+  vi.mocked(api.snapshot).mockImplementation(async () => current);
+  const view = render(<App />);
+  try {
+    await act(async () => {});
+    const live = view.container.querySelector('[aria-live="polite"][aria-atomic="true"]')!;
+    expect(live.textContent).toBe("");
+    const mutations: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => mutations.push(...records));
+    observer.observe(live, { subtree: true, characterData: true, childList: true });
+    const poll = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(3000); }); };
+    current = { ...current, connections: [{ ...connection, mounted: true, recovery: true }] };
+    await poll();
+    expect(live.textContent).toBe("My Drive: Connected");
+    mutations.length = 0;
+    current = { ...current, connections: [{ ...connection, mounted: true, recovery: true, pending: 5 }] };
+    await poll();
+    current = { ...current, settings: { ...current.settings, language: "pt-BR" } };
+    await poll();
+    expect(mutations).toHaveLength(0);
+    current = { ...current, connections: [{ ...connection, recovery: true }] };
+    await poll();
+    expect(live.textContent).toBe("My Drive: Recuperação necessária");
+    current = { ...current, connections: [{ ...connection, pending: null }] };
+    await poll();
+    expect(live.textContent).toBe("My Drive: Envios pendentes desconhecidos");
+    current = { ...current, connections: [connection] };
+    await poll();
+    expect(live.textContent).toBe("My Drive: Desconectada");
+    observer.disconnect();
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
+test("drive action disclosure closes on Escape, outside interaction, focus departure and actions", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  render(<App />);
+  const summary = await screen.findByLabelText("More actions for My Drive");
+  const details = summary.closest("details")!;
+  fireEvent.click(summary);
+  expect(details.open).toBe(true);
+  screen.getByRole("button", { name: "Test access" }).focus();
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(details.open).toBe(false);
+  expect(document.activeElement).toBe(summary);
+  fireEvent.click(summary);
+  const outside = screen.getByRole("button", { name: "+ New connection" });
+  fireEvent(outside, new Event("pointerdown", { bubbles: true }));
+  expect(details.open).toBe(false);
+  outside.focus();
+  expect(document.activeElement).toBe(outside);
+  fireEvent.click(summary);
+  summary.focus();
+  outside.focus();
+  expect(details.open).toBe(false);
+  fireEvent.click(summary);
+  fireEvent.click(screen.getByRole("button", { name: "Test access" }));
+  expect(api.test).toHaveBeenCalledWith(connection.id);
+  expect(details.open).toBe(false);
+  expect(document.activeElement).toBe(summary);
+  await act(async () => {});
+});
+
+test("field help survives validation and secret reveal, and security consequences are described", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [{ ...ftpProvider,
+    fields: ftpProvider.fields.map((f) => ({ ...f, hint: `${f.label} instructions` })),
+  }], connections: [{ ...connection, provider: "ftp" }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "explicit" });
+  vi.mocked(api.begin).mockRejectedValue(new Error("invalid password", { cause: { field: "pass", message: "invalid password" } }));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await waitFor(() => expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("original"));
+  const password = screen.getByLabelText("Password");
+  const help = screen.getByText("Password instructions");
+  expect(password.getAttribute("aria-describedby")).toBe(help.id);
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const error = await screen.findByText("invalid password");
+  expect(password.getAttribute("aria-describedby")?.split(" ")).toEqual([help.id, error.id]);
+  fireEvent.click(screen.getByRole("button", { name: "Show Password" }));
+  expect(password.getAttribute("aria-describedby")?.split(" ")).toEqual([help.id, error.id]);
+  fireEvent.change(password, { target: { value: "synthetic" } });
+  expect(password.getAttribute("aria-describedby")).toBe(help.id);
+  for (const label of ["Access type", "Allow unencrypted connection (HTTP / FTP)", "Mount read only", "Connect automatically when SDrive starts"]) {
+    const control = screen.getByLabelText(label);
+    const description = document.getElementById(control.getAttribute("aria-describedby")!);
+    expect(description?.textContent).toBeTruthy();
+  }
+});
+
+test("native dialog cancellation keeps a busy preference save open", async () => {
+  let finish!: () => void;
+  vi.mocked(api.settings).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: /Preferences/ }));
+  const cache = screen.getByLabelText("Cache target per connection (GiB)");
+  expect(document.getElementById(cache.getAttribute("aria-describedby")!)?.textContent).toContain("Applied on the next mount");
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  cancelDialog();
+  expect(screen.getByRole("dialog").hasAttribute("open")).toBe(true);
+  await act(async () => finish());
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("native cancellation preserves setup when asynchronous cleanup fails and allows retry", async () => {
+  vi.mocked(api.begin).mockResolvedValue("cancel-fixture");
+  vi.mocked(api.status).mockResolvedValue({ id: "cancel-fixture", busy: true, complete: false, question: null, error: "" });
+  vi.mocked(api.end).mockRejectedValueOnce(new Error("cleanup failed"));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  await screen.findByText("Waiting for authentication…");
+  cancelDialog();
+  await screen.findByText("cleanup failed");
+  expect(screen.getByRole("dialog").hasAttribute("open")).toBe(true);
+  vi.mocked(api.end).mockResolvedValue();
+  cancelDialog();
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(api.end).toHaveBeenCalledTimes(2);
+});
 
 test.each(["explicit", "implicit", "plain"])("FTP renewal restores %s and requires fresh plain FTP consent", async (transport) => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider: "ftp", recovery: true }] });
@@ -1176,7 +1319,7 @@ test.each([
   await waitFor(() => expect(document.activeElement).toBe(input));
   expect(input.value).toBe(value);
   expect(input.getAttribute("aria-invalid")).toBe("true");
-  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(error.id);
   if (field === "port") expect(input.closest("details")?.open).toBe(true);
   expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("original");
   fireEvent.change(input, { target: { value: "corrected" } });
@@ -1194,7 +1337,7 @@ test("destination errors open the direct field, preserve it and prevent confirma
   await waitFor(() => expect(document.activeElement).toBe(input));
   expect(input.closest("details")?.open).toBe(true);
   expect(input.value).toBe("../outside");
-  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(error.id);
   expect((screen.getByRole("button", { name: "Connect drive" }) as HTMLButtonElement).disabled).toBe(true);
   expect(api.confirm).not.toHaveBeenCalled();
   fireEvent.change(input, { target: { value: "allowed" } });
@@ -1212,7 +1355,7 @@ test("edit path errors remain associated with the entered path", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   const error = await screen.findByText("path must not contain ..");
   expect(input.value).toBe("../outside");
-  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(error.id);
   await waitFor(() => expect(document.activeElement).toBe(input));
 });
 
@@ -1236,7 +1379,7 @@ test.each(["en", "pt-BR"])("URL errors are accessible and preserve the address (
   const error = await screen.findByText(english ? message : "url deve ser uma URL HTTPS sem credenciais embutidas");
   await waitFor(() => expect(document.activeElement).toBe(input));
   expect(input.getAttribute("aria-invalid")).toBe("true");
-  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(error.id);
   expect(input.value).toBe(value);
   expect(error.textContent).not.toContain("synthetic-secret");
 });

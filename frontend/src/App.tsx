@@ -42,45 +42,23 @@ const blank = (letter: string): Connection => ({
 });
 
 function useDialog(close: () => void) {
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<HTMLDialogElement>(null);
   const callback = useRef(close);
   callback.current = close;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const dialog = ref.current;
-    dialog?.querySelector<HTMLElement>("input,select,button")?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        callback.current();
-      }
-      if (event.key === "Tab" && dialog) {
-        const items = [
-          ...dialog.querySelectorAll<HTMLElement>(
-            'button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex="0"]',
-          ),
-        ].filter(
-          (item) =>
-            !item.closest("details:not([open])") || item.tagName === "SUMMARY",
-        );
-        const first = items[0],
-          last = items.at(-1);
-        if (!dialog.contains(document.activeElement)) {
-          event.preventDefault();
-          first?.focus();
-        } else if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first?.focus();
-        }
-      }
+    const cancel = (event: Event) => {
+      // Keep asynchronous cleanup and busy guards in the owning dialog.
+      event.preventDefault();
+      callback.current();
     };
-    document.addEventListener("keydown", key);
+    dialog?.addEventListener("cancel", cancel);
+    dialog?.showModal();
     return () => {
-      document.removeEventListener("keydown", key);
-      previous?.focus();
+      dialog?.removeEventListener("cancel", cancel);
+      dialog?.close();
+      if (previous?.isConnected) previous.focus();
     };
   }, []);
   return ref;
@@ -107,6 +85,19 @@ function AppContent() {
   const [settings, setSettings] = useState(false);
   const [about, setAbout] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const previousStates = useRef<Map<string, string>>(undefined);
+  useEffect(() => {
+    if (!data || data.settingsError) return;
+    const states = new Map(data.connections.map((c) => [c.id,
+      c.pending === null ? "Pending uploads unknown" : c.mounted ? "Connected" : c.recovery ? "Recovery required" : "Disconnected",
+    ]));
+    if (previousStates.current) {
+      const changes = data.connections.filter((c) => states.get(c.id) !== previousStates.current!.get(c.id));
+      if (changes.length) setAnnouncement(changes.map((c) => t("{name}: {state}", { name: c.name, state: t(states.get(c.id)!) })).join(". "));
+    }
+    previousStates.current = states;
+  }, [data, t]);
   const snapshotRequest = useRef(0);
   const snapshotActive = useRef(true);
   const refresh = async () => {
@@ -371,7 +362,8 @@ function AppContent() {
             {" · "}{t("Pending files are preserved even when the target is exceeded.")}
           </p>
         )}
-        <section aria-label="Unidades" className="drives">
+        <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
+        <section aria-label={t("Drives")} className="drives">
           {data?.connections.map((c) => (
             <Drive
               key={c.id}
@@ -469,7 +461,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       .catch((e) => { if (active) setError(message(e)); });
     return () => { active = false; };
   }, []);
-  return <div className="overlay"><section ref={dialog} className="modal small" role="dialog" aria-modal="true" aria-labelledby="about-title">
+  return <dialog ref={dialog} className="modal small" role="dialog" aria-modal="true" aria-labelledby="about-title">
     <h2 id="about-title">{t("About SDrive")}</h2>
     <p>{t("Open source · GPLv3")}</p>
     {error && <p role="alert" className="alert error">{t(error)}</p>}
@@ -480,7 +472,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       ["WebView2 (installed)", info.webView2Version], ["Architecture", info.architecture],
     ]).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
     <div className="modal-actions"><button onClick={onClose}>{t("Close")}</button></div>
-  </section></div>;
+  </dialog>;
 }
 
 function RestoreSettingsDialog({
@@ -496,8 +488,7 @@ function RestoreSettingsDialog({
     if (!busy) onClose();
   });
   return (
-    <div className="overlay">
-      <section
+    <dialog
         ref={dialog}
         className="modal small"
         role="dialog"
@@ -513,8 +504,7 @@ function RestoreSettingsDialog({
           <button disabled={busy} onClick={onClose}>{t("Cancel")}</button>
           <button disabled={busy} className="primary" onClick={onConfirm}>{t("Confirm restoration")}</button>
         </div>
-      </section>
-    </div>
+    </dialog>
   );
 }
 
@@ -534,6 +524,19 @@ function Drive({
   onEdit: (auth: boolean) => void;
 }) {
   const { t } = useLanguage();
+  const menu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (menu.current && !menu.current.contains(event.target as Node)) menu.current.open = false;
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, []);
+  const closeMenu = () => {
+    if (!menu.current) return;
+    menu.current.open = false;
+    menu.current.querySelector("summary")?.focus();
+  };
   return (
     <article className="drive">
       <div className={`letter ${c.mounted ? "connected" : ""}`}>
@@ -544,7 +547,7 @@ function Drive({
         <h2>{c.name}</h2>
         <p>
           {t(p.name)}
-          {p.experimental ? " · Experimental" : ""} · {c.path || t("Root")}
+          {p.experimental ? ` · ${t("Experimental")}` : ""} · {c.path || t("Root")}
           {c.readOnly ? t(" · Read only") : ""}
         </p>
         <div className="state">
@@ -601,11 +604,23 @@ function Drive({
             Explorer ↗{" "}
           </button>
         )}
-        <details>
+        <details ref={menu}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.preventDefault();
+              event.stopPropagation();
+              closeMenu();
+            }
+          }}>
           <summary aria-label={t("More actions for {name}", { name: c.name })}>
             •••
           </summary>
-          <div className="dropdown">
+          <div className="dropdown" onClickCapture={(event) => {
+            if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMenu();
+          }}>
             <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>
               {t("Test access")}
             </button>
@@ -642,12 +657,13 @@ function Drive({
   );
 }
 
-function SecretInput({ label, value, required, onChange, validation }: {
+function SecretInput({ label, value, required, onChange, validation, describedBy }: {
   label: string;
   value: string;
   required: boolean;
   onChange: (value: string) => void;
   validation?: { "data-field": string; "aria-invalid": boolean; "aria-describedby": string | undefined };
+  describedBy?: string;
 }) {
   const { t } = useLanguage();
   const id = useId();
@@ -658,6 +674,7 @@ function SecretInput({ label, value, required, onChange, validation }: {
       <div className="secret-control">
         <input id={id} type={revealed ? "text" : "password"} autoComplete="off"
           {...validation}
+          aria-describedby={[describedBy, validation?.["aria-describedby"]].filter(Boolean).join(" ") || undefined}
           required={required} value={value} onChange={(e) => onChange(e.target.value)} />
         <button type="button" aria-controls={id} aria-pressed={revealed}
           aria-label={t(revealed ? "Hide {field}" : "Show {field}", { field: label })}
@@ -859,10 +876,10 @@ function ConnectionEditor({
     setLoading(true);
     setFolderRequest((request) => request + 1);
   };
-  const validationProps = (key: string) => ({
+  const validationProps = (key: string, help?: string) => ({
     "data-field": key,
     "aria-invalid": fieldError?.field === key,
-    "aria-describedby": fieldError?.field === key ? `${fieldID}-${key}-error` : undefined,
+    "aria-describedby": [help, fieldError?.field === key ? `${fieldID}-${key}-error` : undefined].filter(Boolean).join(" ") || undefined,
   });
   const fieldFeedback = (key: string) => fieldError?.field === key && (
     <p id={`${fieldID}-${key}-error`} className="inline-error" role="alert">{t(fieldError.message)}</p>
@@ -886,14 +903,14 @@ function ConnectionEditor({
         <div className="credential-field" key={`${p.id}-${f.key}`}>
           {f.secret ? (
             <SecretInput label={t(f.label)}
-              validation={validationProps(f.key)}
+              validation={validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
               value={values[f.key] ?? f.default ?? ""} required={f.required}
               onChange={(value) => setValue(f.key, value)} />
           ) : <label>
           {t(f.label)}
           {f.choices ? (
             <select
-              {...validationProps(f.key)}
+              {...validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
               value={values[f.key] ?? f.default}
               onChange={(e) => setValue(f.key, e.target.value)}
             >
@@ -909,7 +926,7 @@ function ConnectionEditor({
             </select>
           ) : (
             <input
-              {...validationProps(f.key)}
+              {...validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
               type="text"
               autoComplete="off"
               required={f.required}
@@ -919,7 +936,7 @@ function ConnectionEditor({
           )}
           </label>}
           {fieldFeedback(f.key)}
-          {f.hint && <small>{t(f.hint)}</small>}
+          {f.hint && <small id={`${fieldID}-${f.key}-help`}>{t(f.hint)}</small>}
           {f.file && (
             <button
               type="button"
@@ -959,8 +976,7 @@ function ConnectionEditor({
       setStep("auth");
     });
   return (
-    <div className="overlay">
-      <section
+    <dialog
         ref={dialog}
         className="modal"
         role="dialog"
@@ -1026,7 +1042,7 @@ function ConnectionEditor({
                 {data.providers.map((item) => (
                   <option key={item.id} value={item.id}>
                     {t(item.name)}
-                    {item.experimental ? " (experimental)" : ""}
+                    {item.experimental ? ` (${t("experimental")})` : ""}
                     {item.id === "gcs" && item.available === false
                       ? t(" — service account available")
                       : item.available === false
@@ -1097,7 +1113,7 @@ function ConnectionEditor({
               {p.id === "ftp" && transport === "plain" && <p role="status">{t("This connection uses unencrypted FTP. Confirm permission in Advanced options before continuing.")}</p>}
               {p.id === "sftp" && (
                 <div className="host-key">
-                  <p>
+                  <p id={`${fieldID}-ssh-help`}>
                     {t(
                       "Verify the identity with your administrator before trusting this server.",
                     )}
@@ -1121,6 +1137,7 @@ function ConnectionEditor({
                       <label className="check">
                         <input
                           type="checkbox"
+                          aria-describedby={`${fieldID}-ssh-help`}
                           checked={trusted}
                           onChange={(e) => setTrusted(e.target.checked)}
                         />
@@ -1134,49 +1151,61 @@ function ConnectionEditor({
                 <summary>{t("Advanced options")}</summary>
                 {fields(true)}
                 {p.id === "ftp" && (
-                  <label>
-                    {t("Access type")}
-                    <select
-                      value={transport}
-                      onChange={(e) => setTransport(e.target.value)}
-                    >
-                      <option value="explicit">
-                        {t("Secure FTPS (default)")}
-                      </option>
-                      <option value="implicit">{t("Implicit FTPS")}</option>
-                      <option value="plain">{t("Unencrypted FTP")}</option>
-                    </select>
-                  </label>
+                  <>
+                    <label>
+                      {t("Access type")}
+                      <select
+                        aria-describedby={`${fieldID}-transport-help`}
+                        value={transport}
+                        onChange={(e) => setTransport(e.target.value)}
+                      >
+                        <option value="explicit">
+                          {t("Secure FTPS (default)")}
+                        </option>
+                        <option value="implicit">{t("Implicit FTPS")}</option>
+                        <option value="plain">{t("Unencrypted FTP")}</option>
+                      </select>
+                    </label>
+                    <small id={`${fieldID}-transport-help`}>{t("FTPS encrypts the connection. Unencrypted FTP exposes credentials and file content to the network.")}</small>
+                  </>
                 )}
                 {["webdav", "nextcloud", "owncloud", "s3", "ftp"].includes(
                   p.id,
                 ) && (
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={insecure}
-                      onChange={(e) => setInsecure(e.target.checked)}
-                    />
-                    {t("Allow unencrypted connection (HTTP / FTP)")}
-                  </label>
+                  <>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        aria-describedby={`${fieldID}-insecure-help`}
+                        checked={insecure}
+                        onChange={(e) => setInsecure(e.target.checked)}
+                      />
+                      {t("Allow unencrypted connection (HTTP / FTP)")}
+                    </label>
+                    <small id={`${fieldID}-insecure-help`}>{t("Unencrypted connections expose credentials and file content to the network.")}</small>
+                  </>
                 )}
                 <label className="check">
                   <input
                     type="checkbox"
+                    aria-describedby={`${fieldID}-readonly-help`}
                     checked={connection.readOnly}
                     disabled={initial.recovery}
                     onChange={(e) => change({ readOnly: e.target.checked })}
                   />
                   {t("Mount read only")}
                 </label>
+                <small id={`${fieldID}-readonly-help`}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</small>
                 <label className="check">
                   <input
                     type="checkbox"
+                    aria-describedby={`${fieldID}-automount-help`}
                     checked={connection.autoMount}
                     onChange={(e) => change({ autoMount: e.target.checked })}
                   />
                   {t("Connect automatically when SDrive starts")}
                 </label>
+                <small id={`${fieldID}-automount-help`}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</small>
               </details>
             </fieldset>
             <div className="modal-actions">
@@ -1233,16 +1262,17 @@ function ConnectionEditor({
                   }}
                 >
                   <h3>{t("Continue setup")}</h3>
-                  <p>{t(question.Help)}</p>
+                  <p id={`${fieldID}-question-help`}>{t(question.Help)}</p>
                   {question.IsPassword || question.Sensitive ? (
                     <SecretInput key={`${sessionID}-${question.Name}-${session?.error || ""}`}
-                      label={t(question.Name)} value={answer} required={question.Required}
+                      label={t(question.Name)} value={answer} required={question.Required} describedBy={`${fieldID}-question-help`}
                       onChange={setAnswer} />
                   ) : <label>
                     {t(question.Name)}
                     {question.Exclusive && question.Examples?.length ? (
                       <select
                         aria-label={t(question.Name)}
+                        aria-describedby={`${fieldID}-question-help`}
                         required={question.Required}
                         value={answer}
                         onChange={(e) => setAnswer(e.target.value)}
@@ -1260,6 +1290,7 @@ function ConnectionEditor({
                     ) : (
                       <input
                         aria-label={t(question.Name)}
+                        aria-describedby={`${fieldID}-question-help`}
                         autoComplete="off"
                         type="text"
                         required={question.Required}
@@ -1355,7 +1386,7 @@ function ConnectionEditor({
                 <label>
                   {t("Folder, bucket or share")}
                   <input
-                    {...validationProps("path")}
+                    {...validationProps("path", `${fieldID}-path-help`)}
                     value={directPath}
                     disabled={destinationLocked}
                     placeholder={t("Example: documents or my-bucket/folder")}
@@ -1365,7 +1396,7 @@ function ConnectionEditor({
                     }}
                   />
                 </label>
-                <small>{t("Use the path provided by your administrator, separated by /.")}</small>
+                <small id={`${fieldID}-path-help`}>{t("Use the path provided by your administrator, separated by /.")}</small>
                 {fieldFeedback("path")}
                 <button
                   disabled={destinationLocked}
@@ -1378,12 +1409,12 @@ function ConnectionEditor({
             {directPath !== path && <p role="status">{t("Destination not applied. Choose Open destination before connecting.")}</p>}
             <label>
               {t("Windows drive letter")}
-              <select {...validationProps("letter")} aria-label={t("Windows drive letter")} value={letters.includes(connection.letter) ? connection.letter : ""} disabled={busy || letterLocked || noLetters}
+              <select {...validationProps("letter", `${fieldID}-letter-help`)} aria-label={t("Windows drive letter")} value={letters.includes(connection.letter) ? connection.letter : ""} disabled={busy || letterLocked || noLetters}
                 onChange={(e) => change({ letter: e.target.value })}>
                 {!letters.includes(connection.letter) && <option value="" disabled>{t("Select…")}</option>}
                 {letters.map((letter) => <option key={letter} value={letter}>{letter}:</option>)}
               </select>
-              <small>
+              <small id={`${fieldID}-letter-help`}>
                 {t(letterLocked
                   ? "Keep the saved letter while recovery or an operation is pending. Resolve pending files before changing it."
                   : "Choose a free letter. If connecting fails, you can correct it here and retry the saved connection.")}
@@ -1497,21 +1528,25 @@ function ConnectionEditor({
             <label className="check">
               <input
                 type="checkbox"
+                aria-describedby={`${fieldID}-readonly-help`}
                 checked={connection.readOnly}
                 disabled={connection.provider === "drive"}
                 onChange={(e) => change({ readOnly: e.target.checked })}
               />
               {t("Mount read only")}
             </label>
+            <small id={`${fieldID}-readonly-help`}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</small>
             {connection.provider === "drive" && <p>{t("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")}</p>}
             <label className="check">
               <input
                 type="checkbox"
+                aria-describedby={`${fieldID}-automount-help`}
                 checked={connection.autoMount}
                 onChange={(e) => change({ autoMount: e.target.checked })}
               />
               {t("Connect automatically when SDrive starts")}
             </label>
+            <small id={`${fieldID}-automount-help`}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</small>
             <div className="modal-actions">
               <button type="button" disabled={busy} onClick={close}>
                 {t("Cancel")}
@@ -1522,8 +1557,7 @@ function ConnectionEditor({
             </div>
           </form>
         )}
-      </section>
-    </div>
+    </dialog>
   );
 }
 function Preferences({
@@ -1534,6 +1568,7 @@ function Preferences({
   onClose: () => void;
 }) {
   const { t } = useLanguage();
+  const helpID = useId();
   const [settings, setSettings] = useState(data.settings);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1541,8 +1576,7 @@ function Preferences({
     if (!busy) onClose();
   });
   return (
-    <div className="overlay">
-      <section
+    <dialog
         ref={dialog}
         className="modal small"
         role="dialog"
@@ -1600,13 +1634,14 @@ function Preferences({
               type="number"
               min="1"
               max="1024"
+              aria-describedby={`${helpID}-cache-help`}
               value={settings.cacheGiB}
               onChange={(e) =>
                 setSettings((s) => ({ ...s, cacheGiB: Number(e.target.value) }))
               }
             />
           </label>
-          <p>
+          <p id={`${helpID}-cache-help`}>
             {t(
               "Applied on the next mount. Open files and pending uploads may exceed the target. SDrive reserves 5 GiB of free space before connecting.",
             )}
@@ -1625,7 +1660,6 @@ function Preferences({
             </button>
           </div>
         </form>
-      </section>
-    </div>
+    </dialog>
   );
 }

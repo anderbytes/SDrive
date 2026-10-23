@@ -74,6 +74,20 @@ The root tests start a disposable child process with the real Wails message-only
 
 For native acceptance, use a new temporary profile by setting `LOCALAPPDATA` only in the child process environment. Check background startup, second launch and focus, close-to-tray, minimization, geometry after restart, About and safe exit. Stop only that profile's own rclone child to verify that a new background engine failure reveals the window and an unchanged failure does not reveal it again. Verify taskbar/DPI and monitor-removal behavior separately on suitable hardware. Do not reuse a personal profile or terminate another instance to run these checks. Use the native UI smoke harness separately.
 
+## Accessibility checks
+
+The four application dialogs use native `dialog.showModal()` in WebView2. The browser supplies modal background isolation and keyboard navigation; cancellation remains controlled by the application so busy operations and asynchronous authentication cleanup cannot be bypassed with Escape. Closing returns focus to the opener when it still exists. Action disclosures retain ordinary Tab navigation and close on an action, outside pointer interaction, focus departure or Escape; actions and Escape return focus to the summary.
+
+Frontend tests cover dialog cancellation/busy guards, help/error associations (including secrets), localized labels, menu behavior and deduplicated state announcements. JSDOM only stubs dialog opening/closing; it does not establish native isolation, focus traversal or screen-reader speech. Run `npm --prefix frontend test`, `npm --prefix frontend run build` and `./.tools/go/bin/go.exe test ./internal/i18n`.
+
+For native checks, use a newly generated temporary profile with child-process-scoped `LOCALAPPDATA`, as described above. Do not use personal accounts, provider credentials or mounts. Verify:
+
+- Open Preferences, About, connection setup and settings restoration using the keyboard. Tab/Shift+Tab must not reach background controls; Escape must respect busy state and cleanup. If two application dialogs are deliberately mounted for testing, only the top one accepts input and cancellation. Inspect WebView2's accessibility tree for background exclusion, then check navigation and announcements with a Windows screen reader separately.
+- At the 850 × 620 minimum window, check 125%, 150% and 200% **WebView zoom** in both languages, including long connection names/paths, expanded advanced fields and menus. Dialogs scroll internally, all actions remain reachable, and narrow layouts reflow without horizontal clipping. WebView zoom is separate from Windows display scaling; repeat on hardware at the relevant DPI settings.
+- Emulate `forced-colors: active` in the native WebView and inspect focus, disabled controls and textual status. Then repeat with an actual Windows contrast theme; emulation does not validate the operating system's palette or screen-reader behavior. Do not change workstation-wide preferences automatically.
+
+Keep screenshots/results separate from credentials and record which checks actually ran. CDP screenshots at native WebView zoom can be cropped or incorrectly scaled; use a capture of only the isolated native window when assessing those zoom results. Stop only the isolated application and its children, and verify profile cleanup.
+
 ## Connection lifecycle checks
 
 `ConfirmConfig(sessionID, path, letter)` validates the chosen Windows letter before saving. Repeating confirmation reuses the saved connection; changing its letter requires a disconnected, idle connection with a verified clean cache and no recovery protection. Other saved fields and the remote identity remain unchanged. Connection snapshots retain `busy` and add transient `operation`: empty when idle, otherwise `validating`, `mounting`, `checkingUploads`, `waitingUploads` or `unmounting`. These stages are not persisted. An access test only lists folders; success does not prove write permission.

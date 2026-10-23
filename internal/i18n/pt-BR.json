@@ -474,5 +474,13 @@
   "Pending status unknown": "Status de envios pendentes desconhecido",
   "Could not save window position. Your drives are unaffected.": "Não foi possível salvar a posição da janela. Suas unidades não foram afetadas.",
   "SDrive owns this profile but cannot be activated in this Windows session; use its tray icon": "O SDrive está usando este perfil, mas não pode ser ativado nesta sessão do Windows; use o ícone na bandeja",
-  "SDrive did not respond to window activation; use its tray icon": "O SDrive não respondeu à ativação da janela; use o ícone na bandeja"
+  "SDrive did not respond to window activation; use its tray icon": "O SDrive não respondeu à ativação da janela; use o ícone na bandeja",
+  "Drives": "Unidades",
+  "Experimental": "Experimental",
+  "experimental": "experimental",
+  "{name}: {state}": "{name}: {state}",
+  "FTPS encrypts the connection. Unencrypted FTP exposes credentials and file content to the network.": "FTPS criptografa a conexão. FTP sem criptografia expõe credenciais e conteúdo dos arquivos à rede.",
+  "Unencrypted connections expose credentials and file content to the network.": "Conexões sem criptografia expõem credenciais e conteúdo dos arquivos à rede.",
+  "Prevents changes through this drive. Account permissions remain unchanged.": "Impede alterações por esta unidade. As permissões da conta permanecem iguais.",
+  "SDrive attempts to connect this drive when it starts. Recovery may require your attention.": "O SDrive tenta conectar esta unidade ao iniciar. A recuperação pode exigir sua atenção."
 }
