@@ -11,6 +11,7 @@ import (
 	"sdrive/internal/i18n"
 	"sdrive/internal/platform"
 	"strings"
+	"unicode/utf8"
 )
 
 type Connection struct {
@@ -152,22 +153,22 @@ func atomicWrite(path string, data []byte) error { return platform.AtomicWrite(p
 
 func validateConnection(c *Connection) error {
 	c.Name = strings.TrimSpace(c.Name)
-	if c.Name == "" || len(c.Name) > 80 {
-		return &FieldError{"name", "name must contain between 1 and 80 characters"}
+	if c.Name == "" || utf8.RuneCountInString(c.Name) > 80 {
+		return &FieldError{Field: "name", Message: "name must contain between 1 and 80 characters"}
 	}
 	if strings.ContainsAny(c.Name, "\x00\r\n") {
-		return &FieldError{"name", "name must not contain NUL or line breaks"}
+		return &FieldError{Field: "name", Message: "name must not contain NUL or line breaks"}
 	}
 	c.Letter = strings.ToUpper(strings.TrimSpace(c.Letter))
 	if len(c.Letter) != 1 || c.Letter[0] < 'D' || c.Letter[0] > 'Z' {
-		return &FieldError{"letter", "choose a letter between D and Z"}
+		return &FieldError{Field: "letter", Message: "choose a letter between D and Z"}
 	}
 	if strings.ContainsAny(c.Path, "\x00\r\n\\:") || strings.HasPrefix(c.Path, "/") {
-		return &FieldError{"path", "enter a relative remote path, separated by /"}
+		return &FieldError{Field: "path", Message: "enter a relative remote path, separated by /"}
 	}
 	for _, part := range strings.Split(c.Path, "/") {
 		if part == ".." {
-			return &FieldError{"path", "path must not contain .."}
+			return &FieldError{Field: "path", Message: "path must not contain .."}
 		}
 	}
 	_, err := provider(c.Provider)

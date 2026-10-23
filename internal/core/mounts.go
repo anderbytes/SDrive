@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"sdrive/internal/i18n"
 	"sdrive/internal/platform"
 )
 
@@ -45,7 +46,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 			delete(s.inspections, id)
 		}
 		if record && resultErr != nil {
-			s.errors[id] = resultErr.Error()
+			s.recordConnectionError(id, resultErr)
 			s.snapshotID++
 		}
 	}()
@@ -80,7 +81,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 		return fmt.Errorf("run the SDrive installer again to prepare virtual drives")
 	}
 	if s.driveUsed(c.Letter) {
-		return fmt.Errorf("letter %s: is already in use", c.Letter)
+		return i18n.NewMessage("drive.letter_in_use", map[string]string{"letter": c.Letter})
 	}
 	for otherID, active := range s.busy {
 		if active && otherID != id {
@@ -173,6 +174,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 	}
 	s.mounted[id] = true
 	delete(s.errors, id)
+	delete(s.localizedErrors, id)
 	return nil
 }
 
@@ -251,11 +253,12 @@ func (s *Service) Unmount(id string) (resultErr error) {
 		delete(s.mounted, id)
 	}
 	if err != nil {
-		s.errors[id] = err.Error()
+		s.recordConnectionError(id, err)
 		return err
 	}
 	delete(s.mounted, id)
 	delete(s.errors, id)
+	delete(s.localizedErrors, id)
 	i = s.index(id)
 	s.store.Connections[i].Recovery = false
 	if err = saveStore(s.dir, s.store); err != nil {
@@ -351,7 +354,7 @@ func (s *Service) Exit() (resultErr error) {
 	for _, c := range connections {
 		if c.Recovery {
 			s.mu.Unlock()
-			return fmt.Errorf("recover connection %s before exiting safely", c.Name)
+			return i18n.NewMessage("recovery.required_before_exit", map[string]string{"name": c.Name})
 		}
 	}
 	s.mu.Unlock()
@@ -363,7 +366,7 @@ func (s *Service) Exit() (resultErr error) {
 			return fmt.Errorf("could not verify local cache before exiting; preserve the files")
 		}
 		if pending > 0 {
-			return fmt.Errorf("recover connection %s before exiting safely", c.Name)
+			return i18n.NewMessage("recovery.required_before_exit", map[string]string{"name": c.Name})
 		}
 	}
 	success = true

@@ -1,3 +1,4 @@
+import { localizedMessage, type LocalizedMessage } from "./messages";
 import { Call, Clipboard, Events } from "@wailsio/runtime";
 
 export interface AboutInfo {
@@ -16,9 +17,9 @@ export interface Field {
   required: boolean;
   default: string;
   choices?: string[];
-  advanced?: boolean;
+  advanced: boolean;
   hint?: string;
-  file?: boolean;
+  file: boolean;
 }
 export interface Provider {
   id: string;
@@ -26,8 +27,8 @@ export interface Provider {
   backend: string;
   experimental: boolean;
   fields: Field[];
-  oauth?: boolean;
-  available?: boolean;
+  oauth: boolean;
+  available: boolean;
   notice?: string;
 }
 export interface Connection {
@@ -55,9 +56,10 @@ export interface ConnectionView extends Connection {
     error: string;
   };
   error: string;
+  errorMessage?: LocalizedMessage;
 }
 export interface Settings {
-  language?: "en" | "pt-BR";
+  language: "en" | "pt-BR";
   autoStart: boolean;
   cacheGiB: number;
 }
@@ -85,7 +87,7 @@ export interface Question {
   Required: boolean;
   Exclusive: boolean;
   Examples: { Value: string; Help: string }[] | null;
-  Unsupported?: boolean;
+  Unsupported: boolean;
 }
 export interface Session {
   id: string;
@@ -93,8 +95,8 @@ export interface Session {
   complete: boolean;
   question: Question | null;
   error: string;
-  authenticated?: boolean;
-  connectionID?: string;
+  authenticated: boolean;
+  connectionID: string;
 }
 export interface ConfigInput {
   connection: Connection;
@@ -102,19 +104,22 @@ export interface ConfigInput {
   allowInsecure: boolean;
   transport: string;
   hostKey: string;
-  guided?: boolean;
+  guided: boolean;
 }
 
 export interface FieldError {
   field: string;
   message: string;
+  code?: string;
+  params?: Record<string, string>;
 }
 
 export function validationError(error: unknown): FieldError | undefined {
   const cause = error instanceof Error ? error.cause : undefined;
   if (cause && typeof cause === "object" && "field" in cause && "message" in cause &&
       typeof cause.field === "string" && typeof cause.message === "string") {
-    return { field: cause.field, message: cause.message };
+    const metadata = localizedMessage(cause) || ("code" in cause ? { code: "", params: {} } : undefined);
+    return { ...metadata, field: cause.field, message: cause.message };
   }
 }
 

@@ -1,0 +1,70 @@
+import { api } from "../api";
+import { SecretInput } from "./SecretInput";
+import type { Wizard } from "./useConnectionWizard";
+
+export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: Wizard }) {
+  const {
+    t, values, busy, fieldID, p, action, validationProps,
+    fieldFeedback, setValue,
+  } = wizard;
+  return p.fields
+      .filter(
+        (f) =>
+          !["client_id", "client_secret"].includes(f.key) &&
+          !!f.advanced === advanced,
+      )
+      .map((f) => (
+        <div className="credential-field" key={`${p.id}-${f.key}`}>
+          {f.secret ? (
+            <SecretInput label={t(f.label)}
+              validation={validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
+              value={values[f.key] ?? f.default ?? ""} required={f.required}
+              onChange={(value) => setValue(f.key, value)} />
+          ) : <label>
+          {t(f.label)}
+          {f.choices ? (
+            <select
+              {...validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
+              value={values[f.key] ?? f.default}
+              onChange={(e) => setValue(f.key, e.target.value)}
+            >
+              {f.choices.map((value) => (
+                <option key={value} value={value}>
+                  {value === "api.pcloud.com"
+                    ? t("United States")
+                    : value === "eapi.pcloud.com"
+                      ? t("Europe")
+                      : value}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              {...validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
+              type="text"
+              autoComplete="off"
+              required={f.required}
+              value={values[f.key] ?? f.default ?? ""}
+              onChange={(e) => setValue(f.key, e.target.value)}
+            />
+          )}
+          </label>}
+          {fieldFeedback(f.key)}
+          {f.hint && <small id={`${fieldID}-${f.key}-help`}>{t(f.hint)}</small>}
+          {f.file && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void action(async () => {
+                  const file = await api.selectFile(f.key);
+                  if (file) setValue(f.key, file);
+                })
+              }
+            >
+              {t("Select file…")}
+            </button>
+          )}
+        </div>
+      ));
+}

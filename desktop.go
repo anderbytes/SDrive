@@ -230,7 +230,7 @@ func (d *desktop) action(key string, action func() error) {
 		defer d.actions.Delete(key)
 		if err := action(); err != nil {
 			application.InvokeAsync(d.show)
-			platform.Alert(i18n.Text(core.Language(d.service), err.Error()))
+			platform.Alert(i18n.Error(core.Language(d.service), err))
 		}
 		if !d.stopped.Load() {
 			d.service.Snapshot()

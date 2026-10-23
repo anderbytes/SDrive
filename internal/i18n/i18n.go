@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -29,7 +30,19 @@ type formatTranslation struct {
 
 var formats = func() []formatTranslation {
 	var result []formatTranslation
-	for source, translated := range translations {
+	sources := make([]string, 0, len(translations))
+	for source := range translations {
+		sources = append(sources, source)
+	}
+	sort.Slice(sources, func(i, j int) bool {
+		left, right := formatToken.ReplaceAllString(sources[i], ""), formatToken.ReplaceAllString(sources[j], "")
+		if len(left) != len(right) {
+			return len(left) > len(right)
+		}
+		return sources[i] < sources[j]
+	})
+	for _, source := range sources {
+		translated := translations[source]
 		if !formatToken.MatchString(source) {
 			continue
 		}

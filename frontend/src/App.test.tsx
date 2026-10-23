@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { App } from "./App";
 import { api, type ConnectionView, type Snapshot } from "./api";
+import bridgeFixtures from "./bridge-fixtures.json";
 
 // JSDOM has no modal top layer; native focus and isolation are checked in WebView2.
 Object.defineProperties(HTMLDialogElement.prototype, {
@@ -84,7 +85,7 @@ const snapshot = {
     },
   ],
   connections: [] as ConnectionView[],
-  settings: { autoStart: false, cacheGiB: 2 },
+  settings: { language: "en" as const, autoStart: false, cacheGiB: 2 },
   letters: ["S", "T"],
   winFsp: true,
   engineError: "",
@@ -105,6 +106,68 @@ beforeEach(() => {
   vi.mocked(api.mount).mockResolvedValue();
 });
 afterEach(() => cleanup());
+
+test("new drive accepts eighty emoji code points and blocks eighty-one without truncating", async () => {
+  vi.mocked(api.begin).mockResolvedValue("draft");
+  vi.mocked(api.status).mockResolvedValue({ ...bridgeFixtures.samples.sessionEmpty, id: "draft", busy: true });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  const input = screen.getByLabelText("Drive name") as HTMLInputElement;
+  const tooLong = "😀".repeat(81);
+  fireEvent.change(input, { target: { value: tooLong } });
+  fireEvent.click(screen.getByText("Continue"));
+  const error = await screen.findByText("name must contain between 1 and 80 characters");
+  expect(input.value).toBe(tooLong);
+  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect(api.begin).not.toHaveBeenCalled();
+  const valid = "😀".repeat(80);
+  fireEvent.change(input, { target: { value: ` \u0085${valid}\u3000 ` } });
+  fireEvent.click(screen.getByText("Continue"));
+  fireEvent.click(screen.getByText("Sign in with Google Drive"));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ connection: expect.objectContaining({ name: valid }) })));
+});
+
+test("editing uses the same Unicode limit and preserves an invalid name for correction", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  vi.mocked(api.update).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  const input = screen.getByLabelText("Drive name") as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "é".repeat(81) } });
+  fireEvent.click(screen.getByText("Save changes"));
+  await screen.findByText("name must contain between 1 and 80 characters");
+  expect(api.update).not.toHaveBeenCalled();
+  expect(input.value).toHaveLength(81);
+  fireEvent.change(input, { target: { value: ` \u0085${"é".repeat(80)} ` } });
+  fireEvent.click(screen.getByText("Save changes"));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ name: "é".repeat(80) })));
+});
+
+test("structured action and snapshot errors translate even when English wording changes", async () => {
+  const cause = { code: "recovery.required_before_exit", params: { name: "My {letter} 😀" }, message: "Changed English wording" };
+  vi.mocked(api.exit).mockRejectedValue(new Error(cause.message, { cause }));
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" },
+    connections: [{ ...connection, error: "Changed mount wording", errorMessage: { ...bridgeFixtures.samples.message, message: "Changed mount wording" } }],
+  });
+  render(<App />);
+  await screen.findByText("letra S: já está em uso");
+  fireEvent.click(screen.getByText("Sair com segurança"));
+  await screen.findByText("recupere a conexão My {letter} 😀 antes de sair com segurança");
+});
+
+test("structured field errors keep their field association and translate by code", async () => {
+  const cause = { ...bridgeFixtures.samples.dynamicFieldError, field: "name", message: "Changed field wording" };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, connections: [connection] });
+  vi.mocked(api.update).mockRejectedValue(new Error(cause.message, { cause }));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Editar unidade"));
+  fireEvent.click(screen.getByText("Salvar alterações"));
+  const error = await screen.findByText("preencha Server");
+  const input = screen.getByLabelText("Nome da unidade") as HTMLInputElement;
+  expect(input.getAttribute("aria-describedby")).toBe(error.id);
+  expect(input.value).toBe(connection.name);
+  await waitFor(() => expect(document.activeElement).toBe(input));
+});
 
 test("About shows actual versions and unavailable components, and returns focus on close", async () => {
   vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "v-running", windowsVersion: "10.0.26100", winFspVersion: "", webView2Version: "123.4", architecture: "amd64" });
@@ -351,6 +414,7 @@ test("empty state opens accessible connection form", async () => {
 test("cancel OAuth cleans up draft", async () => {
   vi.mocked(api.begin).mockResolvedValue("draft");
   vi.mocked(api.status).mockResolvedValue({
+    authenticated: false, connectionID: "",
     id: "draft",
     busy: true,
     complete: false,
@@ -394,11 +458,12 @@ test("safe-exit errors remain visible", async () => {
 test("provider question accepts MFA and does not persist it in browser storage", async () => {
   vi.mocked(api.begin).mockResolvedValue("mfa");
   vi.mocked(api.status).mockResolvedValue({
+    authenticated: false, connectionID: "",
     id: "mfa",
     busy: false,
     complete: false,
     error: "",
-    question: {
+    question: { Unsupported: false,
       Name: "MFA code",
       Help: "Confirme o segundo fator",
       DefaultStr: "",
@@ -433,12 +498,12 @@ test("provider question accepts MFA and does not persist it in browser storage",
   expect(sessionStorage.length).toBe(0);
 });
 
-const ftpProvider = {
+const ftpProvider = { oauth: false,
   id: "ftp", name: "FTP / FTPS", backend: "ftp", experimental: false, available: true,
   fields: [
-    { key: "host", label: "Server", secret: false, required: true, default: "" },
-    { key: "user", label: "Username", secret: false, required: true, default: "" },
-    { key: "pass", label: "Password", secret: true, required: false, default: "" },
+    { advanced: false, file: false, key: "host", label: "Server", secret: false, required: true, default: "" },
+    { advanced: false, file: false, key: "user", label: "Username", secret: false, required: true, default: "" },
+    { advanced: false, file: false, key: "pass", label: "Password", secret: true, required: false, default: "" },
   ],
 };
 
@@ -565,7 +630,7 @@ test("native dialog cancellation keeps a busy preference save open", async () =>
 
 test("native cancellation preserves setup when asynchronous cleanup fails and allows retry", async () => {
   vi.mocked(api.begin).mockResolvedValue("cancel-fixture");
-  vi.mocked(api.status).mockResolvedValue({ id: "cancel-fixture", busy: true, complete: false, question: null, error: "" });
+  vi.mocked(api.status).mockResolvedValue({ authenticated: false, connectionID: "", id: "cancel-fixture", busy: true, complete: false, question: null, error: "" });
   vi.mocked(api.end).mockRejectedValueOnce(new Error("cleanup failed"));
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
@@ -585,7 +650,7 @@ test.each(["explicit", "implicit", "plain"])("FTP renewal restores %s and requir
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider: "ftp", recovery: true }] });
   vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport });
   vi.mocked(api.begin).mockResolvedValue("renew");
-  vi.mocked(api.status).mockResolvedValue({ id: "renew", busy: true, complete: false, question: null, error: "" });
+  vi.mocked(api.status).mockResolvedValue({ authenticated: false, connectionID: "", id: "renew", busy: true, complete: false, question: null, error: "" });
   render(<App />);
   fireEvent.click(await screen.findByText("Reconfigure account"));
   await waitFor(() => expect((screen.getByLabelText("Server") as HTMLInputElement).value).toBe("example.test"));
@@ -640,7 +705,7 @@ test("existing custom OAuth connection can still renew when project sign-in is u
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [{ ...snapshot.providers[0], available: false }], connections: [connection] });
   vi.mocked(api.fields).mockResolvedValue({ values: { client_id: "custom-public-id" }, transport: "" });
   vi.mocked(api.begin).mockResolvedValue("custom");
-  vi.mocked(api.status).mockResolvedValue({ id: "custom", busy: true, complete: false, question: null, error: "" });
+  vi.mocked(api.status).mockResolvedValue({ authenticated: false, connectionID: "", id: "custom", busy: true, complete: false, question: null, error: "" });
   render(<App />);
   fireEvent.click(await screen.findByText("Reconfigure account"));
   await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(false));
@@ -661,7 +726,7 @@ test("password controls and FTP warning follow the saved Portuguese language", a
 
 test("guided setup chooses a folder before confirming and mounting", async () => {
   vi.mocked(api.begin).mockResolvedValue("draft");
-  vi.mocked(api.status).mockResolvedValue({
+  vi.mocked(api.status).mockResolvedValue({connectionID: "",
     id: "draft",
     busy: false,
     complete: false,
@@ -694,7 +759,7 @@ test("guided setup chooses a folder before confirming and mounting", async () =>
 
 test("destination validation errors prevent mounting", async () => {
   vi.mocked(api.begin).mockResolvedValue("draft");
-  vi.mocked(api.status).mockResolvedValue({
+  vi.mocked(api.status).mockResolvedValue({connectionID: "",
     id: "draft",
     busy: false,
     complete: false,
@@ -742,7 +807,7 @@ test("missing project OAuth is explained without asking the user for Client ID",
 
 test("cancelling after authentication keeps the draft unconfirmed", async () => {
   vi.mocked(api.begin).mockResolvedValue("draft");
-  vi.mocked(api.status).mockResolvedValue({
+  vi.mocked(api.status).mockResolvedValue({connectionID: "",
     id: "draft",
     busy: false,
     complete: false,
@@ -773,7 +838,7 @@ test("GCS file picker enables service-account access without project OAuth", asy
         oauth: true,
         available: false,
         fields: [
-          {
+          { advanced: false,
             key: "service_account_file",
             label: "JSON file",
             secret: false,
@@ -813,7 +878,7 @@ test("GCS file picker enables service-account access without project OAuth", asy
 
 test("mount failure keeps the saved connection and retries without duplicating it", async () => {
   vi.mocked(api.begin).mockResolvedValue("draft");
-  vi.mocked(api.status).mockResolvedValue({
+  vi.mocked(api.status).mockResolvedValue({connectionID: "",
     id: "draft",
     busy: false,
     complete: false,
@@ -842,7 +907,7 @@ test("mount failure keeps the saved connection and retries without duplicating i
 
 test("destination validation failure does not mount and allows retry", async () => {
   vi.mocked(api.begin).mockResolvedValue("draft");
-  vi.mocked(api.status).mockResolvedValue({
+  vi.mocked(api.status).mockResolvedValue({connectionID: "",
     id: "draft",
     busy: false,
     complete: false,
@@ -1000,7 +1065,7 @@ test("Portuguese wizard translates provider metadata and keeps library names", a
       {
         ...snapshot.providers[0],
         fields: [
-          {
+          { advanced: false, file: false,
             key: "user",
             label: "Username",
             secret: false,
@@ -1013,11 +1078,12 @@ test("Portuguese wizard translates provider metadata and keeps library names", a
   });
   vi.mocked(api.begin).mockResolvedValue("draft");
   vi.mocked(api.status).mockResolvedValue({
+    authenticated: false, connectionID: "",
     id: "draft",
     busy: false,
     complete: false,
     error: "",
-    question: {
+    question: { Unsupported: false,
       Name: "Library",
       Help: "Select the drive or library to connect.",
       DefaultStr: "",
@@ -1105,7 +1171,7 @@ test("letters becoming unavailable blocks authentication in an open wizard", asy
 
 async function openAuthenticatedFolder() {
   vi.mocked(api.begin).mockResolvedValue("draft");
-  vi.mocked(api.status).mockResolvedValue({ id: "draft", busy: false, complete: false, authenticated: true, question: null, error: "" });
+  vi.mocked(api.status).mockResolvedValue({connectionID: "", id: "draft", busy: false, complete: false, authenticated: true, question: null, error: "" });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
   fireEvent.click(screen.getByText("Continue"));
@@ -1353,7 +1419,7 @@ test("saved setup locks destination navigation and filtering after a mount failu
 test.each(["en", "pt-BR"])("folder controls and retry feedback are translated (%s)", async (language) => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: language as "en" | "pt-BR" } });
   vi.mocked(api.begin).mockResolvedValue("draft");
-  vi.mocked(api.status).mockResolvedValue({ id: "draft", busy: false, complete: false, authenticated: true, question: null, error: "" });
+  vi.mocked(api.status).mockResolvedValue({connectionID: "", id: "draft", busy: false, complete: false, authenticated: true, question: null, error: "" });
   vi.mocked(api.folders).mockRejectedValueOnce(new Error("could not access this folder; check the destination and account permissions"));
   render(<App />);
   fireEvent.click(await screen.findByText(language === "en" ? "Add my first connection" : "Adicionar minha primeira conexão"));
@@ -1372,7 +1438,7 @@ test.each([
   ["pass", "Password", "synthetic-secret", "invalid field: Password"],
 ])("access errors identify %s, reveal advanced fields and preserve entered values", async (field, label, value, message) => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, {
-    ...ftpProvider, fields: [...ftpProvider.fields, { key: "port", label: "Port (optional)", secret: false, required: false, default: "", advanced: true }],
+    ...ftpProvider, fields: [...ftpProvider.fields, {file: false, key: "port", label: "Port (optional)", secret: false, required: false, default: "", advanced: true }],
   }], connections: [{ ...connection, provider: "ftp" }] });
   vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "explicit" });
   vi.mocked(api.begin).mockRejectedValue(new Error(message, { cause: { field, message } }));
@@ -1432,8 +1498,8 @@ test.each(["en", "pt-BR"])("URL errors are accessible and preserve the address (
   const message = "url must be an HTTPS URL without embedded credentials";
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot,
     settings: { ...snapshot.settings, language: language as "en" | "pt-BR" },
-    providers: [...snapshot.providers, { id: "webdav", name: "WebDAV", backend: "webdav", experimental: false,
-      fields: [{ key: "url", label: "WebDAV HTTPS URL", secret: false, required: true, default: "" }] }],
+    providers: [...snapshot.providers, { oauth: false, available: true, id: "webdav", name: "WebDAV", backend: "webdav", experimental: false,
+      fields: [{ advanced: false, file: false, key: "url", label: "WebDAV HTTPS URL", secret: false, required: true, default: "" }] }],
     connections: [{ ...connection, provider: "webdav" }],
   });
   vi.mocked(api.fields).mockResolvedValue({ values: { url: value }, transport: "" });
@@ -1455,7 +1521,7 @@ test("recovery keeps its original folder and disables all breadcrumb destination
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, recovery: true, path: "Original/library" }] });
   vi.mocked(api.fields).mockResolvedValue({ values: {}, transport: "" });
   vi.mocked(api.begin).mockResolvedValue("recovery");
-  vi.mocked(api.status).mockResolvedValue({ id: "recovery", busy: false, complete: false, authenticated: true, question: null, error: "" });
+  vi.mocked(api.status).mockResolvedValue({connectionID: "", id: "recovery", busy: false, complete: false, authenticated: true, question: null, error: "" });
   render(<App />);
   fireEvent.click(await screen.findByText("Reconfigure account"));
   await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(false));

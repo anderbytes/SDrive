@@ -1,0 +1,9 @@
+{
+  "validation.field_invalid": { "en": "invalid field: {label}", "pt-BR": "campo inválido: {label}" },
+  "validation.field_too_long": { "en": "field too long: {label}", "pt-BR": "campo muito longo: {label}" },
+  "validation.required": { "en": "fill in {label}", "pt-BR": "preencha {label}" },
+  "validation.option_invalid": { "en": "invalid option: {label}", "pt-BR": "opção inválida: {label}" },
+  "validation.https_required": { "en": "{field} must be an HTTPS URL without embedded credentials", "pt-BR": "{field} deve ser uma URL HTTPS sem credenciais embutidas" },
+  "drive.letter_in_use": { "en": "letter {letter}: is already in use", "pt-BR": "letra {letter}: já está em uso" },
+  "recovery.required_before_exit": { "en": "recover connection {name} before exiting safely", "pt-BR": "recupere a conexão {name} antes de sair com segurança" }
+}

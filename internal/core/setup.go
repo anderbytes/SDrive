@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"sdrive/internal/i18n"
 )
 
 type Folder struct {
@@ -150,7 +152,7 @@ func (s *Service) availableLetter(c Connection) error {
 		}
 	}
 	if s.driveUsed(c.Letter) {
-		return fmt.Errorf("letter %s: is already in use", c.Letter)
+		return i18n.NewMessage("drive.letter_in_use", map[string]string{"letter": c.Letter})
 	}
 	return nil
 }

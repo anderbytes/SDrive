@@ -1,0 +1,484 @@
+{
+  "methods": {
+    "about": {
+      "args": [],
+      "name": "About",
+      "returns": [
+        "core.AboutInfo"
+      ]
+    },
+    "answer": {
+      "args": [
+        "string",
+        "string"
+      ],
+      "name": "AnswerConfig",
+      "returns": [
+        "error"
+      ]
+    },
+    "begin": {
+      "args": [
+        "core.ConfigInput"
+      ],
+      "name": "BeginConfig",
+      "returns": [
+        "string",
+        "error"
+      ]
+    },
+    "confirm": {
+      "args": [
+        "string",
+        "string",
+        "string"
+      ],
+      "name": "ConfirmConfig",
+      "returns": [
+        "string",
+        "error"
+      ]
+    },
+    "desktopVisible": {
+      "args": [],
+      "name": "DesktopVisible",
+      "returns": [
+        "bool"
+      ]
+    },
+    "diagnostics": {
+      "args": [],
+      "name": "Diagnostics",
+      "returns": [
+        "string"
+      ]
+    },
+    "end": {
+      "args": [
+        "string"
+      ],
+      "name": "EndConfig",
+      "returns": [
+        "error"
+      ]
+    },
+    "exit": {
+      "args": [],
+      "name": "Exit",
+      "returns": [
+        "error"
+      ]
+    },
+    "fields": {
+      "args": [
+        "string"
+      ],
+      "name": "ConnectionFields",
+      "returns": [
+        "core.ConnectionFieldsView",
+        "error"
+      ]
+    },
+    "folders": {
+      "args": [
+        "string",
+        "string"
+      ],
+      "name": "ListConfigFolders",
+      "returns": [
+        "[]core.Folder",
+        "error"
+      ]
+    },
+    "mount": {
+      "args": [
+        "string"
+      ],
+      "name": "Mount",
+      "returns": [
+        "error"
+      ]
+    },
+    "open": {
+      "args": [
+        "string"
+      ],
+      "name": "OpenExplorer",
+      "returns": [
+        "error"
+      ]
+    },
+    "prerequisite": {
+      "args": [
+        "string"
+      ],
+      "name": "Prerequisite",
+      "returns": [
+        "error"
+      ]
+    },
+    "probe": {
+      "args": [
+        "string",
+        "string"
+      ],
+      "name": "ProbeSSH",
+      "returns": [
+        "core.HostIdentity",
+        "error"
+      ]
+    },
+    "remove": {
+      "args": [
+        "string"
+      ],
+      "name": "Remove",
+      "returns": [
+        "error"
+      ]
+    },
+    "restart": {
+      "args": [],
+      "name": "RestartEngine",
+      "returns": [
+        "error"
+      ]
+    },
+    "restoreSettings": {
+      "args": [],
+      "name": "RestoreSettings",
+      "returns": [
+        "error"
+      ]
+    },
+    "retryCleanup": {
+      "args": [],
+      "name": "RetryCleanup",
+      "returns": [
+        "error"
+      ]
+    },
+    "selectFile": {
+      "args": [
+        "string"
+      ],
+      "name": "SelectCredentialFile",
+      "returns": [
+        "string",
+        "error"
+      ]
+    },
+    "settings": {
+      "args": [
+        "core.Settings"
+      ],
+      "name": "SaveSettings",
+      "returns": [
+        "error"
+      ]
+    },
+    "snapshot": {
+      "args": [],
+      "name": "Snapshot",
+      "returns": [
+        "core.View"
+      ]
+    },
+    "status": {
+      "args": [
+        "string"
+      ],
+      "name": "ConfigStatus",
+      "returns": [
+        "core.ConfigSession",
+        "error"
+      ]
+    },
+    "test": {
+      "args": [
+        "string"
+      ],
+      "name": "TestConnection",
+      "returns": [
+        "error"
+      ]
+    },
+    "unmount": {
+      "args": [
+        "string"
+      ],
+      "name": "Unmount",
+      "returns": [
+        "error"
+      ]
+    },
+    "update": {
+      "args": [
+        "core.Connection"
+      ],
+      "name": "UpdateConnection",
+      "returns": [
+        "error"
+      ]
+    },
+    "verifyRecovery": {
+      "args": [],
+      "name": "VerifyRecovery",
+      "returns": [
+        "error"
+      ]
+    }
+  },
+  "samples": {
+    "about": {
+      "appVersion": "test",
+      "rcloneVersion": "",
+      "windowsVersion": "",
+      "winFspVersion": "",
+      "webView2Version": "",
+      "architecture": ""
+    },
+    "configInput": {
+      "connection": {
+        "id": "connection",
+        "remote": "remote",
+        "name": "Café 😀",
+        "provider": "sftp",
+        "path": "folder",
+        "letter": "S",
+        "readOnly": false,
+        "autoMount": false,
+        "recovery": false,
+        "targetHash": ""
+      },
+      "values": {
+        "host": "example.test"
+      },
+      "allowInsecure": false,
+      "transport": "",
+      "hostKey": "",
+      "guided": true
+    },
+    "connectionUnknown": {
+      "id": "connection",
+      "remote": "remote",
+      "name": "Café 😀",
+      "provider": "sftp",
+      "path": "folder",
+      "letter": "S",
+      "readOnly": false,
+      "autoMount": false,
+      "recovery": false,
+      "targetHash": "",
+      "mounted": false,
+      "pending": null,
+      "busy": false,
+      "operation": "",
+      "error": "",
+      "uploads": null,
+      "cache": {
+        "checkedAt": null,
+        "pendingBytes": null,
+        "usedBytes": null,
+        "error": ""
+      }
+    },
+    "dynamicFieldError": {
+      "field": "host",
+      "message": "fill in Server",
+      "code": "validation.required",
+      "params": {
+        "label": "Server"
+      }
+    },
+    "fieldEmpty": {
+      "key": "",
+      "label": "",
+      "secret": false,
+      "required": false,
+      "default": "",
+      "advanced": false,
+      "file": false
+    },
+    "fieldError": {
+      "field": "port",
+      "message": "invalid port"
+    },
+    "fields": {
+      "values": {},
+      "transport": "explicit"
+    },
+    "folders": [
+      {
+        "name": "Folder",
+        "path": "folder"
+      }
+    ],
+    "foldersEmpty": [],
+    "identity": {
+      "key": "synthetic-key",
+      "fingerprint": "synthetic-fingerprint"
+    },
+    "message": {
+      "code": "drive.letter_in_use",
+      "params": {
+        "letter": "S"
+      },
+      "message": "letter S: is already in use"
+    },
+    "providerEmpty": {
+      "id": "",
+      "name": "",
+      "backend": "",
+      "experimental": false,
+      "fields": null,
+      "oauth": false,
+      "available": false
+    },
+    "questionEmpty": {
+      "Name": "",
+      "Help": "",
+      "DefaultStr": "",
+      "Type": "",
+      "IsPassword": false,
+      "Sensitive": false,
+      "Required": false,
+      "Exclusive": false,
+      "Examples": null,
+      "Unsupported": false
+    },
+    "sessionEmpty": {
+      "id": "",
+      "busy": false,
+      "complete": false,
+      "question": null,
+      "error": "",
+      "authenticated": false,
+      "connectionID": ""
+    },
+    "sessionFilled": {
+      "id": "session",
+      "busy": false,
+      "complete": false,
+      "question": {
+        "Name": "Library",
+        "Help": "Choose a library",
+        "DefaultStr": "",
+        "Type": "",
+        "IsPassword": false,
+        "Sensitive": false,
+        "Required": false,
+        "Exclusive": false,
+        "Examples": [
+          {
+            "Value": "library",
+            "Help": "User library"
+          }
+        ],
+        "Unsupported": false
+      },
+      "error": "",
+      "authenticated": true,
+      "connectionID": ""
+    },
+    "snapshotEmpty": {
+      "providers": [],
+      "connections": [],
+      "settings": {
+        "language": "en",
+        "autoStart": false,
+        "cacheGiB": 2
+      },
+      "letters": [],
+      "winFsp": false,
+      "engineError": "",
+      "settingsError": "",
+      "backupAvailable": false,
+      "recoveryHold": false,
+      "maintenanceError": "",
+      "startupWarning": "",
+      "freeBytes": null
+    },
+    "snapshotFilled": {
+      "providers": [
+        {
+          "id": "sftp",
+          "name": "SFTP",
+          "backend": "sftp",
+          "experimental": false,
+          "fields": [
+            {
+              "key": "host",
+              "label": "Server",
+              "secret": false,
+              "required": true,
+              "default": "",
+              "choices": [
+                "example.test"
+              ],
+              "advanced": false,
+              "hint": "Server hostname",
+              "file": false
+            }
+          ],
+          "oauth": false,
+          "available": true,
+          "notice": "Synthetic provider"
+        }
+      ],
+      "connections": [
+        {
+          "id": "connection",
+          "remote": "remote",
+          "name": "Café 😀",
+          "provider": "sftp",
+          "path": "folder",
+          "letter": "S",
+          "readOnly": false,
+          "autoMount": false,
+          "recovery": false,
+          "targetHash": "",
+          "mounted": false,
+          "pending": 2,
+          "busy": false,
+          "operation": "mounting",
+          "error": "letter S: is already in use",
+          "errorMessage": {
+            "code": "drive.letter_in_use",
+            "params": {
+              "letter": "S"
+            },
+            "message": "letter S: is already in use"
+          },
+          "uploads": {
+            "active": 1,
+            "queued": 1,
+            "cacheErrors": 0
+          },
+          "cache": {
+            "checkedAt": "2026-01-01T00:00:00Z",
+            "pendingBytes": 512,
+            "usedBytes": 1024,
+            "error": ""
+          }
+        }
+      ],
+      "settings": {
+        "language": "en",
+        "autoStart": false,
+        "cacheGiB": 2
+      },
+      "letters": [
+        "T"
+      ],
+      "winFsp": false,
+      "engineError": "",
+      "settingsError": "",
+      "backupAvailable": false,
+      "recoveryHold": false,
+      "maintenanceError": "",
+      "startupWarning": "",
+      "freeBytes": 1024
+    }
+  }
+}

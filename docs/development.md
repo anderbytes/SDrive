@@ -126,6 +126,20 @@ These are manual acceptance scenarios, not completed validation. Report native m
 
 ## Folder navigation and validation
 
+Connection setup lives in `frontend/src/connection/`: `useConnectionWizard` owns draft data, requests and commands; its reducer distinguishes service/access/edit, authentication with a session, folder selection with an optional saved connection, and completion with a saved connection after successful mounting. Credential fields, provider questions and folder navigation have separate views. Cancellation still waits for backend cleanup, failed mounting reuses the saved connection, and obsolete folder/status results cannot move the wizard backward. Shared modal behavior remains in `useDialog`.
+
+Core configuration sessions, preferences and engine lifecycle have separate files in the same package. All retain the `*Service` receiver, the existing mutex and operation/session ownership rules. Moving these responsibilities does not introduce another service or lock.
+
+Drive names contain 1–80 Unicode code points after trimming Go-compatible Unicode whitespace. Both frontend and backend apply this rule; ASCII, accented letters and simple emoji each count as one code point, while combining sequences and joined emoji count as multiple. Names are not truncated or normalized. The frontend permits the provider-name default for a new blank name; saved edits require a nonempty name. Go validates persisted connections too. JavaScript trimming explicitly matches `strings.TrimSpace`, including NEL and excluding BOM.
+
+### Bridge compatibility checks
+
+`frontend/src/bridge-fixtures.json` contains synthetic serialized Go samples and service method signatures. The core contract test compares actual Go serialization and reflected signatures to this fixture. Frontend contract tests check client method names/arguments/results and TypeScript field names, required fields and nullable metrics against the same samples. The frontend build runs the compile-time assertions; running Vitest alone does not type-check them. Review Go types, TypeScript types and fixtures together when a contract intentionally changes. Never put account data or credentials into fixtures.
+
+Run `./.tools/go/bin/go.exe test . ./internal/core ./internal/platform ./internal/i18n`, `./.tools/go/bin/go.exe vet ./...`, `npm --prefix frontend test` and `npm --prefix frontend run build`. The root tests include the isolated real-engine self-check. For the changed concurrency paths, use the existing Windows compiler setup with `CGO_ENABLED=1` and `go test -race ./internal/core ./internal/i18n`. Production compilation can target `.tools/validation-check.exe` without replacing the installed application. These checks do not mount drives or establish native WebView/provider behavior.
+
+### Folder interactions
+
 The folder picker retries a failed listing in the same authenticated draft. Breadcrumbs and the root action change the selected destination; the filter only matches names in the current listing and never searches remotely. Direct text must be applied with **Open destination** before connecting. A denied root listing does not prevent confirming a directly entered destination that the account can list. Recovery and saved drafts lock destination changes.
 
 Validation errors from the existing service methods retain their error message and serialize `{field, message}` into Wails `RuntimeError.cause`. The frontend associates these errors with the corresponding input, opens containing options and focuses the field without clearing entered values. Provider/network errors remain general messages; validation errors never include the submitted value. Go remains responsible for path traversal protection and validates host/port before SSH probing.

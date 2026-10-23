@@ -127,10 +127,10 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 			return nil, fmt.Errorf("field not allowed: %s", k)
 		}
 		if strings.ContainsAny(v, "\x00\r\n") {
-			return nil, &FieldError{k, fmt.Sprintf("invalid field: %s", f.Label)}
+			return nil, fieldMessage(k, "validation.field_invalid", map[string]string{"label": f.Label})
 		}
 		if len(v) > 32768 {
-			return nil, &FieldError{k, fmt.Sprintf("field too long: %s", f.Label)}
+			return nil, fieldMessage(k, "validation.field_too_long", map[string]string{"label": f.Label})
 		}
 		if v != "" {
 			result[k] = v
@@ -138,7 +138,7 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 	}
 	for _, f := range p.Fields {
 		if f.Required && result[f.Key] == "" {
-			return nil, &FieldError{f.Key, fmt.Sprintf("fill in %s", f.Label)}
+			return nil, fieldMessage(f.Key, "validation.required", map[string]string{"label": f.Label})
 		}
 		if len(f.Choices) > 0 && result[f.Key] != "" {
 			valid := false
@@ -148,7 +148,7 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 				}
 			}
 			if !valid {
-				return nil, &FieldError{f.Key, fmt.Sprintf("invalid option: %s", f.Label)}
+				return nil, fieldMessage(f.Key, "validation.option_invalid", map[string]string{"label": f.Label})
 			}
 		}
 	}
@@ -156,7 +156,7 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 		if value := result[key]; value != "" {
 			u, err := url.Parse(value)
 			if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && !(insecure && u.Scheme == "http")) {
-				return nil, &FieldError{key, fmt.Sprintf("%s must be an HTTPS URL without embedded credentials", key)}
+				return nil, fieldMessage(key, "validation.https_required", map[string]string{"field": key})
 			}
 		}
 	}
@@ -167,7 +167,7 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 		result["host"] = strings.Trim(v, "[]")
 	}
 	if p.ID == "azureblob" && result["key"] == "" && result["sas_url"] == "" {
-		return nil, &FieldError{"key", "enter the account key or SAS URL"}
+		return nil, &FieldError{Field: "key", Message: "enter the account key or SAS URL"}
 	}
 	if p.ID == "ftp" {
 		result["tls"], result["explicit_tls"] = "false", "false"

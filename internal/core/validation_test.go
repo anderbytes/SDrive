@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -37,7 +38,7 @@ func TestParameterFieldErrors(t *testing.T) {
 			// Wails marshals the error interface into RuntimeError.cause.
 			data, marshalErr := json.Marshal(&err)
 			var cause FieldError
-			if marshalErr != nil || json.Unmarshal(data, &cause) != nil || cause != *invalid || len(data) == 0 || strings.Contains(string(data), "secret") {
+			if marshalErr != nil || json.Unmarshal(data, &cause) != nil || !reflect.DeepEqual(cause, *invalid) || len(data) == 0 || strings.Contains(string(data), "secret") {
 				t.Fatalf("invalid or sensitive error cause: %s (%v)", data, marshalErr)
 			}
 		})

@@ -1,3 +1,4 @@
+import { formatMessage, type LocalizedMessage } from "./messages";
 import {
   createContext,
   useContext,
@@ -17,6 +18,10 @@ const Locale = createContext({
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const formats = Object.entries(translations)
   .filter(([key]) => /%[sdwv]/.test(key))
+  .sort(([a], [b]) => {
+    const difference = b.replace(/%[sdwv]/g, "").length - a.replace(/%[sdwv]/g, "").length;
+    return difference || (a < b ? -1 : a > b ? 1 : 0);
+  })
   .map(([key, value]) => ({
     pattern: new RegExp(
       `^${key
@@ -29,9 +34,10 @@ const formats = Object.entries(translations)
 
 export function translate(
   language: Language,
-  text: string,
+  text: string | LocalizedMessage,
   values: Record<string, string | number> = {},
 ): string {
+  if (typeof text !== "string") return formatMessage(language, text);
   let result = text;
   if (language === "pt-BR") {
     result = Object.hasOwn(translations, text) ? translations[text] : text;
@@ -68,7 +74,7 @@ export function useLanguage() {
   return {
     language,
     setLanguage,
-    t: (text: string, values?: Record<string, string | number>) =>
+    t: (text: string | LocalizedMessage, values?: Record<string, string | number>) =>
       translate(language, text, values),
   };
 }
