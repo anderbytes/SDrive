@@ -157,6 +157,38 @@ func TestConfigurationJobProtocolWithRclone(t *testing.T) {
 	if err := e.Call(ctx, "config/create", map[string]any{"name": "sdrive-disposable", "type": "local", "parameters": map[string]string{}, "opt": map[string]bool{"nonInteractive": true}}, &result); err != nil {
 		t.Fatal(err)
 	}
+	for _, key := range []string{"State", "Option", "Error"} {
+		if _, ok := result[key]; !ok {
+			t.Fatalf("real completion is missing %s", key)
+		}
+	}
+	if result["State"] != "" || result["Option"] != nil || result["Error"] != "" {
+		t.Fatal("unexpected real completion shape")
+	}
+	// FTP configuration has no provider callback: this checks persistence without contacting a server.
+	for _, mode := range []string{"explicit", "implicit", "plain"} {
+		params := map[string]string{"host": "example.invalid", "user": "synthetic-user", "pass": "synthetic-password", "tls": "false", "explicit_tls": "false"}
+		if mode == "explicit" {
+			params["explicit_tls"] = "true"
+		}
+		if mode == "implicit" {
+			params["tls"], params["port"] = "true", "990"
+		}
+		name := "sdrive-disposable-ftp-" + mode
+		if err := e.Call(ctx, "config/create", map[string]any{"name": name, "type": "ftp", "parameters": params, "opt": map[string]bool{"nonInteractive": true, "obscure": true}}, &result); err != nil {
+			t.Fatal(err)
+		}
+		var stored map[string]string
+		if err := e.Call(ctx, "config/get", map[string]string{"name": name}, &stored); err != nil {
+			t.Fatal(err)
+		}
+		if stored["type"] != "ftp" || stored["tls"] != params["tls"] || stored["explicit_tls"] != params["explicit_tls"] || stored["pass"] == params["pass"] {
+			t.Fatal("real FTP persistence differs from expected transport or obscuring")
+		}
+		if err := e.Call(ctx, "config/delete", map[string]string{"name": name}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
 	var config map[string]string
 	if err := e.Call(ctx, "config/get", map[string]string{"name": "sdrive-disposable"}, &config); err != nil || config["type"] != "local" {
 		t.Fatalf("real configuration: %v", err)

@@ -265,6 +265,7 @@ func (e *Engine) configure(ctx context.Context, method string, input, out any) e
 			var status struct {
 				Finished, Success *bool
 				Output            json.RawMessage
+				Error             string
 			}
 			if e.call(pollCtx, "job/status", args, &status) == nil && status.Finished != nil && *status.Finished && status.Success != nil {
 				cancel()
@@ -272,13 +273,13 @@ func (e *Engine) configure(ctx context.Context, method string, input, out any) e
 					return err
 				}
 				if !*status.Success {
-					return fmt.Errorf("could not configure the account; check credentials and permissions")
+					return providerFailure(status.Error)
 				}
 				if out == nil {
 					return nil
 				}
 				if len(status.Output) == 0 || status.Output[0] != '{' {
-					return fmt.Errorf("invalid configuration result")
+					return operationFailure("invalid")
 				}
 				return json.Unmarshal(status.Output, out)
 			}
@@ -318,10 +319,16 @@ func (e *Engine) call(ctx context.Context, method string, input any, out any) er
 	req.SetBasicAuth(e.user, e.password)
 	resp, err := e.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not complete the operation in the local engine")
+		return operationFailure("engine")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode >= 500 {
+			var response struct{ Error string }
+			if json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&response) == nil {
+				return providerFailure(response.Error)
+			}
+		}
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 		return &rpcRejection{method: method, status: resp.StatusCode}
 	}

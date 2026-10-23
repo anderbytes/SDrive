@@ -1,5 +1,5 @@
 import { LanguageProvider, useLanguage, type Language } from "./i18n";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   api,
   type Connection,
@@ -573,6 +573,31 @@ function Drive({
   );
 }
 
+function SecretInput({ label, value, required, onChange }: {
+  label: string;
+  value: string;
+  required: boolean;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useLanguage();
+  const id = useId();
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="secret-input">
+      <label htmlFor={id}>{label}</label>
+      <div className="secret-control">
+        <input id={id} type={revealed ? "text" : "password"} autoComplete="off"
+          required={required} value={value} onChange={(e) => onChange(e.target.value)} />
+        <button type="button" aria-controls={id} aria-pressed={revealed}
+          aria-label={t(revealed ? "Hide {field}" : "Show {field}", { field: label })}
+          onClick={() => setRevealed((show) => !show)}>
+          {t(revealed ? "Hide" : "Show")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ConnectionEditor({
   initial,
   auth,
@@ -602,6 +627,7 @@ function ConnectionEditor({
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(!!initial.id && auth);
+  const [fieldsLoaded, setFieldsLoaded] = useState(!initial.id || !auth);
   const [error, setError] = useState("");
   const [folderError, setFolderError] = useState("");
   const [folders, setFolders] = useState<{ name: string; path: string }[]>([]);
@@ -628,7 +654,11 @@ function ConnectionEditor({
       void api
         .fields(initial.id)
         .then((fields) => {
-          if (active) setValues(fields);
+          if (active) {
+            setValues(fields.values);
+            if (fields.transport) setTransport(fields.transport);
+            setFieldsLoaded(true);
+          }
         })
         .catch((e) => {
           if (active) setError(message(e));
@@ -723,7 +753,12 @@ function ConnectionEditor({
           !!f.advanced === advanced,
       )
       .map((f) => (
-        <label key={f.key}>
+        <div className="credential-field" key={`${p.id}-${f.key}`}>
+          {f.secret ? (
+            <SecretInput label={t(f.label)}
+              value={values[f.key] ?? f.default ?? ""} required={f.required}
+              onChange={(value) => setValue(f.key, value)} />
+          ) : <label>
           {t(f.label)}
           {f.choices ? (
             <select
@@ -742,13 +777,14 @@ function ConnectionEditor({
             </select>
           ) : (
             <input
-              type={f.secret ? "password" : "text"}
+              type="text"
               autoComplete="off"
               required={f.required}
               value={values[f.key] ?? f.default ?? ""}
               onChange={(e) => setValue(f.key, e.target.value)}
             />
           )}
+          </label>}
           {f.hint && <small>{t(f.hint)}</small>}
           {f.file && (
             <button
@@ -764,10 +800,12 @@ function ConnectionEditor({
               {t("Select file…")}
             </button>
           )}
-        </label>
+        </div>
       ));
   const begin = () =>
     action(async () => {
+      if (!fieldsLoaded)
+        throw new Error("Could not load access details. Cancel and try again.");
       const populated = { ...values };
       for (const f of p.fields)
         if (populated[f.key] === undefined && f.default)
@@ -841,13 +879,17 @@ function ConnectionEditor({
                   setValues({});
                   setIdentity(undefined);
                   setTrusted(false);
+                  setTransport("explicit");
+                  setInsecure(false);
                 }}
               >
                 {data.providers.map((item) => (
                   <option key={item.id} value={item.id}>
                     {t(item.name)}
                     {item.experimental ? " (experimental)" : ""}
-                    {item.available === false
+                    {item.id === "gcs" && item.available === false
+                      ? t(" — service account available")
+                      : item.available === false
                       ? t(" — sign-in not configured")
                       : ""}
                   </option>
@@ -863,12 +905,12 @@ function ConnectionEditor({
                 onChange={(e) => change({ name: e.target.value })}
               />
             </label>
-            {unavailable && <p role="status">{t(p.notice || "")}</p>}
+            {unavailable && <p role="status">{t(p.id === "gcs" ? "Browser sign-in is unavailable. Continue to select a service account JSON file." : p.notice || "")}</p>}
             <div className="modal-actions">
               <button type="button" onClick={close}>
                 {t("Cancel")}
               </button>
-              <button className="primary">{t("Continue")}</button>
+              <button className="primary" disabled={unavailable && p.id !== "gcs"}>{t("Continue")}</button>
             </div>
           </form>
         )}
@@ -880,12 +922,16 @@ function ConnectionEditor({
             }}
           >
             <h3>
-              {p.oauth
+              {p.id === "gcs" && (p.available === false || values.service_account_file)
+                ? t("Access to {provider}", { provider: p.name })
+                : p.oauth
                 ? t("Sign in to {provider}", { provider: p.name })
                 : t("Access to {provider}", { provider: p.name })}
             </h3>
             <p>
-              {p.oauth
+              {p.id === "gcs" && (p.available === false || values.service_account_file)
+                ? t("Select a service account JSON file authorized for your bucket. Browser sign-in is not required.")
+                : p.oauth
                 ? t(
                     "Sign in through your browser and authorize SDrive. Then return to this window.",
                   )
@@ -895,7 +941,7 @@ function ConnectionEditor({
             </p>
             {unavailable && (
               <div className="alert warning" role="status">
-                {t(p.notice || "")}
+                {t(p.id === "gcs" ? "Browser sign-in is unavailable. Continue to select a service account JSON file." : p.notice || "")}
               </div>
             )}
             {p.experimental && (
@@ -908,6 +954,7 @@ function ConnectionEditor({
             <fieldset disabled={loading || busy}>
               <legend>{t("Access details")}</legend>
               {fields(false)}
+              {p.id === "ftp" && transport === "plain" && <p role="status">{t("This connection uses unencrypted FTP. Confirm permission in Advanced options before continuing.")}</p>}
               {p.id === "sftp" && (
                 <div className="host-key">
                   <p>
@@ -1005,6 +1052,7 @@ function ConnectionEditor({
                 disabled={
                   busy ||
                   loading ||
+                  !fieldsLoaded ||
                   unavailable ||
                   (p.id === "sftp" && !trusted)
                 }
@@ -1045,7 +1093,11 @@ function ConnectionEditor({
                 >
                   <h3>{t("Continue setup")}</h3>
                   <p>{t(question.Help)}</p>
-                  <label>
+                  {question.IsPassword || question.Sensitive ? (
+                    <SecretInput key={`${sessionID}-${question.Name}-${session?.error || ""}`}
+                      label={t(question.Name)} value={answer} required={question.Required}
+                      onChange={setAnswer} />
+                  ) : <label>
                     {t(question.Name)}
                     {question.Exclusive && question.Examples?.length ? (
                       <select
@@ -1068,17 +1120,13 @@ function ConnectionEditor({
                       <input
                         aria-label={t(question.Name)}
                         autoComplete="off"
-                        type={
-                          question.IsPassword || question.Sensitive
-                            ? "password"
-                            : "text"
-                        }
+                        type="text"
                         required={question.Required}
                         value={answer}
                         onChange={(e) => setAnswer(e.target.value)}
                       />
                     )}
-                  </label>
+                  </label>}
                   <button disabled={busy} className="primary">
                     {t("Continue")}
                   </button>

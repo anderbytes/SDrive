@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -67,6 +68,30 @@ type ConfigResult struct {
 	Option *Question
 	Error  string
 }
+
+func (r *ConfigResult) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil || fields == nil {
+		return errInvalidConfigResult
+	}
+	for _, key := range []string{"State", "Option", "Error"} {
+		value, ok := fields[key]
+		if !ok || (key != "Option" && string(value) == "null") {
+			return errInvalidConfigResult
+		}
+	}
+	type result ConfigResult
+	var next result
+	if err := json.Unmarshal(data, &next); err != nil {
+		return errInvalidConfigResult
+	}
+	if (next.State != "") != (next.Option != nil) || (next.Option != nil && strings.TrimSpace(next.Option.Name) == "") {
+		return errInvalidConfigResult
+	}
+	*r = ConfigResult(next)
+	return nil
+}
+
 type ConfigInput struct {
 	Connection    Connection        `json:"connection"`
 	Values        map[string]string `json:"values"`
@@ -444,6 +469,18 @@ func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 		if err = getConfig("sd_"+c.Remote, &existing); err != nil {
 			return "", err
 		}
+		if existing == nil || existing["type"] != p.Backend {
+			return "", fmt.Errorf("invalid saved access details; preserve the connection and try again")
+		}
+		if p.ID == "ftp" {
+			mode, modeErr := ftpTransport(existing)
+			if modeErr != nil {
+				return "", modeErr
+			}
+			if mode != input.Transport {
+				return "", fmt.Errorf("keep the FTP transport during recovery")
+			}
+		}
 		for key, value := range params {
 			if key == "sas_url" {
 				next, _ := url.Parse(value)
@@ -461,7 +498,7 @@ func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 					secret = true
 				}
 			}
-			if !secret && value != existing[key] {
+			if !secret && !(p.ID == "ftp" && (key == "tls" || key == "explicit_tls")) && value != existing[key] {
 				return "", fmt.Errorf("during recovery only renew credentials, keeping the server and username")
 			}
 		}
@@ -488,9 +525,15 @@ func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 	return id, nil
 }
 
-func (s *Service) configure(ctx context.Context, id string, rpc RPC, method string, input any) {
+func (s *Service) configure(ctx context.Context, id string, rpc RPC, method string, input map[string]any) {
 	var result ConfigResult
 	err := callRPC(ctx, rpc, method, input, &result)
+	var config map[string]string
+	if err == nil && result.State == "" && result.Option == nil && result.Error == "" {
+		verifyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err = callRPC(verifyCtx, rpc, "config/get", map[string]any{"name": input["name"]}, &config)
+		cancel()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.session == nil || s.session.ID != id || s.session.closing {
@@ -503,22 +546,13 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 		return
 	}
 	if err != nil {
-		if ss.guided {
-			ss.Error = "Could not sign in. Check your credentials, internet connection and service permissions."
-		} else {
-			ss.Error = err.Error()
-		}
+		ss.Error = setupFailure(err)
 		return
 	}
 	ss.state = result.State
 	ss.Question = result.Option
-	if q := ss.Question; q != nil && (q.Type == "string" || q.Type == "") {
-		name := strings.ToLower(q.Name)
-		for _, term := range []string{"token", "password", "secret", "2fa", "otp", "verification_code"} {
-			if strings.Contains(name, term) {
-				q.Sensitive = true
-			}
-		}
+	if q := ss.Question; q != nil && sensitiveQuestion(q.Name) {
+		q.Sensitive = true
 	}
 	if ss.Question != nil && (ss.Question.IsPassword || ss.Question.Sensitive) {
 		ss.Question.DefaultStr = ""
@@ -533,6 +567,17 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 	}
 	ss.Error = ""
 	if result.State == "" && result.Option == nil {
+		p, _ := provider(ss.connection.Provider)
+		if err := validateConfiguredRemote(p, config); err != nil {
+			ss.Error = err.Error()
+			return
+		}
+		if ss.inPlace {
+			if _, err := checkDestination(ss.connection, config); err != nil {
+				ss.Error = err.Error()
+				return
+			}
+		}
 		ss.Authenticated = true
 		if !ss.guided {
 			ss.Error = s.commitConfig(ss)
@@ -781,12 +826,17 @@ func (s *Service) Remove(id string) error {
 	return nil
 }
 
-func (s *Service) ConnectionFields(id string) (map[string]string, error) {
+type ConnectionFieldsView struct {
+	Values    map[string]string `json:"values"`
+	Transport string            `json:"transport"`
+}
+
+func (s *Service) ConnectionFields(id string) (ConnectionFieldsView, error) {
 	s.mu.Lock()
 	i := s.index(id)
 	if i < 0 {
 		s.mu.Unlock()
-		return nil, fmt.Errorf("connection not found")
+		return ConnectionFieldsView{}, fmt.Errorf("connection not found")
 	}
 	c := s.store.Connections[i]
 	rpc := s.rpc
@@ -795,16 +845,19 @@ func (s *Service) ConnectionFields(id string) (map[string]string, error) {
 	defer cancel()
 	var config map[string]string
 	if err := callRPC(ctx, rpc, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config); err != nil {
-		return nil, err
+		return ConnectionFieldsView{}, fmt.Errorf("could not load access details; cancel and try again")
 	}
 	s.mu.Lock()
 	current := s.index(id)
 	valid := s.rpc == rpc && current >= 0 && s.store.Connections[current] == c
 	s.mu.Unlock()
 	if !valid {
-		return nil, fmt.Errorf("connection changed; try again")
+		return ConnectionFieldsView{}, fmt.Errorf("connection changed; try again")
 	}
 	p, _ := provider(c.Provider)
+	if config == nil || config["type"] != p.Backend {
+		return ConnectionFieldsView{}, fmt.Errorf("invalid saved access details; preserve the connection and try again")
+	}
 	values := map[string]string{}
 	for _, f := range p.Fields {
 		if !f.Secret {
@@ -813,7 +866,15 @@ func (s *Service) ConnectionFields(id string) (map[string]string, error) {
 			}
 		}
 	}
-	return values, nil
+	view := ConnectionFieldsView{Values: values}
+	if p.ID == "ftp" {
+		mode, err := ftpTransport(config)
+		if err != nil {
+			return ConnectionFieldsView{}, err
+		}
+		view.Transport = mode
+	}
+	return view, nil
 }
 
 // Language reads only preferences, without querying drives or the engine.

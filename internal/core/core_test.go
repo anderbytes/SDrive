@@ -17,9 +17,10 @@ func cleanCacheStats() map[string]any {
 }
 
 type fakeRPC struct {
-	mu     sync.Mutex
-	calls  []string
-	handle func(context.Context, string, any) (any, error)
+	mu      sync.Mutex
+	calls   []string
+	handle  func(context.Context, string, any) (any, error)
+	remotes map[string]map[string]string
 }
 
 func (f *fakeRPC) Alive() bool { return true }
@@ -28,6 +29,9 @@ func (f *fakeRPC) Call(ctx context.Context, method string, input, out any) error
 	f.calls = append(f.calls, method)
 	f.mu.Unlock()
 	var result any = map[string]any{}
+	if method == "config/create" || method == "config/update" {
+		result = ConfigResult{}
+	}
 	var err error
 	if method == "config/listremotes" {
 		result = map[string]any{"remotes": []string{}}
@@ -41,6 +45,46 @@ func (f *fakeRPC) Call(ctx context.Context, method string, input, out any) error
 	if err != nil {
 		return err
 	}
+	// Setup fixtures model the configuration stored by a successful rclone write.
+	f.mu.Lock()
+	if method == "config/create" || method == "config/update" {
+		data, _ := json.Marshal(input)
+		var request struct {
+			Name, Type string
+			Parameters map[string]string
+		}
+		_ = json.Unmarshal(data, &request)
+		if f.remotes == nil {
+			f.remotes = map[string]map[string]string{}
+		}
+		if f.remotes[request.Name] == nil {
+			f.remotes[request.Name] = map[string]string{}
+		}
+		config := f.remotes[request.Name]
+		if request.Type != "" {
+			config["type"] = request.Type
+		}
+		for key, value := range request.Parameters {
+			config[key] = value
+		}
+		config["token"] = "synthetic-test-token"
+	}
+	if method == "config/get" {
+		_, defaultResult := result.(ConfigResult)
+		if defaultResult || f.handle == nil {
+			data, _ := json.Marshal(input)
+			var request struct{ Name string }
+			_ = json.Unmarshal(data, &request)
+			if config := f.remotes[request.Name]; config != nil {
+				copy := map[string]string{}
+				for key, value := range config {
+					copy[key] = value
+				}
+				result = copy
+			}
+		}
+	}
+	f.mu.Unlock()
 	if out != nil {
 		b, _ := json.Marshal(result)
 		return json.Unmarshal(b, out)
@@ -144,7 +188,7 @@ func TestAllEighteenProfiles(t *testing.T) {
 					}
 					return ConfigResult{}, nil
 				}
-				return map[string]any{}, nil
+				return ConfigResult{}, nil
 			}}
 			s := testService(t, rpc)
 			input := ConfigInput{Connection: Connection{Name: "Teste", Provider: p.ID, Letter: "S"}, Values: fixture(p), Transport: "explicit"}
@@ -367,7 +411,7 @@ func TestRejectedProviderErrorsDoNotExposeSecrets(t *testing.T) {
 
 func TestConnectionFieldsExcludeSecrets(t *testing.T) {
 	s := testService(t, &fakeRPC{handle: func(context.Context, string, any) (any, error) {
-		return map[string]string{"host": "example.test", "user": "user", "pass": "secret", "token": "private-token"}, nil
+		return map[string]string{"type": "ftp", "host": "example.test", "user": "user", "pass": "secret", "token": "private-token"}, nil
 	}})
 	c := testConnection()
 	s.store.Connections = []Connection{c}
@@ -375,7 +419,7 @@ func TestConnectionFieldsExcludeSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fields["host"] != "example.test" || fields["pass"] != "" || fields["token"] != "" {
+	if fields.Values["host"] != "example.test" || fields.Values["pass"] != "" || fields.Values["token"] != "" {
 		t.Fatal("credential fields exposed")
 	}
 }
@@ -393,7 +437,7 @@ func TestMissingCacheStatsBlocksSafeUnmount(t *testing.T) {
 func TestRecoveryCredentialsKeepRemoteAndRejectNewServer(t *testing.T) {
 	rpc := &fakeRPC{handle: func(_ context.Context, method string, input any) (any, error) {
 		if method == "config/get" {
-			return map[string]string{"host": "example.test", "user": "user", "explicit_tls": "true"}, nil
+			return map[string]string{"type": "ftp", "host": "example.test", "user": "user", "explicit_tls": "true"}, nil
 		}
 		return ConfigResult{}, nil
 	}}
@@ -401,6 +445,10 @@ func TestRecoveryCredentialsKeepRemoteAndRejectNewServer(t *testing.T) {
 	c := testConnection()
 	s.store.Connections = []Connection{c}
 	input := ConfigInput{Connection: c, Values: map[string]string{"host": "other.test", "user": "user", "pass": "new-password"}, Transport: "explicit"}
+	c.Recovery = false
+	hash, _ := checkDestination(c, map[string]string{"type": "ftp", "host": "example.test", "user": "user"})
+	c.Recovery, c.TargetHash = true, hash
+	s.store.Connections[0], input.Connection = c, c
 	if _, err := s.BeginConfig(input); err == nil {
 		t.Fatal("server changed during recovery")
 	}

@@ -35,6 +35,14 @@ After an interruption, keep the cache and original destination. Changing folders
 
 Before mounting, SDrive binds cache to the destination options and identifiers available in configuration, including the library/drive and remote folder. OAuth renewal that selects another library does not authorize sending old cache there. This binding does not prove account identity for providers that do not persist their own account identifiers: always renew with the same account.
 
+Recovery renewal also checks that binding before reporting setup success. A mismatch preserves the original recovery flag and hash and blocks completion and mounting. Renewal updates the existing encrypted remote; cancellation does not roll back credentials already written by the provider and never deletes that recovery remote. Sign in again with the original account/library. No token, password, key-file path or credential rotation becomes account identity. Existing hashes are unchanged; the per-profile limits are recorded in [provider validation](provider-validation.md#recovery-identity-limits).
+
+FTP renewal restores the saved explicit FTPS, implicit FTPS or plain FTP mode. Missing TLS flags mean false, matching rclone defaults; contradictory or invalid flags stop renewal. Both flags are written explicitly to prevent stale transport settings. Recovery cannot change transport, and plain FTP requires fresh explicit consent. Failed access-detail loading blocks submission rather than reverting to the default transport.
+
+Setup accepts a complete, typed rclone question/completion response and verifies the exact saved remote's backend and required configuration before proceeding. This verifies configuration, not read/write permissions: folder selection still performs a read-only access check. Provider failures expose fixed messages for recognized network, credential and permission signals, with a generic fallback for ambiguous responses. Authentication failures of the local RPC endpoint are reported as local engine failures. Raw provider error text is inspected only in memory and is not included in application errors.
+
+Password, token, secret, MFA, OTP, 2FA and verification questions are masked even without provider password hints, including numeric verification codes. Sensitive defaults and examples are removed before reaching the interface. Show/hide controls reveal only user-entered values in the current form, start hidden and reset when a step is reopened or a question is submitted. Neither revealed state nor credentials are stored in browser storage.
+
 The helper process belongs to a Windows Job Object, preventing it from running unsupervised after SDrive exits. After an unexpected exit, persistent files remain for recovery on the next launch.
 
 ## Local settings recovery

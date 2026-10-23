@@ -258,11 +258,104 @@ test("provider question accepts MFA and does not persist it in browser storage",
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   const code = await screen.findByLabelText("MFA code");
+  expect(code.getAttribute("type")).toBe("password");
   fireEvent.change(code, { target: { value: "123456" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show MFA code" }));
+  expect(code.getAttribute("type")).toBe("text");
+  expect(screen.getByRole("button", { name: "Hide MFA code" }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "Hide MFA code" }));
+  expect(code.getAttribute("type")).toBe("password");
   fireEvent.click(screen.getByText("Continue"));
   await waitFor(() => expect(api.answer).toHaveBeenCalledWith("mfa", "123456"));
   expect(localStorage.length).toBe(0);
   expect(sessionStorage.length).toBe(0);
+});
+
+const ftpProvider = {
+  id: "ftp", name: "FTP / FTPS", backend: "ftp", experimental: false, available: true,
+  fields: [
+    { key: "host", label: "Server", secret: false, required: true, default: "" },
+    { key: "user", label: "Username", secret: false, required: true, default: "" },
+    { key: "pass", label: "Password", secret: true, required: false, default: "" },
+  ],
+};
+
+test.each(["explicit", "implicit", "plain"])("FTP renewal restores %s and requires fresh plain FTP consent", async (transport) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider: "ftp", recovery: true }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport });
+  vi.mocked(api.begin).mockResolvedValue("renew");
+  vi.mocked(api.status).mockResolvedValue({ id: "renew", busy: true, complete: false, question: null, error: "" });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await waitFor(() => expect((screen.getByLabelText("Server") as HTMLInputElement).value).toBe("example.test"));
+  expect((screen.getByLabelText("Access type") as HTMLSelectElement).value).toBe(transport);
+  const consent = screen.getByLabelText("Allow unencrypted connection (HTTP / FTP)") as HTMLInputElement;
+  expect(consent.checked).toBe(false);
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "synthetic-secret" } });
+  if (transport === "plain") {
+    expect(screen.getByText("This connection uses unencrypted FTP. Confirm permission in Advanced options before continuing.")).toBeDefined();
+    fireEvent.click(consent);
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ transport, allowInsecure: transport === "plain", values: { host: "example.test", user: "original", pass: "synthetic-secret" } })));
+});
+
+test("failed credential loading prevents renewal with default transport", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider: "ftp" }] });
+  vi.mocked(api.fields).mockRejectedValue(new Error("Could not load access details. Cancel and try again."));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await screen.findByText("Could not load access details. Cancel and try again.");
+  expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(api.begin).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+test("password visibility is local and resets when access is reopened", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider] });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  fireEvent.change(screen.getByLabelText("Connection type"), { target: { value: "ftp" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const password = screen.getByLabelText("Password");
+  fireEvent.change(password, { target: { value: "synthetic-secret" } });
+  expect(password.getAttribute("type")).toBe("password");
+  const toggle = screen.getByRole("button", { name: "Show Password" });
+  toggle.focus();
+  expect(document.activeElement).toBe(toggle);
+  fireEvent.click(toggle);
+  expect(password.getAttribute("type")).toBe("text");
+  expect(api.begin).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(screen.getByLabelText("Password").getAttribute("type")).toBe("password");
+  expect((screen.getByLabelText("Password") as HTMLInputElement).value).toBe("synthetic-secret");
+  expect(localStorage.length).toBe(0);
+  expect(sessionStorage.length).toBe(0);
+});
+
+test("existing custom OAuth connection can still renew when project sign-in is unavailable", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [{ ...snapshot.providers[0], available: false }], connections: [connection] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { client_id: "custom-public-id" }, transport: "" });
+  vi.mocked(api.begin).mockResolvedValue("custom");
+  vi.mocked(api.status).mockResolvedValue({ id: "custom", busy: true, complete: false, question: null, error: "" });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ values: { client_id: "custom-public-id" } })));
+});
+
+test("password controls and FTP warning follow the saved Portuguese language", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider: "ftp" }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "plain" });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Reconfigurar conta"));
+  await screen.findByText("Esta conexão usa FTP sem criptografia. Confirme a autorização nas opções avançadas antes de continuar.");
+  fireEvent.click(screen.getByRole("button", { name: "Mostrar Senha" }));
+  expect(screen.getByLabelText("Senha").getAttribute("type")).toBe("text");
+  expect(screen.getByRole("button", { name: "Ocultar Senha" })).toBeDefined();
 });
 
 test("guided setup chooses a folder before confirming and mounting", async () => {
@@ -340,7 +433,7 @@ test("missing project OAuth is explained without asking the user for Client ID",
   fireEvent.click(screen.getByText("Continue"));
   expect(screen.getByText("Project sign-in is not ready yet")).toBeDefined();
   expect(
-    (screen.getByText("Sign in with Google Drive") as HTMLButtonElement)
+    (screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement)
       .disabled,
   ).toBe(true);
   expect(screen.queryByText(/Client ID/)).toBeNull();
@@ -397,7 +490,10 @@ test("GCS file picker enables service-account access without project OAuth", asy
   fireEvent.change(screen.getByLabelText("Connection type"), {
     target: { value: "gcs" },
   });
+  expect(screen.getByText("Browser sign-in is unavailable. Continue to select a service account JSON file.")).toBeDefined();
+  expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(screen.getByText("Continue"));
+  expect(screen.getByText("Select a service account JSON file authorized for your bucket. Browser sign-in is not required.")).toBeDefined();
   fireEvent.click(screen.getByText("Select file…"));
   await waitFor(() =>
     expect((screen.getByLabelText("JSON file") as HTMLInputElement).value).toBe(

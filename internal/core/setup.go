@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -143,7 +144,7 @@ func localizeQuestion(q *Question) {
 	}
 	label, ok := labels[q.Name]
 	name := strings.ToLower(q.Name)
-	if !ok && (strings.Contains(name, "2fa") || strings.Contains(name, "otp") || strings.Contains(name, "verification") || strings.Contains(name, "mfa")) {
+	if !ok && verificationQuestion(name) {
 		label = [2]string{"Verification code", "Enter the authentication code requested by your account."}
 		ok = true
 	}
@@ -179,4 +180,75 @@ func localizeQuestion(q *Question) {
 			}
 		}
 	}
+}
+
+func verificationQuestion(name string) bool {
+	name = strings.ToLower(name)
+	for _, term := range []string{"2fa", "otp", "verification", "mfa"} {
+		if strings.Contains(name, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func sensitiveQuestion(name string) bool {
+	name = strings.ToLower(name)
+	if verificationQuestion(name) {
+		return true
+	}
+	for _, term := range []string{"token", "password", "secret"} {
+		if strings.Contains(name, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateConfiguredRemote(p Provider, config map[string]string) error {
+	invalid := fmt.Errorf("the engine did not save a valid account configuration; cancel and try again")
+	if config == nil || config["type"] != p.Backend {
+		return invalid
+	}
+	for _, f := range p.Fields {
+		if f.Required && strings.TrimSpace(config[f.Key]) == "" {
+			return invalid
+		}
+	}
+	if p.OAuth && config["token"] == "" && !(p.ID == "gcs" && config["service_account_file"] != "") {
+		return invalid
+	}
+	if p.ID == "azureblob" && config["key"] == "" && config["sas_url"] == "" {
+		return invalid
+	}
+	if p.ID == "ftp" {
+		if _, err := ftpTransport(config); err != nil {
+			return invalid
+		}
+	}
+	return nil
+}
+
+var errInvalidConfigResult = errors.New("invalid configuration result")
+
+func setupFailure(err error) string {
+	if errors.Is(err, errInvalidConfigResult) {
+		return "The engine returned an invalid setup response. Cancel and try again."
+	}
+	var failure interface{ FailureKind() string }
+	if errors.As(err, &failure) {
+		switch failure.FailureKind() {
+		case "network":
+			return "Could not reach the storage service. Check your internet connection and try again."
+		case "credentials":
+			return "The service rejected your credentials. Check your account details and sign in again."
+		case "permission":
+			return "Your account does not have the required permission. Check access with your storage administrator."
+		case "engine":
+			return "Could not communicate with the local engine. Cancel setup and restart the engine."
+		case "invalid":
+			return "The engine returned an invalid setup response. Cancel and try again."
+		}
+	}
+	return "Could not sign in. Check your credentials, internet connection and service permissions."
 }

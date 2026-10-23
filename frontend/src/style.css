@@ -384,6 +384,29 @@ input[type="checkbox"] {
   accent-color: #2ac99c;
   margin: 0;
 }
+.credential-field {
+  margin-bottom: 18px;
+}
+.credential-field label,
+.secret-input label {
+  margin-bottom: 8px;
+}
+.credential-field small {
+  display: block;
+  color: #91a3b3;
+  line-height: 1.5;
+}
+.secret-control {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.secret-control input {
+  flex: 1;
+}
+.secret-control button {
+  flex-shrink: 0;
+}
 .check {
   flex-direction: row;
   align-items: center;

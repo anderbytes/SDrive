@@ -70,16 +70,27 @@ func Catalog() []Provider {
 			case "client_id", "client_secret":
 				p.OAuth = true
 				f.Advanced = true
-			case "port", "domain", "key_file_pass", "mailbox_password", "project_number":
+			case "port", "domain", "mailbox_password", "project_number":
 				f.Advanced = true
-			case "key_file", "service_account_file":
-				f.File = true
 			case "host":
 				f.Hint = "Example: files.company.com"
 			case "url":
 				f.Hint = "Paste the WebDAV address provided by your service or administrator."
 			case "endpoint":
 				f.Hint = "Address provided by your service; not required for Amazon S3."
+			case "key_file":
+				f.File = true
+				f.Hint = "Select your SSH private key, not the public .pub file. A key can replace the account password."
+			case "key_file_pass":
+				f.Advanced = true
+				f.Hint = "Enter the passphrase protecting your SSH private key, if any."
+			case "key", "sas_url":
+				if p.ID == "azureblob" {
+					f.Hint = "Use an account key or a SAS URL for the same storage account. A SAS URL can restrict access to a container."
+				}
+			case "service_account_file":
+				f.File = true
+				f.Hint = "Select the JSON credentials file for a service account authorized to access your bucket. This does not use browser sign-in."
 			}
 		}
 		if p.OAuth && projectOAuth[p.ID].ClientID == "" {
@@ -166,6 +177,7 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 		return nil, fmt.Errorf("enter the account key or SAS URL")
 	}
 	if p.ID == "ftp" {
+		result["tls"], result["explicit_tls"] = "false", "false"
 		switch transport {
 		case "explicit":
 			result["explicit_tls"] = "true"
@@ -183,4 +195,28 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 		}
 	}
 	return result, nil
+}
+
+func ftpTransport(config map[string]string) (string, error) {
+	flags := map[string]bool{}
+	for _, key := range []string{"tls", "explicit_tls"} {
+		if config[key] == "" {
+			continue
+		}
+		value, err := strconv.ParseBool(config[key])
+		if err != nil {
+			return "", fmt.Errorf("invalid saved FTP transport; preserve the connection and try again")
+		}
+		flags[key] = value
+	}
+	if flags["tls"] && flags["explicit_tls"] {
+		return "", fmt.Errorf("invalid saved FTP transport; preserve the connection and try again")
+	}
+	if flags["tls"] {
+		return "implicit", nil
+	}
+	if flags["explicit_tls"] {
+		return "explicit", nil
+	}
+	return "plain", nil
 }

@@ -117,7 +117,9 @@ export const api = {
   update: (connection: Connection) =>
     invoke<void>("UpdateConnection", connection),
   fields: (id: string) =>
-    invoke<Record<string, string>>("ConnectionFields", id),
+    invoke<{ values: Record<string, string>; transport: string }>(
+      "ConnectionFields", id,
+    ),
   settings: (settings: Settings) => invoke<void>("SaveSettings", settings),
   open: (id: string) => invoke<void>("OpenExplorer", id),
   prerequisite: (name: string) => invoke<void>("Prerequisite", name),

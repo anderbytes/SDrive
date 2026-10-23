@@ -60,6 +60,8 @@ Ownership tests use separate processes and a hard-link alias of the lock file, c
 
 ## Sign-in identities
 
+Authentication regressions also verify strict completion response fields against the pinned local rclone binary, all three FTP transports and password obscuring in a temporary encrypted profile. The FTP configuration checks do not contact a storage server. Setup verifies saved remotes before success; frontend tests cover failed access-detail loading, renewed transport/consent, sensitive-question masking, show/hide controls and service-account availability. `ConnectionFields` returns `{values, transport}` to the frontend; `values` includes only non-secret catalog fields. See the [provider identity limits](provider-validation.md#recovery-identity-limits) before describing these checks as account verification.
+
 `internal/core/oauth.json` is embedded in the application and starts empty. Registration is a maintainer task: register the desktop application with the provider, configure rclone-compatible local redirects, complete required consent/approvals and test sign-in. This is not an end-user installation step.
 
 The format is an object per profile ID containing `clientId` and, only when required for a public desktop client, `clientSecret`. OAuth profiles: `drive`, `onedrive`, `sharepoint`, `dropbox`, `box`, `pcloud` and `gcs`. OneDrive and SharePoint can share a registration, with an explicit entry for each profile. GCS also accepts a service account file without an OAuth identity.
