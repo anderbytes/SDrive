@@ -1,0 +1,31 @@
+name: Windows
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build, tests, self-check and installer
+        shell: pwsh
+        run: ./scripts/build.ps1 -Check -Installer
+      - name: Static checks
+        shell: pwsh
+        run: ./.tools/go/bin/go.exe vet ./...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SDrive-windows-x64
+          path: |
+            bin/SDrive-0.1.0-setup.exe
+            bin/SDrive-0.1.0-offline-setup.exe
+            bin/SDrive-source.zip
+            bin/rclone-source.zip
+            bin/SHA256SUMS

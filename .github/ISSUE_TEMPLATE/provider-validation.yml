@@ -1,0 +1,51 @@
+name: Provider validation
+description: Record a live test using disposable accounts and files.
+title: '[Validation] '
+body:
+  - type: markdown
+    attributes:
+      value: 'Do not submit credentials, configurations, tokens, private URLs or cache files. Follow docs/provider-validation.md.'
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Google Drive
+        - OneDrive
+        - SharePoint Online
+        - Dropbox
+        - Box
+        - pCloud
+        - MEGA
+        - Proton Drive
+        - Nextcloud
+        - ownCloud
+        - WebDAV
+        - SFTP
+        - FTP / FTPS
+        - SMB / CIFS
+        - S3 / compatible services
+        - Backblaze B2
+        - Azure Blob Storage
+        - Google Cloud Storage
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: SDrive/rclone/WinFsp/Windows versions and account or server type, without private identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Scenarios and results
+      description: Use the checklist in docs/provider-validation.md. Report passed, failed, not applicable or not run for each scenario.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Steps, expected/observed results and screenshots without sensitive data.
