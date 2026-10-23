@@ -46,11 +46,13 @@ vi.mock("./api", async (importOriginal) => ({
     open: vi.fn(),
     fields: vi.fn(),
     selectFile: vi.fn(),
+    probe: vi.fn(),
+    prerequisite: vi.fn(),
     restart: vi.fn(),
     restoreSettings: vi.fn(),
     verifyRecovery: vi.fn(),
     retryCleanup: vi.fn(),
-  },
+  } satisfies { [K in keyof typeof api]: ReturnType<typeof vi.fn<(typeof api)[K]>> },
 }));
 const connection: ConnectionView = {
   id: "1",
@@ -1544,6 +1546,84 @@ test("operation stages use the saved Portuguese language", async () => {
   render(<App />);
   await screen.findByText("Aguardando uploads…");
   expect(screen.queryByText("Conectado", { exact: true })).toBeNull();
+});
+
+test("engine restart reports failure, prevents duplicate requests and preserves recovery on retry", async () => {
+  const recovering = { ...connection, recovery: true, pending: null };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [recovering], engineError: "Engine stopped for test" });
+  let reject!: (error: Error) => void;
+  vi.mocked(api.restart).mockReturnValueOnce(new Promise<void>((_, failure) => { reject = failure; }));
+  render(<App />);
+  const restart = await screen.findByRole("button", { name: "Restart engine" });
+  fireEvent.click(restart);
+  expect((restart as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(restart);
+  expect(api.restart).toHaveBeenCalledTimes(1);
+  await act(async () => reject(new Error("Restart failed for test")));
+  await screen.findByText("Restart failed for test");
+  expect(screen.queryByText("Engine restarted. Recover pending connections.")).toBeNull();
+  expect((restart as HTMLButtonElement).disabled).toBe(false);
+  vi.mocked(api.restart).mockResolvedValue();
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [recovering] });
+  fireEvent.click(restart);
+  await screen.findByText("Engine restarted. Recover pending connections.");
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Restart engine" })).toBeNull());
+  expect(api.restart).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole("button", { name: "Recover" })).toBeDefined();
+  expect(screen.queryByText("Connected", { exact: true })).toBeNull();
+});
+
+test("SSH identity probing retries and requires fresh trust after changing the server", async () => {
+  const sftp = { ...ftpProvider, id: "sftp", name: "SFTP", backend: "sftp", fields: [
+    ...ftpProvider.fields,
+    { advanced: true, file: false, key: "port", label: "Port (optional)", secret: false, required: false, default: "" },
+  ] };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, sftp] });
+  vi.mocked(api.probe).mockRejectedValueOnce(new Error("SSH probe failed for test"));
+  vi.mocked(api.begin).mockResolvedValue("ssh-session");
+  vi.mocked(api.status).mockResolvedValue({ id: "ssh-session", busy: true, authenticated: false, complete: false, question: null, error: "", connectionID: "" });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  fireEvent.change(screen.getByLabelText("Connection type"), { target: { value: "sftp" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const host = screen.getByLabelText("Server");
+  fireEvent.change(host, { target: { value: "first.example.test" } });
+  fireEvent.change(screen.getByLabelText("Username"), { target: { value: "synthetic-user" } });
+  const probe = screen.getByRole("button", { name: "Verify SSH identity" });
+  fireEvent.click(probe);
+  await screen.findByText("SSH probe failed for test");
+  expect(screen.queryByLabelText("I verified the fingerprint and trust this server")).toBeNull();
+  vi.mocked(api.probe).mockResolvedValue({ key: "first-key", fingerprint: "first-fingerprint" });
+  fireEvent.click(probe);
+  await screen.findByText("first-fingerprint");
+  expect(api.probe).toHaveBeenLastCalledWith("first.example.test", "");
+  expect((screen.getByLabelText("I verified the fingerprint and trust this server") as HTMLInputElement).checked).toBe(false);
+  expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByLabelText("I verified the fingerprint and trust this server"));
+  fireEvent.change(host, { target: { value: "second.example.test" } });
+  fireEvent.change(screen.getByLabelText("Port (optional)"), { target: { value: "2222" } });
+  expect(screen.queryByText("first-fingerprint")).toBeNull();
+  expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+  vi.mocked(api.probe).mockResolvedValue({ key: "second-key", fingerprint: "second-fingerprint" });
+  fireEvent.click(probe);
+  await screen.findByText("second-fingerprint");
+  expect(api.probe).toHaveBeenLastCalledWith("second.example.test", "2222");
+  const trust = screen.getByLabelText("I verified the fingerprint and trust this server") as HTMLInputElement;
+  expect(trust.checked).toBe(false);
+  fireEvent.click(trust);
+  fireEvent.change(screen.getByLabelText("Port (optional)"), { target: { value: "2223" } });
+  expect(screen.queryByText("second-fingerprint")).toBeNull();
+  expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+  vi.mocked(api.probe).mockResolvedValue({ key: "accepted-key", fingerprint: "accepted-fingerprint" });
+  fireEvent.click(probe);
+  await screen.findByText("accepted-fingerprint");
+  expect(api.probe).toHaveBeenLastCalledWith("second.example.test", "2223");
+  expect((screen.getByLabelText("I verified the fingerprint and trust this server") as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(screen.getByLabelText("I verified the fingerprint and trust this server"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({
+    hostKey: "accepted-key", values: { host: "second.example.test", port: "2223", user: "synthetic-user" },
+  })));
 });
 
 test.each([

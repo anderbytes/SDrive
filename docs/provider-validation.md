@@ -27,6 +27,8 @@ This development distribution has empty project OAuth registrations. Google Driv
 
 Tests also compare field names for all 18 profiles against the real rclone version's catalog. Real mounting requires WinFsp and an interactive Windows session; tests without that prerequisite are reported as skipped.
 
+The [integration suite](development.md#recovery-and-filesystem-integration-checks) uses a disposable loopback WebDAV server, synthetic files and isolated encrypted profiles. Engine-only service/configuration and content checks do not certify a live provider. Native tests cover service mounting, interrupted pending uploads at the original destination, open handles/late writes and filesystem content. Native checks require compatible WinFsp and explicit opt-in. Synthetic fixtures do not change the live-service validation status above.
+
 New OAuth connections without project registration are stopped at service selection. GCS remains selectable because a service account JSON file does not require project OAuth. Existing connections with a custom OAuth identity can still renew. The form explains SSH private keys/passphrases, Azure account keys versus SAS URLs, and GCS service accounts; this guidance does not certify those authentication modes against a live account.
 
 ## Recovery identity limits

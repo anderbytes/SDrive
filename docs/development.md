@@ -58,6 +58,54 @@ The opt-in engine test uses a temporary DPAPI-protected profile and the pinned l
 
 Ownership tests use separate processes and a hard-link alias of the lock file, check the installer's native sharing-violation probe, preserve the legacy mutex marker and verify release after process termination. They do not create an interactive second Windows session. Native WinFsp mounting remains covered by the separate opt-in `SDRIVE_TEST_MOUNT=1` lifecycle test.
 
+## Recovery and filesystem integration checks
+
+The local fixture runs the pinned rclone as a disposable WebDAV server on an ephemeral loopback port. `TestServiceWebDAVIntegration` exercises `New`, `StartEngine`, guided setup, folder discovery, confirmation, access testing and reopening against isolated encrypted profiles. It also verifies a controlled upload gate, destination content and a downloaded SHA-256 hash, without mounting a drive:
+
+```powershell
+$previousEngineTest = $env:SDRIVE_TEST_ENGINE
+try {
+    $env:SDRIVE_TEST_ENGINE = '1'
+    ./.tools/go/bin/go.exe test . ./internal/engine -count=1 -v -timeout 5m
+} finally { $env:SDRIVE_TEST_ENGINE = $previousEngineTest }
+```
+
+Native checks require compatible WinFsp, a free letter between D and Z and at least 6 GiB free. They run sequentially and never install components, change startup preferences, use personal profiles/accounts or interrupt unrelated processes:
+
+```powershell
+$previousMountTest = $env:SDRIVE_TEST_MOUNT
+try {
+    $env:SDRIVE_TEST_MOUNT = '1'
+    ./.tools/go/bin/go.exe test . -run 'TestWindowsMount|TestMountRecoveryChild' -count=1 -v -timeout 15m
+} finally { $env:SDRIVE_TEST_MOUNT = $previousMountTest }
+```
+
+- `TestWindowsMountLifecycle` mounts through `Service`, verifies durable recovery protection and the pinned cache schema, and checks empty/64 MiB/Unicode files, rename, truncating replacement, deletion and read-only rejection. SHA-256 comparisons verify content; checks also require obsolete names to disappear and clean state to survive reopening. External creation/replacement/deletion uses explicit client `vfs/forget`; the fixture server disables directory caching. This does not certify automatic external-change detection.
+- `TestWindowsMountPendingRecovery` blocks uploads, waits for an upload attempt, verifies dirty metadata and the backing file hash, and terminates only its isolated helper. That helper owns the client's rclone kill-on-close job. After process termination and letter release, the parent verifies preserved data, reopens the same profile and checks the saved connection/destination hash before recovering to the original fixture URL. It verifies uploaded content and clean disconnect.
+- `TestWindowsMountOpenFiles` holds a writable handle during disconnect, observes the waiting stage, writes again and tries safe exit concurrently. After closing the handle and permitting uploads it verifies final content and clean disconnect/exit. The ordinary core test `TestExitDuringDisconnectPreservesLateOpenFileWrite` uses channels, a real temporary open handle and RPC doubles to force a write between the clean check and unmount completion; recovery, content and the original destination must survive.
+
+Fixtures use unique, ACL-protected `.tools/integration/run-*` directories. Cleanup stops only owned engines and the local server, then removes successful fixtures. Failures retain synthetic data and `result.json` locally; do not attach keys, encrypted profiles or raw output to reports. Polling/RPCs and child termination have deadlines. Missing prerequisites are explicit skips. The interruption helper requires both mount opt-in and the parent's isolated environment.
+
+### Regression inventory
+
+The integration suite reuses these existing behavioral regressions:
+
+| Behavior | Regression evidence |
+| --- | --- |
+| Settings completeness and cleanup | `TestIncompleteSettingsNeverAuthorizeCleanupOrWrites`, `TestCleanupFailureIsRecoverableAndRetryClearsWarning` |
+| Cache metadata and counters | `TestCacheMetadataRequiresExplicitBoolean`, `TestCriticalCacheStatsValidation` |
+| Cancellation and late responses | `TestSlowFolderCallsAllowCancellationAndRejectLateResults`, `TestCancellationWaitsForLateConfigurationBeforeDeleting`, engine job/cancellation tests |
+| FTP renewal and transport | `TestFTPRenewalRestoresTransportAndPreservesRecovery`, transport persistence in `TestConfigurationJobProtocolWithRclone` |
+| Unknown upload state | `TestSnapshotUnknownAndSampleExpiry`, frontend unknown-upload tests |
+| Automatic connection failures | `TestAutoMountReportsEarlyFailuresAndContinues`, frontend automatic-connection error test |
+| Profile ownership | `TestDataDirOwnershipAcrossProcessesAndCrash`, legacy installer marker regression |
+| Recovery destination binding | `TestRecoveryRejectsDestinationChanges`, `TestRecoveryRejectsChangedLibraryButAllowsRenewedTokens`, `TestRecoveryRenewalVerifiesLibraryBeforeSuccess` |
+| Setup completion validation | `TestSetupRejectsInvalidCompletionAndSavedRemote`, `TestConfiguredRemoteRequiresOAuthOrAlternateCredentials`, real-engine response tests |
+
+Recovery coverage proves configured destination binding, not universal account ownership; [identity limits](provider-validation.md#recovery-identity-limits) still apply. Frontend contracts remain mocked bridge checks. The frontend suite includes a complete typed API mock, SSH probe failure/retry with explicit fingerprint trust and trust reset after server/port changes, and engine restart failure, duplicate suppression, retry and retained recovery. Existing access tests remain in place.
+
+Run engine, frontend and native checks separately. Passing unit tests does not certify authenticated providers, native WebView behavior, power-loss recovery or installer execution.
+
 ## Desktop lifecycle checks
 
 Desktop regressions run without provider accounts, mounts or changes to the real startup registry:

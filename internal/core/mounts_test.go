@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -40,6 +41,79 @@ func TestPendingCombinesLiveAndDurableUploads(t *testing.T) {
 				t.Fatalf("pending = %d, %v; want %d, error %v", got, err, tc.want, tc.wantError)
 			}
 		})
+	}
+}
+
+func TestExitDuringDisconnectPreservesLateOpenFileWrite(t *testing.T) {
+	started, resume := make(chan struct{}), make(chan struct{})
+	var release sync.Once
+	s := testService(t, &fakeRPC{handle: func(_ context.Context, method string, _ any) (any, error) {
+		if method == "mount/unmount" {
+			close(started)
+			<-resume
+		}
+		return map[string]any{"diskCache": cleanCacheStats()}, nil
+	}})
+	c := testConnection()
+	s.store.Connections = []Connection{c}
+	s.mounted[c.ID] = true
+	if err := saveStore(s.dir, s.store); err != nil {
+		t.Fatal(err)
+	}
+	quit := false
+	s.quit = func() { quit = true }
+	dataRoot := filepath.Join(s.dataPath(), "vfs", "sd_"+c.Remote)
+	metaRoot := filepath.Join(s.dataPath(), "vfsMeta", "sd_"+c.Remote)
+	for _, root := range []string{dataRoot, metaRoot} {
+		if err := os.MkdirAll(root, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file, err := os.Create(filepath.Join(dataRoot, "held.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err = os.WriteFile(filepath.Join(metaRoot, "held.txt"), []byte(`{"Dirty":false}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	finished := make(chan struct{})
+	go func() { done <- s.Unmount(c.ID); close(finished) }()
+	t.Cleanup(func() {
+		release.Do(func() { close(resume) })
+		receive(t, finished)
+	})
+	receive(t, started)
+	if err = s.Exit(); err == nil || quit {
+		t.Fatal("exit passed an active disconnect")
+	}
+	if _, err = file.WriteString("late durable content"); err != nil {
+		t.Fatal(err)
+	}
+	if err = file.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(metaRoot, "held.txt"), []byte(`{"Dirty":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	release.Do(func() { close(resume) })
+	if err = receive(t, done); err == nil {
+		t.Fatal("disconnect declared the late write clean")
+	}
+	if s.mounted[c.ID] || !s.store.Connections[0].Recovery || s.busy[c.ID] {
+		t.Fatal("late write lost recovery protection")
+	}
+	if err = s.Exit(); err == nil || quit {
+		t.Fatal("exit accepted pending work after unmount")
+	}
+	persisted, err := loadStore(s.dir)
+	if err != nil || persisted.Connections[0] != c {
+		t.Fatal("disconnect changed the pending destination")
+	}
+	data, err := os.ReadFile(filepath.Join(dataRoot, "held.txt"))
+	if err != nil || string(data) != "late durable content" {
+		t.Fatal("late content was lost")
 	}
 }
 
