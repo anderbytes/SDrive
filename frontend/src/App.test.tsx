@@ -27,6 +27,10 @@ vi.mock("./api", () => ({
     open: vi.fn(),
     fields: vi.fn(),
     selectFile: vi.fn(),
+    restart: vi.fn(),
+    restoreSettings: vi.fn(),
+    verifyRecovery: vi.fn(),
+    retryCleanup: vi.fn(),
   },
 }));
 const connection: ConnectionView = {
@@ -62,6 +66,11 @@ const snapshot = {
   letters: ["S", "T"],
   winFsp: true,
   engineError: "",
+  settingsError: "",
+  backupAvailable: false,
+  recoveryHold: false,
+  maintenanceError: "",
+  startupWarning: "",
 };
 beforeEach(() => {
   vi.resetAllMocks();
@@ -72,6 +81,81 @@ beforeEach(() => {
   vi.mocked(api.mount).mockResolvedValue();
 });
 afterEach(() => cleanup());
+
+test("damaged settings block normal actions and restoration requires confirmation", async () => {
+  const damaged = { ...snapshot, settingsError: "Could not load local settings. Preserve the data directory and restore a valid backup.", backupAvailable: true };
+  vi.mocked(api.snapshot).mockResolvedValue(damaged);
+  render(<App />);
+  await screen.findByRole("heading", { name: "Settings recovery" });
+  expect((screen.getByText("+ New connection") as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByText("Add my first connection")).toBeNull();
+  fireEvent.click(screen.getByText("Restore saved backup"));
+  expect(screen.getByRole("dialog").textContent).toContain("may omit newer connections");
+  expect(api.restoreSettings).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(api.restoreSettings).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("Restore saved backup"));
+  vi.mocked(api.restoreSettings).mockResolvedValue();
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, recoveryHold: true });
+  fireEvent.click(screen.getByText("Confirm restoration"));
+  await screen.findByText("Settings recovery is protected");
+  expect(api.restoreSettings).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(api.mount).not.toHaveBeenCalled();
+  expect(api.begin).not.toHaveBeenCalled();
+});
+
+test("unavailable backup leaves settings protected and allows closing", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settingsError: "Settings are unreadable" });
+  render(<App />);
+  await screen.findByRole("heading", { name: "Settings recovery" });
+  expect(screen.queryByText("Restore saved backup")).toBeNull();
+  expect(screen.getByText("No compatible backup is available. Preserve the data directory for manual recovery.")).toBeDefined();
+  fireEvent.click(screen.getByText("Close SDrive"));
+  await waitFor(() => expect(api.exit).toHaveBeenCalledTimes(1));
+});
+
+test("failed restoration stays in the confirmation dialog with an actionable error", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settingsError: "Settings are unreadable", backupAvailable: true });
+  vi.mocked(api.restoreSettings).mockRejectedValue(new Error("could not archive damaged settings; restoration cancelled"));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Restore saved backup"));
+  fireEvent.click(screen.getByText("Confirm restoration"));
+  await screen.findByText("could not archive damaged settings; restoration cancelled");
+  expect(screen.getByRole("dialog").textContent).toContain("restoration cancelled");
+  expect(api.mount).not.toHaveBeenCalled();
+});
+
+test("cleanup warnings can be retried without reporting an engine failure", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, maintenanceError: "Credential cleanup could not finish. Saved connections remain available; try cleanup again.", connections: [connection] });
+  render(<App />);
+  await screen.findByText("My Drive");
+  expect(screen.queryByText("Restart engine")).toBeNull();
+  vi.mocked(api.retryCleanup).mockResolvedValue();
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  fireEvent.click(screen.getByText("Retry cleanup"));
+  await screen.findByText("Credential cleanup completed.");
+  expect(api.retryCleanup).toHaveBeenCalledTimes(1);
+});
+
+test("unresolved recovery remains visible after verification fails", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, recoveryHold: true });
+  vi.mocked(api.verifyRecovery).mockRejectedValue(new Error("credentials absent from restored settings remain preserved; manual recovery is required"));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Verify recovery"));
+  await screen.findByText("credentials absent from restored settings remain preserved; manual recovery is required");
+  expect(screen.getByText("Settings recovery is protected")).toBeDefined();
+  expect(api.begin).not.toHaveBeenCalled();
+});
+
+test("recovery and startup warnings use the saved interface language", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, recoveryHold: true, startupWarning: "Windows startup may differ from saved preferences. Save preferences to reconcile it." });
+  render(<App />);
+  await screen.findByText("A recuperação das configurações está protegida");
+  expect(screen.getByText("Verificar recuperação")).toBeDefined();
+  expect(screen.getByText("A inicialização do Windows pode diferir das preferências salvas. Salve as preferências para sincronizá-la.")).toBeDefined();
+});
 
 test("dialog traps keyboard focus and Escape restores the opener", async () => {
   render(<App />);

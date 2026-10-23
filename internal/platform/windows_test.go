@@ -2,8 +2,10 @@ package platform
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"unsafe"
 )
@@ -30,6 +32,108 @@ func TestDPAPIKeyRoundTrip(t *testing.T) {
 	}
 	if bytes.Contains(disk, []byte(first)) {
 		t.Fatal("key in plain text")
+	}
+}
+
+func TestKeyFailurePreservesExistingData(t *testing.T) {
+	for _, scenario := range []string{"empty key", "corrupt key", "missing key with config", "unreadable config", "key destination"} {
+		t.Run(scenario, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "key.dpapi")
+			var original []byte
+			switch scenario {
+			case "empty key", "corrupt key":
+				if scenario == "corrupt key" {
+					original = []byte("damaged encrypted key")
+				}
+				if err := os.WriteFile(path, original, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "missing key with config":
+				if err := os.WriteFile(filepath.Join(dir, "rclone.conf"), []byte("encrypted credentials"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "unreadable config":
+				if err := os.Mkdir(filepath.Join(dir, "rclone.conf"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "key destination":
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := Key(dir); err == nil {
+				t.Fatal("unsafe key regeneration allowed")
+			}
+			if scenario == "empty key" || scenario == "corrupt key" {
+				after, err := os.ReadFile(path)
+				if err != nil || !bytes.Equal(after, original) {
+					t.Fatalf("existing key changed: %v", err)
+				}
+			}
+			if scenario == "missing key with config" || scenario == "unreadable config" {
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Fatal("key regenerated over existing configuration")
+				}
+			}
+		})
+	}
+}
+
+func TestAtomicWriteFailureAndExclusiveCreation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "key")
+	if err := os.WriteFile(path, []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, promote := range []func(string, string) error{
+		func(src, dst string) error {
+			data, err := os.ReadFile(src)
+			if err != nil || string(data) != "new" {
+				t.Fatal("incomplete temporary file promoted")
+			}
+			return errors.New("interrupted promotion")
+		},
+		createFile,
+	} {
+		if atomicWrite(path, []byte("new"), promote) == nil {
+			t.Fatal("existing key overwritten")
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || string(data) != "old" {
+			t.Fatalf("previous key lost: %v", err)
+		}
+		partials, _ := filepath.Glob(filepath.Join(dir, ".sdrive-*"))
+		if len(partials) != 0 {
+			t.Fatalf("partial files leaked: %v", partials)
+		}
+	}
+}
+
+func TestConcurrentKeyCreationUsesOnePersistentKey(t *testing.T) {
+	dir := t.TempDir()
+	start := make(chan struct{})
+	keys := make([]string, 4)
+	errs := make([]error, len(keys))
+	var workers sync.WaitGroup
+	for i := range keys {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			keys[i], errs[i] = Key(dir)
+		}()
+	}
+	close(start)
+	workers.Wait()
+	for i, key := range keys {
+		if errs[i] != nil || key == "" || key != keys[0] {
+			t.Fatalf("concurrent key creation disagreed: %v", errs[i])
+		}
+	}
+	persisted, err := Key(dir)
+	if err != nil || persisted != keys[0] {
+		t.Fatal("persistent key differs from issued keys")
 	}
 }
 

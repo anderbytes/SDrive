@@ -88,6 +88,7 @@ function AppContent() {
   }>();
   const [working, setWorking] = useState<string[]>([]);
   const [settings, setSettings] = useState(false);
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
   const refresh = async () => {
     try {
       const snapshot = await api.snapshot();
@@ -140,7 +141,11 @@ function AppContent() {
           </div>
         </div>
         <div className="nav-active">{t("▣   My drives")}</div>
-        <button className="nav" onClick={() => setSettings(true)}>
+        <button
+          className="nav"
+          disabled={!data || !!data.settingsError}
+          onClick={() => setSettings(true)}
+        >
           {t("⚙   Preferences")}
         </button>
         <footer>
@@ -151,7 +156,7 @@ function AppContent() {
             disabled={working.includes("exit")}
             onClick={() => void run("exit", api.exit)}
           >
-            {t("Exit safely")}
+            {t(data?.settingsError ? "Close SDrive" : "Exit safely")}
           </button>
         </footer>
       </aside>
@@ -164,7 +169,9 @@ function AppContent() {
           </div>
           <button
             className="primary"
-            disabled={!data || !!data.engineError}
+            disabled={
+              !data || !!data.engineError || !!data.settingsError || data.recoveryHold
+            }
             onClick={() =>
               setEditor({
                 connection: blank(
@@ -177,7 +184,7 @@ function AppContent() {
             {t("+ New connection")}
           </button>
         </header>
-        {error && (
+        {error && !restoreConfirm && (
           <div role="alert" className="alert error">
             {t(error)}
             <button
@@ -195,7 +202,60 @@ function AppContent() {
           </div>
         )}
         {!data && <p role="status">{t("Preparing your drives…")}</p>}
-        {data?.engineError && (
+        {data?.settingsError && (
+          <section className="alert error" role="alert">
+            <div>
+              <h2>{t("Settings recovery")}</h2>
+              <p>{t(data.settingsError)}</p>
+              <p>
+                {t("Connections, credentials and cache will not be changed while settings are unavailable.")}
+              </p>
+              {data.backupAvailable ? (
+                <button onClick={() => {
+                  setError("");
+                  setRestoreConfirm(true);
+                }}>
+                  {t("Restore saved backup")}
+                </button>
+              ) : (
+                <p>
+                  {t("No compatible backup is available. Preserve the data directory for manual recovery.")}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+        {data?.recoveryHold && !data.settingsError && (
+          <section className="alert warning" role="status">
+            <div>
+              <strong>{t("Settings recovery is protected")}</strong>
+              <p>
+                {t("Automatic connection and credential cleanup are suspended. Recover and disconnect restored drives, then verify recovery. Unknown credentials and cache require manual recovery.")}
+              </p>
+              <button
+                disabled={working.includes("verify-recovery")}
+                onClick={() => void run("verify-recovery", api.verifyRecovery, "Settings recovery verified.")}
+              >
+                {t("Verify recovery")}
+              </button>
+            </div>
+          </section>
+        )}
+        {data?.maintenanceError && !data.settingsError && (
+          <div className="alert warning" role="alert">
+            {t(data.maintenanceError)}
+            <button
+              disabled={data.recoveryHold || working.includes("cleanup")}
+              onClick={() => void run("cleanup", api.retryCleanup, "Credential cleanup completed.")}
+            >
+              {t("Retry cleanup")}
+            </button>
+          </div>
+        )}
+        {data?.startupWarning && !data.settingsError && (
+          <p className="alert warning" role="alert">{t(data.startupWarning)}</p>
+        )}
+        {data?.engineError && !data.settingsError && (
           <div role="alert" className="alert error">
             {t(data.engineError)}
             <button
@@ -212,7 +272,7 @@ function AppContent() {
             </button>
           </div>
         )}
-        {data && !data.winFsp && (
+        {data && !data.settingsError && !data.winFsp && (
           <div className="alert warning">
             <div>
               <strong>{t("Installation needs repair")}</strong>
@@ -224,7 +284,7 @@ function AppContent() {
             </div>
           </div>
         )}
-        {data && (
+        {data && !data.settingsError && (
           <div className="summary">
             <div>
               <strong>{data.connections.length}</strong> {t("connections")}
@@ -256,7 +316,7 @@ function AppContent() {
             />
           ))}
         </section>
-        {data && data.connections.length === 0 && (
+        {data && !data.settingsError && !data.recoveryHold && data.connections.length === 0 && (
           <section className="empty">
             <div className="empty-icon">▱</div>
             <h2>{t("One letter. All your files.")}</h2>
@@ -308,6 +368,56 @@ function AppContent() {
           }}
         />
       )}
+      {restoreConfirm && (
+        <RestoreSettingsDialog
+          busy={working.includes("restore")}
+          error={error}
+          onClose={() => setRestoreConfirm(false)}
+          onConfirm={() => void run(
+            "restore",
+            async () => {
+              await api.restoreSettings();
+              setRestoreConfirm(false);
+            },
+            "Settings restored. Review recovery before connecting drives.",
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
+function RestoreSettingsDialog({
+  busy, error, onClose, onConfirm,
+}: {
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const { t } = useLanguage();
+  const dialog = useDialog(() => {
+    if (!busy) onClose();
+  });
+  return (
+    <div className="overlay">
+      <section
+        ref={dialog}
+        className="modal small"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restore-title"
+      >
+        <h2 id="restore-title">{t("Restore settings backup?")}</h2>
+        {error && <div className="alert error" role="alert">{t(error)}</div>}
+        <p>
+          {t("The backup may omit newer connections. Damaged settings will be archived; credentials and cache will be preserved. Automatic connection and cleanup will remain suspended until recovery is verified.")}
+        </p>
+        <div className="modal-actions">
+          <button disabled={busy} onClick={onClose}>{t("Cancel")}</button>
+          <button disabled={busy} className="primary" onClick={onConfirm}>{t("Confirm restoration")}</button>
+        </div>
+      </section>
     </div>
   );
 }

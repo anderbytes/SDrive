@@ -25,6 +25,9 @@ func (f *fakeRPC) Call(ctx context.Context, method string, input, out any) error
 	f.mu.Unlock()
 	var result any = map[string]any{}
 	var err error
+	if method == "config/listremotes" {
+		result = map[string]any{"remotes": []string{}}
+	}
 	if method == "vfs/stats" {
 		result = map[string]any{"diskCache": map[string]any{}}
 	}
@@ -60,10 +63,11 @@ func fixture(p Provider) map[string]string {
 }
 func testService(t *testing.T, rpc RPC) *Service {
 	t.Helper()
-	s, err := New(t.TempDir(), rpc, "")
+	s, err := New(t.TempDir(), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.rpc = rpc
 	return s
 }
 func testConnection() Connection {

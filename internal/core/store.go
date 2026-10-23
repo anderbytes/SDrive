@@ -1,12 +1,15 @@
 package core
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sdrive/internal/i18n"
+	"sdrive/internal/platform"
 	"strings"
 )
 
@@ -32,18 +35,51 @@ type Store struct {
 	Settings    Settings     `json:"settings"`
 }
 
+var errSettingsVersion = errors.New("unsupported settings format; preserve the data directory and use a compatible SDrive version")
+
+func defaultStore() Store {
+	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en"}}
+}
+
 func loadStore(dir string) (Store, error) {
-	s := Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en"}}
 	b, err := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if os.IsNotExist(err) {
-		return s, nil
+		return defaultStore(), nil
 	}
 	if err != nil {
-		return s, err
+		return defaultStore(), err
 	}
-	if err = json.Unmarshal(b, &s); err != nil {
-		return s, fmt.Errorf("invalid local settings; preserve settings.json for recovery")
+	return decodeStore(b)
+}
+
+func decodeStore(b []byte) (Store, error) {
+	s := defaultStore()
+	var shape struct {
+		Version     json.RawMessage `json:"version"`
+		Connections json.RawMessage `json:"connections"`
+		Settings    *struct {
+			AutoStart *bool `json:"autoStart"`
+			CacheGiB  *int  `json:"cacheGiB"`
+		} `json:"settings"`
 	}
+	invalid := fmt.Errorf("invalid local settings; preserve settings.json for recovery")
+	if json.Unmarshal(b, &shape) != nil {
+		return s, invalid
+	}
+	if shape.Version != nil {
+		var version int
+		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || version != 1 {
+			return s, errSettingsVersion
+		}
+	}
+	connections := bytes.TrimSpace(shape.Connections)
+	if len(connections) == 0 || connections[0] != '[' || shape.Settings == nil || shape.Settings.AutoStart == nil || shape.Settings.CacheGiB == nil {
+		return s, invalid
+	}
+	if err := json.Unmarshal(b, &s); err != nil {
+		return s, invalid
+	}
+	var err error
 	if !i18n.Valid(s.Settings.Language) {
 		s.Settings.Language = "en"
 	}
@@ -72,36 +108,47 @@ func loadStore(dir string) (Store, error) {
 	return s, nil
 }
 
-func saveStore(dir string, s Store) error {
-	b, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
+func encodeStore(s Store) ([]byte, error) {
+	if s.Connections == nil {
+		s.Connections = []Connection{}
 	}
-	return atomicWrite(filepath.Join(dir, "settings.json"), b)
+	b, err := json.MarshalIndent(struct {
+		Version int `json:"version"`
+		Store
+	}{Version: 1, Store: s}, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	if _, err = decodeStore(b); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
-func atomicWrite(path string, data []byte) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".sdrive-*")
+func saveStore(dir string, s Store) error {
+	b, err := encodeStore(s)
 	if err != nil {
 		return err
 	}
-	temp := f.Name()
-	defer os.Remove(temp)
-	if err = f.Chmod(0600); err == nil {
-		_, err = f.Write(data)
+	path := filepath.Join(dir, "settings.json")
+	previous, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 	if err == nil {
-		err = f.Sync()
+		if _, err = decodeStore(previous); err != nil {
+			return err
+		}
+	} else {
+		previous = b
 	}
-	closeErr := f.Close()
-	if err != nil {
-		return err
+	if err = atomicWrite(filepath.Join(dir, "settings.backup.json"), previous); err != nil {
+		return fmt.Errorf("could not preserve settings backup: %w", err)
 	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return replaceFile(temp, path)
+	return atomicWrite(path, b)
 }
+
+func atomicWrite(path string, data []byte) error { return platform.AtomicWrite(path, data) }
 
 func validateConnection(c *Connection) error {
 	c.Name = strings.TrimSpace(c.Name)

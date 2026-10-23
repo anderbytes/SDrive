@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -23,12 +24,17 @@ type RPC interface {
 	Alive() bool
 }
 type View struct {
-	Providers   []Provider       `json:"providers"`
-	Connections []ConnectionView `json:"connections"`
-	Settings    Settings         `json:"settings"`
-	Letters     []string         `json:"letters"`
-	WinFsp      bool             `json:"winFsp"`
-	EngineError string           `json:"engineError"`
+	Providers        []Provider       `json:"providers"`
+	Connections      []ConnectionView `json:"connections"`
+	Settings         Settings         `json:"settings"`
+	Letters          []string         `json:"letters"`
+	WinFsp           bool             `json:"winFsp"`
+	EngineError      string           `json:"engineError"`
+	SettingsError    string           `json:"settingsError"`
+	BackupAvailable  bool             `json:"backupAvailable"`
+	RecoveryHold     bool             `json:"recoveryHold"`
+	MaintenanceError string           `json:"maintenanceError"`
+	StartupWarning   string           `json:"startupWarning"`
 }
 type ConnectionView struct {
 	Connection
@@ -82,55 +88,85 @@ type ConfigSession struct {
 	cancel        context.CancelFunc
 }
 type Service struct {
-	mu              sync.Mutex
-	dir             string
-	store           Store
-	rpc             RPC
-	engineError     string
-	mounted         map[string]bool
-	busy            map[string]bool
-	errors          map[string]string
-	session         *ConfigSession
-	exiting         bool
-	open            func(string) error
-	quit            func()
-	restart         func() (RPC, error)
-	pickFile        func(string) (string, error)
-	languageChanged func(string)
+	mu                   sync.Mutex
+	dir                  string
+	store                Store
+	rpc                  RPC
+	settingsError        string
+	incompatibleSettings bool
+	recoveryHold         bool
+	maintenanceError     string
+	startupWarning       string
+	autoStart            func(bool) error
+	engineError          string
+	mounted              map[string]bool
+	busy                 map[string]bool
+	errors               map[string]string
+	session              *ConfigSession
+	exiting              bool
+	open                 func(string) error
+	quit                 func()
+	restart              func() (RPC, error)
+	pickFile             func(string) (string, error)
+	languageChanged      func(string)
 }
 
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
-	s, err := loadStore(dir)
-	if err != nil {
-		return nil, err
+	store, loadErr := loadStore(dir)
+	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, mounted: map[string]bool{}, busy: map[string]bool{}, errors: map[string]string{}}
+	s.initializeRecovery(loadErr)
+	if s.settingsError == "" {
+		_ = s.cleanup()
+		if matches, err := platform.AutoStartMatches(s.store.Settings.AutoStart); err != nil || !matches {
+			s.startupWarning = "Windows startup may differ from saved preferences. Save preferences to reconcile it."
+		}
 	}
-	service := &Service{dir: dir, store: s, rpc: rpc, engineError: engineError, mounted: map[string]bool{}, busy: map[string]bool{}, errors: map[string]string{}}
-	if err = service.purgeOrphans(); err != nil {
-		return nil, err
-	}
-	return service, nil
+	return s, nil
 }
 
 func (s *Service) purgeOrphans() error {
-	if s.rpc == nil {
+	if _, err := os.Stat(filepath.Join(s.dir, recoveryMarker)); !os.IsNotExist(err) {
+		s.recoveryHold = true
+	}
+	if s.settingsError != "" || s.recoveryHold || s.rpc == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	var result struct{ Remotes []string }
-	if err := s.call(ctx, "config/listremotes", map[string]any{}, &result); err != nil {
+	if _, err := os.Stat(filepath.Join(s.dir, "settings.json")); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	// Revalidate disk state before destructive maintenance, including after external changes.
+	current, err := loadStore(s.dir)
+	if err != nil {
 		return err
 	}
 	keep := map[string]bool{}
-	for _, c := range s.store.Connections {
-		keep["sd_"+c.Remote] = true
-	}
-	for _, remote := range result.Remotes {
-		name := strings.TrimSuffix(remote, ":")
-		if len(name) != 35 || !strings.HasPrefix(name, "sd_") || keep[name] {
-			continue
+	for _, store := range []Store{s.store, current} {
+		for _, c := range store.Connections {
+			keep["sd_"+c.Remote] = true
 		}
-		if _, err := hex.DecodeString(name[3:]); err != nil {
+	}
+	backup, err := s.backupStore()
+	if err == nil {
+		for _, c := range backup.Connections {
+			keep["sd_"+c.Remote] = true
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("could not verify settings backup; cleanup is suspended")
+	}
+	cache, err := s.cacheRemotes()
+	if err != nil {
+		return err
+	}
+	remotes, err := s.listRemotes()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, name := range remotes {
+		if !generatedRemote(name) || keep[name] || cache[name] {
 			continue
 		}
 		if err := s.call(ctx, "config/delete", map[string]string{"name": name}, nil); err != nil {
@@ -170,7 +206,8 @@ func remote(c Connection) string { return "sd_" + c.Remote + ":" + c.Path }
 
 func (s *Service) Snapshot() View {
 	s.mu.Lock()
-	v := View{Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: platform.WinFspInstalled(), EngineError: s.engineError}
+	_, backupErr := s.backupStore()
+	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: platform.WinFspInstalled(), EngineError: s.engineError}
 	if s.rpc != nil && !s.rpc.Alive() {
 		v.EngineError = "Engine stopped. Restart SDrive to recover your drives."
 	}
@@ -206,6 +243,12 @@ func (s *Service) Snapshot() View {
 func (s *Service) BeginConfig(input ConfigInput) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.persistenceReady(); err != nil {
+		return "", err
+	}
+	if s.recoveryHold && (s.index(input.Connection.ID) < 0 || !s.store.Connections[s.index(input.Connection.ID)].Recovery) {
+		return "", fmt.Errorf("complete settings recovery before creating or replacing connections")
+	}
 	if s.exiting {
 		return "", fmt.Errorf("exit in progress")
 	}
@@ -500,6 +543,12 @@ func (s *Service) ProbeSSH(host, port string) (HostIdentity, error) {
 func (s *Service) UpdateConnection(c Connection) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.persistenceReady(); err != nil {
+		return err
+	}
+	if s.recoveryHold {
+		return fmt.Errorf("complete settings recovery before editing or removing connections")
+	}
 	if err := validateConnection(&c); err != nil {
 		return err
 	}
@@ -538,6 +587,12 @@ func (s *Service) UpdateConnection(c Connection) error {
 func (s *Service) Remove(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.persistenceReady(); err != nil {
+		return err
+	}
+	if s.recoveryHold {
+		return fmt.Errorf("complete settings recovery before editing or removing connections")
+	}
 	i := s.index(id)
 	if i < 0 {
 		return fmt.Errorf("connection not found")
@@ -618,19 +673,26 @@ func (s *Service) SaveSettings(settings Settings) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.persistenceReady(); err != nil {
+		return err
+	}
 	old := s.store.Settings
 	if s.exiting {
 		return fmt.Errorf("exit in progress")
 	}
-	if err := platform.AutoStart(settings.AutoStart); err != nil {
+	if err := s.setAutoStart(settings.AutoStart); err != nil {
 		return err
 	}
 	s.store.Settings = settings
 	if err := saveStore(s.dir, s.store); err != nil {
 		s.store.Settings = old
-		_ = platform.AutoStart(old.AutoStart)
+		if rollbackErr := s.setAutoStart(old.AutoStart); rollbackErr != nil {
+			s.startupWarning = "Windows startup may differ from saved preferences. Save preferences to reconcile it."
+			return fmt.Errorf("could not save preferences: %w; Windows startup rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
+	s.startupWarning = ""
 	if s.languageChanged != nil {
 		s.languageChanged(settings.Language)
 	}
@@ -682,6 +744,9 @@ func (s *Service) Prerequisite(which string) error {
 func (s *Service) RestartEngine() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.persistenceReady(); err != nil {
+		return err
+	}
 	if s.exiting {
 		return fmt.Errorf("exit in progress")
 	}
@@ -708,11 +773,16 @@ func (s *Service) RestartEngine() error {
 	s.engineError = ""
 	s.mounted = map[string]bool{}
 	s.errors = map[string]string{}
-	return s.purgeOrphans()
+	_ = s.cleanup()
+	return nil
 }
 
 func AutoMount(s *Service) {
 	s.mu.Lock()
+	if s.settingsError != "" || s.recoveryHold {
+		s.mu.Unlock()
+		return
+	}
 	connections := append([]Connection{}, s.store.Connections...)
 	s.mu.Unlock()
 	for _, c := range connections {
@@ -722,3 +792,10 @@ func AutoMount(s *Service) {
 	}
 }
 func (s *Service) dataPath() string { return filepath.Join(s.dir, "cache") }
+
+func (s *Service) setAutoStart(enabled bool) error {
+	if s.autoStart != nil {
+		return s.autoStart(enabled)
+	}
+	return platform.AutoStart(enabled)
+}

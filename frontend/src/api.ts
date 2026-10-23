@@ -51,6 +51,11 @@ export interface Snapshot {
   letters: string[];
   winFsp: boolean;
   engineError: string;
+  settingsError: string;
+  backupAvailable: boolean;
+  recoveryHold: boolean;
+  maintenanceError: string;
+  startupWarning: string;
 }
 export interface Question {
   Name: string;
@@ -112,4 +117,7 @@ export const api = {
     invoke<{ key: string; fingerprint: string }>("ProbeSSH", host, port),
   exit: () => invoke<void>("Exit"),
   restart: () => invoke<void>("RestartEngine"),
+  restoreSettings: () => invoke<void>("RestoreSettings"),
+  verifyRecovery: () => invoke<void>("VerifyRecovery"),
+  retryCleanup: () => invoke<void>("RetryCleanup"),
 };

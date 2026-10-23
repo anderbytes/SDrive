@@ -112,24 +112,6 @@ func main() {
 	}
 	var rpc *engine.Engine
 	var engineMu sync.Mutex
-	engineError := ""
-	binary, err := engine.FindBinary()
-	if err == nil {
-		_, err = platform.Key(dir)
-		if err == nil {
-			err = engine.Init(binary, dir)
-		}
-		if err == nil {
-			rpc, err = engine.Start(binary, dir)
-		}
-	}
-	if err != nil {
-		engineError = err.Error()
-	}
-	var backend core.RPC
-	if rpc != nil {
-		backend = rpc
-	}
 	defer func() {
 		engineMu.Lock()
 		defer engineMu.Unlock()
@@ -137,7 +119,7 @@ func main() {
 			rpc.Close()
 		}
 	}()
-	service, err := core.New(dir, backend, engineError)
+	service, err := core.New(dir, nil, "")
 	if err != nil {
 		platform.Alert(err.Error())
 		return
@@ -148,16 +130,6 @@ func main() {
 		options.Windows.AdditionalBrowserArgs = []string{"--remote-debugging-port=9337"}
 	}
 	app := application.New(options)
-	hidden := len(os.Args) > 1 && os.Args[1] == "--background"
-	window := app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "SDrive", Width: 1180, Height: 800, MinWidth: 850, MinHeight: 620, Hidden: hidden})
-	core.SetFilePicker(service, func(kind string) (string, error) {
-		dialog := app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Select credential file"))
-		if kind == "service_account_file" {
-			dialog.AddFilter(i18n.Text(core.Language(service), "JSON credentials"), "*.json")
-		}
-		return dialog.PromptForSingleSelection()
-	})
-	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) { window.Hide(); event.Cancel() })
 	core.SetDesktop(service, func(target string) error {
 		if len(target) == 3 && target[1:] == `:\` {
 			return app.Browser.OpenFile(target)
@@ -185,6 +157,17 @@ func main() {
 		}
 		return rpc, nil
 	})
+	core.StartEngine(service)
+	hidden := len(os.Args) > 1 && os.Args[1] == "--background" && service.Snapshot().SettingsError == ""
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "SDrive", Width: 1180, Height: 800, MinWidth: 850, MinHeight: 620, Hidden: hidden})
+	core.SetFilePicker(service, func(kind string) (string, error) {
+		dialog := app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Select credential file"))
+		if kind == "service_account_file" {
+			dialog.AddFilter(i18n.Text(core.Language(service), "JSON credentials"), "*.json")
+		}
+		return dialog.PromptForSingleSelection()
+	})
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) { window.Hide(); event.Cancel() })
 	tray := app.SystemTray.New()
 	tray.SetIcon(trayIcon())
 	tray.SetTooltip("SDrive — your remote drives")

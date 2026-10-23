@@ -15,6 +15,10 @@ import (
 
 func (s *Service) Mount(id string) error {
 	s.mu.Lock()
+	if err := s.persistenceReady(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	i := s.index(id)
 	if i < 0 {
 		s.mu.Unlock()
@@ -25,6 +29,17 @@ func (s *Service) Mount(id string) error {
 		return fmt.Errorf("exit in progress")
 	}
 	c := s.store.Connections[i]
+	if s.recoveryHold {
+		cache, err := s.cacheRemotes()
+		if err != nil {
+			s.mu.Unlock()
+			return err
+		}
+		if cache["sd_"+c.Remote] && (!c.Recovery || c.TargetHash == "") {
+			s.mu.Unlock()
+			return fmt.Errorf("the restored connection cannot prove the cache destination; preserve the data directory for manual recovery")
+		}
+	}
 	if s.mounted[id] || s.busy[id] {
 		s.mu.Unlock()
 		return fmt.Errorf("connection already mounted or busy")

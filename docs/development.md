@@ -28,6 +28,16 @@ node scripts/ui-smoke.mjs
 
 The smoke test opens a hidden WebView2 using an isolated profile in `.tools/ui-check/`. It checks all 18 options, creates a temporary connection to a local test WebDAV server, browses folders, cancels without persisting the connection, saves a test preference and exits. It does not use personal accounts or mount drives. Debugging port 9337 exists only in that test process. Do not run it while another SDrive instance is open.
 
+Settings and key regressions can be run without mounting drives or changing the Windows startup registry:
+
+```powershell
+./.tools/go/bin/go.exe test ./internal/core ./internal/platform ./internal/i18n
+npm --prefix frontend test
+npm --prefix frontend run build
+```
+
+The settings tests use temporary profiles, injected startup operations and temporary file locks to exercise failed replacements. Platform tests exercise real DPAPI under the current Windows user and exclusive atomic key creation, including concurrent callers. Frontend tests cover restoration confirmation/cancellation, failure feedback, protected recovery and maintenance retries in jsdom. These checks do not prove native WebView interaction, abrupt power-loss durability, real mounted-cache recovery or installer behavior. See [local settings recovery](security.md#local-settings-recovery) for the persisted format, backup policy and manual recovery limits.
+
 ## Sign-in identities
 
 `internal/core/oauth.json` is embedded in the application and starts empty. Registration is a maintainer task: register the desktop application with the provider, configure rclone-compatible local redirects, complete required consent/approvals and test sign-in. This is not an end-user installation step.

@@ -5,6 +5,7 @@ package platform
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -43,7 +44,11 @@ func Key(dir string) (string, error) {
 	path := filepath.Join(dir, "key.dpapi")
 	encrypted, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		if config, readErr := os.ReadFile(filepath.Join(dir, "rclone.conf")); readErr == nil && len(config) > 0 {
+		config, readErr := os.ReadFile(filepath.Join(dir, "rclone.conf"))
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return "", fmt.Errorf("could not verify encrypted configuration; preserve the data directory")
+		}
+		if len(config) > 0 {
 			return "", fmt.Errorf("DPAPI key missing; preserve configuration and cache for recovery")
 		}
 		key := make([]byte, 32)
@@ -57,7 +62,10 @@ func Key(dir string) (string, error) {
 			return "", err
 		}
 		defer windows.LocalFree(windows.Handle(unsafe.Pointer(out.Data)))
-		if err = os.WriteFile(path, unsafe.Slice(out.Data, out.Size), 0600); err != nil {
+		if err = atomicWrite(path, unsafe.Slice(out.Data, out.Size), createFile); err != nil {
+			if errors.Is(err, windows.ERROR_ALREADY_EXISTS) || errors.Is(err, windows.ERROR_FILE_EXISTS) {
+				return Key(dir)
+			}
 			return "", err
 		}
 		return string(text), nil
@@ -74,7 +82,12 @@ func Key(dir string) (string, error) {
 		return "", fmt.Errorf("could not unlock credentials with this Windows user")
 	}
 	defer windows.LocalFree(windows.Handle(unsafe.Pointer(out.Data)))
-	return string(unsafe.Slice(out.Data, out.Size)), nil
+	text := string(unsafe.Slice(out.Data, out.Size))
+	decoded, err := base64.RawStdEncoding.DecodeString(text)
+	if err != nil || len(decoded) != 32 {
+		return "", fmt.Errorf("invalid DPAPI key; do not replace the key")
+	}
+	return text, nil
 }
 func DriveUsed(letter string) bool {
 	mask, err := windows.GetLogicalDrives()
@@ -107,6 +120,29 @@ func AutoStart(enabled bool) error {
 		return err
 	}
 	return k.SetStringValue("SDrive", `"`+exe+`" --background`)
+}
+
+func AutoStartMatches(enabled bool) (bool, error) {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Run`, registry.QUERY_VALUE)
+	if errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
+		return !enabled, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer k.Close()
+	value, _, err := k.GetStringValue("SDrive")
+	if errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
+		return !enabled, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !enabled {
+		return false, nil
+	}
+	exe, err := os.Executable()
+	return value == `"`+exe+`" --background`, err
 }
 func SingleInstance() (func(), error) {
 	name, _ := windows.UTF16PtrFromString(`Local\SDrive-` + os.Getenv("USERNAME"))
