@@ -12,8 +12,9 @@ import (
 
 // Samples are synthetic; no service operation, profile or credential is used.
 func bridgeSamples() map[string]any {
-	connection := Connection{ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S", AuthMethod: "oauth", SessionOnly: true, UploadLimit: 1024, DownloadLimit: 2048, UseProxy: true, Browser: "edge", PrivateBrowser: true, ConnectTimeout: 30, IdleTimeout: 60, AlternateURL: "https://alternate.example.test/dav", ResourceID: "synthetic-resource", PrimaryURL: "https://example.test/dav", Binding: "{}"}
-	settings := Settings{Language: "en", CacheGiB: 2}
+	connection := Connection{ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S", AuthMethod: "oauth", SessionOnly: true, UploadLimit: 1024, DownloadLimit: 2048, UseProxy: true, Browser: "edge", PrivateBrowser: true, ConnectTimeout: 30, IdleTimeout: 60, AlternateURL: "https://alternate.example.test/dav", ResourceID: "synthetic-resource", PrimaryURL: "https://example.test/dav", Binding: "{}", MountMode: "local", MountFolder: `C:\Synthetic\Mount`, DirectoryCacheSeconds: 300}
+	age, delay := 24, 5
+	settings := Settings{Language: "en", CacheGiB: 2, CacheMaxAgeHours: &age, WriteBackSeconds: &delay}
 	field := Field{Key: "host", Label: "Server", Required: true, Choices: []string{"example.test"}, Hint: "Server hostname"}
 	provider := Provider{ID: "sftp", Name: "SFTP", Backend: "sftp", Fields: []Field{field}, Available: true, Notice: "Synthetic provider"}
 	question := Question{Name: "Library", Help: "Choose a library", Examples: []Example{{Value: "library", Help: "User library"}}}
@@ -28,6 +29,7 @@ func bridgeSamples() map[string]any {
 	filled.FreeBytes = &size
 	filled.Connections = []ConnectionView{{Connection: connection, Pending: &count, Operation: "mounting", Error: message.Message, ErrorMessage: message, Uploads: &UploadView{Active: 1, Queued: 1}, Cache: CacheView{CheckedAt: &checked, PendingBytes: &pending, UsedBytes: &size}}}
 	return map[string]any{
+		"mountTarget":   mountTarget(connection),
 		"snapshotEmpty": empty, "snapshotFilled": filled,
 		"connectionUnknown": ConnectionView{Connection: Connection{ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S"}},
 		"fieldEmpty":        Field{}, "providerEmpty": Provider{},
@@ -45,6 +47,7 @@ func bridgeSamples() map[string]any {
 
 func bridgeMethods() map[string]any {
 	names := map[string]string{
+		"selectDirectory": "SelectDirectory", "changeCacheLocation": "ChangeCacheLocation", "refreshDirectoryCache": "RefreshDirectoryCache",
 		"browsers": "Browsers", "proxy": "ProxySettings", "saveProxy": "SaveProxy",
 		"about": "About", "diagnostics": "Diagnostics", "desktopVisible": "DesktopVisible", "snapshot": "Snapshot",
 		"begin": "BeginConfig", "status": "ConfigStatus", "answer": "AnswerConfig", "end": "EndConfig",

@@ -15,34 +15,39 @@ import (
 )
 
 type Connection struct {
-	ID             string `json:"id"`
-	Remote         string `json:"remote"`
-	Name           string `json:"name"`
-	Provider       string `json:"provider"`
-	Path           string `json:"path"`
-	Letter         string `json:"letter"`
-	ReadOnly       bool   `json:"readOnly"`
-	AutoMount      bool   `json:"autoMount"`
-	Recovery       bool   `json:"recovery"`
-	TargetHash     string `json:"targetHash"`
-	AuthMethod     string `json:"authMethod,omitempty"`
-	SessionOnly    bool   `json:"sessionOnly,omitempty"`
-	UploadLimit    int64  `json:"uploadLimit,omitempty"`
-	DownloadLimit  int64  `json:"downloadLimit,omitempty"`
-	UseProxy       bool   `json:"useProxy,omitempty"`
-	Browser        string `json:"browser,omitempty"`
-	PrivateBrowser bool   `json:"privateBrowser,omitempty"`
-	ConnectTimeout int    `json:"connectTimeout,omitempty"`
-	IdleTimeout    int    `json:"idleTimeout,omitempty"`
-	AlternateURL   string `json:"alternateURL,omitempty"`
-	ResourceID     string `json:"resourceID,omitempty"`
-	PrimaryURL     string `json:"primaryURL,omitempty"`
-	Binding        string `json:"binding,omitempty"`
+	ID                    string `json:"id"`
+	Remote                string `json:"remote"`
+	Name                  string `json:"name"`
+	Provider              string `json:"provider"`
+	Path                  string `json:"path"`
+	Letter                string `json:"letter"`
+	MountMode             string `json:"mountMode,omitempty"`
+	MountFolder           string `json:"mountFolder,omitempty"`
+	DirectoryCacheSeconds int    `json:"directoryCacheSeconds,omitempty"`
+	ReadOnly              bool   `json:"readOnly"`
+	AutoMount             bool   `json:"autoMount"`
+	Recovery              bool   `json:"recovery"`
+	TargetHash            string `json:"targetHash"`
+	AuthMethod            string `json:"authMethod,omitempty"`
+	SessionOnly           bool   `json:"sessionOnly,omitempty"`
+	UploadLimit           int64  `json:"uploadLimit,omitempty"`
+	DownloadLimit         int64  `json:"downloadLimit,omitempty"`
+	UseProxy              bool   `json:"useProxy,omitempty"`
+	Browser               string `json:"browser,omitempty"`
+	PrivateBrowser        bool   `json:"privateBrowser,omitempty"`
+	ConnectTimeout        int    `json:"connectTimeout,omitempty"`
+	IdleTimeout           int    `json:"idleTimeout,omitempty"`
+	AlternateURL          string `json:"alternateURL,omitempty"`
+	ResourceID            string `json:"resourceID,omitempty"`
+	PrimaryURL            string `json:"primaryURL,omitempty"`
+	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
-	Language  string `json:"language"`
-	AutoStart bool   `json:"autoStart"`
-	CacheGiB  int    `json:"cacheGiB"`
+	Language         string `json:"language"`
+	AutoStart        bool   `json:"autoStart"`
+	CacheGiB         int    `json:"cacheGiB"`
+	CacheMaxAgeHours *int   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds *int   `json:"writeBackSeconds,omitempty"`
 }
 type Store struct {
 	Connections []Connection `json:"connections"`
@@ -82,7 +87,7 @@ func decodeStore(b []byte) (Store, error) {
 	}
 	if shape.Version != nil {
 		var version int
-		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2) {
+		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2 && version != 3) {
 			return s, errSettingsVersion
 		}
 	}
@@ -100,8 +105,11 @@ func decodeStore(b []byte) (Store, error) {
 	if s.Settings.CacheGiB < 1 || s.Settings.CacheGiB > 1024 {
 		return s, fmt.Errorf("invalid cache limit in settings")
 	}
+	if err := validateCacheDurations(s.Settings); err != nil {
+		return s, err
+	}
 	ids := map[string]bool{}
-	letters := map[string]bool{}
+	destinations := map[string]bool{}
 	for i := range s.Connections {
 		c := &s.Connections[i]
 		if err = validateConnection(c); err != nil {
@@ -113,11 +121,17 @@ func decodeStore(b []byte) (Store, error) {
 				return s, fmt.Errorf("invalid identifier in settings")
 			}
 		}
-		if ids[c.ID] || letters[c.Letter] {
-			return s, fmt.Errorf("duplicate connection or drive letter in settings")
+		if ids[c.ID] || destinations[mountKey(mountPoint(*c))] {
+			return s, fmt.Errorf("duplicate connection or mount destination in settings")
 		}
 		ids[c.ID] = true
-		letters[c.Letter] = true
+		destinations[mountKey(mountPoint(*c))] = true
+		for j := 0; j < i; j++ {
+			other := s.Connections[j]
+			if mountTargetsOverlap(*c, other) {
+				return s, fmt.Errorf("overlapping mount destinations in settings")
+			}
+		}
 	}
 	return s, nil
 }
@@ -129,7 +143,7 @@ func encodeStore(s Store) ([]byte, error) {
 	b, err := json.MarshalIndent(struct {
 		Version int `json:"version"`
 		Store
-	}{Version: 2, Store: s}, "", "  ")
+	}{Version: 3, Store: s}, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +170,9 @@ func saveStore(dir string, s Store) error {
 	} else {
 		previous = b
 	}
+	if err = ensureCacheLocation(dir); err != nil {
+		return err
+	}
 	if err = atomicWrite(filepath.Join(dir, "settings.backup.json"), previous); err != nil {
 		return fmt.Errorf("could not preserve settings backup: %w", err)
 	}
@@ -175,9 +192,8 @@ func validateConnection(c *Connection) error {
 	if strings.ContainsAny(c.Name, "\x00\r\n") {
 		return &FieldError{Field: "name", Message: "name must not contain NUL or line breaks"}
 	}
-	c.Letter = strings.ToUpper(strings.TrimSpace(c.Letter))
-	if len(c.Letter) != 1 || c.Letter[0] < 'D' || c.Letter[0] > 'Z' {
-		return &FieldError{Field: "letter", Message: "choose a letter between D and Z"}
+	if err := validateMountTarget(c); err != nil {
+		return err
 	}
 	if strings.ContainsAny(c.Path, "\x00\r\n\\:") || strings.HasPrefix(c.Path, "/") {
 		return &FieldError{Field: "path", Message: "enter a relative remote path, separated by /"}

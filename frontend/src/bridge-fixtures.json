@@ -27,11 +27,27 @@
         "error"
       ]
     },
+    "browsers": {
+      "args": [],
+      "name": "Browsers",
+      "returns": [
+        "[]platform.Browser"
+      ]
+    },
+    "changeCacheLocation": {
+      "args": [
+        "string"
+      ],
+      "name": "ChangeCacheLocation",
+      "returns": [
+        "error"
+      ]
+    },
     "confirm": {
       "args": [
         "string",
         "string",
-        "string"
+        "core.MountTarget"
       ],
       "name": "ConfirmConfig",
       "returns": [
@@ -128,6 +144,23 @@
         "error"
       ]
     },
+    "proxy": {
+      "args": [],
+      "name": "ProxySettings",
+      "returns": [
+        "core.ProxyConfig",
+        "error"
+      ]
+    },
+    "refreshDirectoryCache": {
+      "args": [
+        "string"
+      ],
+      "name": "RefreshDirectoryCache",
+      "returns": [
+        "error"
+      ]
+    },
     "remove": {
       "args": [
         "string"
@@ -155,6 +188,23 @@
       "args": [],
       "name": "RetryCleanup",
       "returns": [
+        "error"
+      ]
+    },
+    "saveProxy": {
+      "args": [
+        "core.ProxyConfig"
+      ],
+      "name": "SaveProxy",
+      "returns": [
+        "error"
+      ]
+    },
+    "selectDirectory": {
+      "args": [],
+      "name": "SelectDirectory",
+      "returns": [
+        "string",
         "error"
       ]
     },
@@ -227,30 +277,6 @@
       "returns": [
         "error"
       ]
-    },
-    "browsers": {
-      "name": "Browsers",
-      "args": [],
-      "returns": [
-        "[]platform.Browser"
-      ]
-    },
-    "proxy": {
-      "name": "ProxySettings",
-      "args": [],
-      "returns": [
-        "core.ProxyConfig",
-        "error"
-      ]
-    },
-    "saveProxy": {
-      "name": "SaveProxy",
-      "args": [
-        "core.ProxyConfig"
-      ],
-      "returns": [
-        "error"
-      ]
     }
   },
   "samples": {
@@ -270,6 +296,9 @@
         "provider": "sftp",
         "path": "folder",
         "letter": "S",
+        "mountMode": "local",
+        "mountFolder": "C:\\Synthetic\\Mount",
+        "directoryCacheSeconds": 300,
         "readOnly": false,
         "autoMount": false,
         "recovery": false,
@@ -319,6 +348,13 @@
         "pendingBytes": null,
         "usedBytes": null,
         "error": ""
+      },
+      "capacity": {
+        "total": null,
+        "used": null,
+        "free": null,
+        "checkedAt": null,
+        "state": ""
       }
     },
     "dynamicFieldError": {
@@ -363,6 +399,11 @@
         "letter": "S"
       },
       "message": "letter S: is already in use"
+    },
+    "mountTarget": {
+      "letter": "S",
+      "folder": "C:\\Synthetic\\Mount",
+      "mode": "local"
     },
     "providerEmpty": {
       "id": "",
@@ -425,7 +466,9 @@
       "settings": {
         "language": "en",
         "autoStart": false,
-        "cacheGiB": 2
+        "cacheGiB": 2,
+        "cacheMaxAgeHours": 24,
+        "writeBackSeconds": 5
       },
       "letters": [],
       "winFsp": false,
@@ -435,7 +478,8 @@
       "recoveryHold": false,
       "maintenanceError": "",
       "startupWarning": "",
-      "freeBytes": null
+      "freeBytes": null,
+      "cacheLocation": ""
     },
     "snapshotFilled": {
       "providers": [
@@ -472,10 +516,26 @@
           "provider": "sftp",
           "path": "folder",
           "letter": "S",
+          "mountMode": "local",
+          "mountFolder": "C:\\Synthetic\\Mount",
+          "directoryCacheSeconds": 300,
           "readOnly": false,
           "autoMount": false,
           "recovery": false,
           "targetHash": "",
+          "authMethod": "oauth",
+          "sessionOnly": true,
+          "uploadLimit": 1024,
+          "downloadLimit": 2048,
+          "useProxy": true,
+          "browser": "edge",
+          "privateBrowser": true,
+          "connectTimeout": 30,
+          "idleTimeout": 60,
+          "alternateURL": "https://alternate.example.test/dav",
+          "resourceID": "synthetic-resource",
+          "primaryURL": "https://example.test/dav",
+          "binding": "{}",
           "mounted": false,
           "pending": 2,
           "busy": false,
@@ -499,25 +559,21 @@
             "usedBytes": 1024,
             "error": ""
           },
-          "authMethod": "oauth",
-          "sessionOnly": true,
-          "uploadLimit": 1024,
-          "downloadLimit": 2048,
-          "useProxy": true,
-          "browser": "edge",
-          "privateBrowser": true,
-          "connectTimeout": 30,
-          "idleTimeout": 60,
-          "alternateURL": "https://alternate.example.test/dav",
-          "resourceID": "synthetic-resource",
-          "primaryURL": "https://example.test/dav",
-          "binding": "{}"
+          "capacity": {
+            "total": null,
+            "used": null,
+            "free": null,
+            "checkedAt": null,
+            "state": ""
+          }
         }
       ],
       "settings": {
         "language": "en",
         "autoStart": false,
-        "cacheGiB": 2
+        "cacheGiB": 2,
+        "cacheMaxAgeHours": 24,
+        "writeBackSeconds": 5
       },
       "letters": [
         "T"
@@ -529,7 +585,8 @@
       "recoveryHold": false,
       "maintenanceError": "",
       "startupWarning": "",
-      "freeBytes": 1024
+      "freeBytes": 1024,
+      "cacheLocation": ""
     }
   }
 }

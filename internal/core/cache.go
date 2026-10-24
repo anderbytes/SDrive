@@ -152,6 +152,11 @@ func readDirty(ctx context.Context, path string) (bool, error) {
 
 func (s *Service) inspectCache(ctx context.Context, c Connection) localCache {
 	result := localCache{}
+	if err := s.cacheReady(); err != nil {
+		result.err = err
+		result.Error = "Could not inspect local cache; preserve the files and try again."
+		return result
+	}
 	var used uint64
 	var pendingBytes int64
 	usageKnown, sizeKnown := true, true

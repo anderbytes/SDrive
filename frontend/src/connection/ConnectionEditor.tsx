@@ -1,3 +1,4 @@
+import { MountDestination } from "./MountDestination";
 import { advancedDisclaimer, methodKey, oauthInstructions } from "./methods";
 import { ConnectionOptions } from "./ConnectionOptions";
 import { api } from "../api";
@@ -49,7 +50,7 @@ export function ConnectionEditor(props: EditorProps) {
             {t(error || session?.error || "")}
           </div>
         )}
-        {noLetters && <p role="alert">{t("No drive letters are available. Free a letter between D and Z before creating a connection.")}</p>}
+        {noLetters && <p role="alert">{t("No drive letters are available. Choose a new local subfolder or free a drive letter.")}</p>}
         {savedID && step === "folder" && (
           <p role="status" className="alert warning">{t("Configuration saved. Retry uses this connection without creating another. You can also close setup and connect from My drives.")}</p>
         )}
@@ -93,11 +94,12 @@ export function ConnectionEditor(props: EditorProps) {
             </label>
             {fieldFeedback("name")}
             {unavailable && <p role="status">{t(p.notice || "")}</p>}
+            <MountDestination wizard={wizard} />
             <div className="modal-actions">
               <button type="button" onClick={close}>
                 {t("Cancel")}
               </button>
-              <button className="primary" disabled={noLetters || !wizard.serviceMethods.some((m) => m.key === methodKey(connection, data.providers) && m.advanced === (wizard.category === "advanced"))}>{t("Continue")}</button>
+              <button className="primary" disabled={!wizard.serviceMethods.some((m) => m.key === methodKey(connection, data.providers) && m.advanced === (wizard.category === "advanced"))}>{t("Continue")}</button>
             </div>
           </form>
         )}
@@ -281,9 +283,7 @@ export function ConnectionEditor(props: EditorProps) {
             <div className="complete-icon">✓</div>
             <h3>{t("Drive connected")}</h3>
             <p>
-              {t("Your files are available on Windows drive {letter}:.", {
-                letter: connection.letter,
-              })}
+              {t("Your files are available at {target}.", { target: connection.mountFolder || `${connection.letter}:` })}
             </p>
             <div className="modal-actions">
               <button onClick={close}>{t("Done")}</button>
@@ -314,23 +314,7 @@ export function ConnectionEditor(props: EditorProps) {
               />
             </label>
             {fieldFeedback("name")}
-            <label>
-              {t("Windows drive letter")}
-              <select
-                {...validationProps("letter")}
-                value={connection.letter}
-                onChange={(e) => change({ letter: e.target.value })}
-              >
-                {Array.from(new Set([connection.letter, ...data.letters]))
-                  .sort()
-                  .map((letter) => (
-                    <option key={letter} value={letter}>
-                      {letter}:
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {fieldFeedback("letter")}
+            <MountDestination wizard={wizard} />
             <label>
               {t("Folder / bucket / share")}
               <input

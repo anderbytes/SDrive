@@ -101,7 +101,7 @@ func TestInvalidPickerPathsNeverReachRPC(t *testing.T) {
 		if _, err := s.ListConfigFolders("draft", path); err == nil {
 			t.Fatalf("unsafe path %q listed", path)
 		}
-		if _, err := s.ConfirmConfig("draft", path, "S"); err == nil {
+		if _, err := s.ConfirmConfig("draft", path, MountTarget{Letter: "S"}); err == nil {
 			t.Fatalf("unsafe path %q confirmed", path)
 		}
 	}
@@ -113,7 +113,7 @@ func TestInvalidPickerPathsNeverReachRPC(t *testing.T) {
 	if _, err := s.ListConfigFolders("draft", ""); err == nil {
 		t.Fatal("recovery destination changed through root navigation")
 	}
-	if _, err := s.ConfirmConfig("draft", "Another", "S"); err == nil || len(rpc.calls) != 0 {
+	if _, err := s.ConfirmConfig("draft", "Another", MountTarget{Letter: "S"}); err == nil || len(rpc.calls) != 0 {
 		t.Fatal("recovery destination changed through confirmation")
 	}
 }

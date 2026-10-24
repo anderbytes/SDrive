@@ -36,17 +36,17 @@ func TestGuidedDraftIsOnlySavedAfterDestinationValidation(t *testing.T) {
 	if _, err = s.ListConfigFolders(id, "../outside"); err == nil {
 		t.Fatal("path traversal accepted")
 	}
-	if _, err = s.ConfirmConfig(id, "denied", "S"); err == nil || strings.Contains(err.Error(), "do-not-leak") {
+	if _, err = s.ConfirmConfig(id, "denied", MountTarget{Letter: "S"}); err == nil || strings.Contains(err.Error(), "do-not-leak") {
 		t.Fatal("validation/error redaction failed")
 	}
 	if len(s.store.Connections) != 0 {
 		t.Fatal("invalid destination saved")
 	}
-	connectionID, err := s.ConfirmConfig(id, "Documents", "S")
+	connectionID, err := s.ConfirmConfig(id, "Documents", MountTarget{Letter: "S"})
 	if err != nil || connectionID == "" || len(s.store.Connections) != 1 || s.store.Connections[0].Path != "Documents" {
 		t.Fatalf("confirm failed: %v", err)
 	}
-	if _, err = s.ConfirmConfig(id, "another", "S"); err != nil || s.store.Connections[0].Path != "Documents" {
+	if _, err = s.ConfirmConfig(id, "another", MountTarget{Letter: "S"}); err != nil || s.store.Connections[0].Path != "Documents" {
 		t.Fatal("retry changed destination")
 	}
 	if err = s.EndConfig(id); err != nil {
@@ -89,7 +89,7 @@ func TestFolderListingRetriesAndRestrictedDirectDestination(t *testing.T) {
 			if _, err = s.ListConfigFolders(id, "allowed/destination"); err != nil {
 				t.Fatal(err)
 			}
-			if _, err = s.ConfirmConfig(id, "allowed/destination", "S"); err != nil || len(s.store.Connections) != 1 || s.store.Connections[0].Path != "allowed/destination" {
+			if _, err = s.ConfirmConfig(id, "allowed/destination", MountTarget{Letter: "S"}); err != nil || len(s.store.Connections) != 1 || s.store.Connections[0].Path != "allowed/destination" {
 				t.Fatalf("root failure blocked an authorized direct destination: %v", err)
 			}
 			if err = s.EndConfig(id); err != nil {

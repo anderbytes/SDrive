@@ -179,9 +179,15 @@ func assertIntegrationAbsent(t *testing.T, path string) {
 
 func assertIntegrationUnmounted(t *testing.T, f *integrationFixture, c core.Connection) {
 	t.Helper()
-	waitIntegration(t, "released fixture drive letter", 10*time.Second, func() bool { return !platform.DriveUsed(c.Letter) })
+	waitIntegration(t, "released fixture mount", 10*time.Second, func() bool {
+		if c.MountFolder != "" {
+			_, err := os.Lstat(c.MountFolder)
+			return os.IsNotExist(err)
+		}
+		return !platform.DriveUsed(c.Letter)
+	})
 	v := f.service.Snapshot().Connections[0]
-	if v.Mounted || v.Recovery || v.Pending == nil || *v.Pending != 0 || integrationDirty(t, f.profile) {
+	if v.Mounted || v.Recovery || v.Pending == nil || *v.Pending != 0 || integrationDirtyAt(t, core.CachePath(f.service)) {
 		t.Fatal("safe disconnect retained a mount, recovery protection or pending data")
 	}
 }
@@ -254,12 +260,21 @@ func TestWindowsMountOpenFiles(t *testing.T) {
 }
 
 func TestWindowsMountPendingRecovery(t *testing.T) {
+	requireNativeMount(t)
+	for _, mode := range []string{"network", "local", "folder"} {
+		t.Run(mode, func(t *testing.T) { verifyInterruptedMountRecovery(t, mode) })
+	}
+}
+
+func verifyInterruptedMountRecovery(t *testing.T, mode string) {
+	t.Helper()
 	f := newIntegrationFixture(t, true)
 	f.blocked.Store(true)
+	cache := filepath.Join(f.root, "selected-cache")
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMountRecoveryChild$", "-test.timeout=80s")
-	child.Env = append(os.Environ(), "SDRIVE_TEST_RECOVERY_ROOT="+f.root, "SDRIVE_TEST_RECOVERY_URL="+f.url, "SDRIVE_TEST_RECOVERY_LETTER="+f.letter)
+	child.Env = append(os.Environ(), "SDRIVE_TEST_RECOVERY_ROOT="+f.root, "SDRIVE_TEST_RECOVERY_URL="+f.url, "SDRIVE_TEST_RECOVERY_LETTER="+f.letter, "SDRIVE_TEST_RECOVERY_MODE="+mode)
 	// Raw child output is discarded; retained evidence is synthetic state and content.
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
@@ -289,11 +304,11 @@ func TestWindowsMountPendingRecovery(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("pending upload did not reach the controlled destination")
 	}
-	if !integrationDirty(t, f.profile) {
+	if !integrationDirtyAt(t, cache) {
 		t.Fatal("interruption checkpoint has no durable pending data")
 	}
 	expected := fmt.Sprintf("%x", sha256.Sum256([]byte("durable interrupted content")))
-	backingFile := filepath.Join(f.profile, "cache", "vfs", "sd_"+saved.Remote, saved.Path, "recover.txt")
+	backingFile := filepath.Join(cache, "vfs", "sd_"+saved.Remote, saved.Path, "recover.txt")
 	assertIntegrationFile(t, backingFile, expected)
 	assertIntegrationAbsent(t, filepath.Join(f.destination, "library", "recover.txt"))
 	if err := child.Process.Kill(); err != nil {
@@ -304,12 +319,19 @@ func TestWindowsMountPendingRecovery(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("interrupted child did not exit")
 	}
-	waitIntegration(t, "interrupted mount release", 10*time.Second, func() bool { return !platform.DriveUsed(f.letter) })
-	if !integrationDirty(t, f.profile) {
+	waitIntegration(t, "interrupted mount release", 10*time.Second, func() bool {
+		if saved.MountFolder != "" {
+			_, err := os.Lstat(saved.MountFolder)
+			return os.IsNotExist(err)
+		}
+		return !platform.DriveUsed(f.letter)
+	})
+	if !integrationDirtyAt(t, cache) {
 		t.Fatal("process interruption lost pending metadata")
 	}
 	assertIntegrationFile(t, backingFile, expected)
 	f.service, f.rpc = openIntegrationService(t, f.profile, nil)
+	isolatedConnectionWorkers(t, f.service, f.profile)
 	v := f.service.Snapshot().Connections[0]
 	if v.Connection != saved || !v.Recovery || v.TargetHash == "" || v.Mounted {
 		t.Fatal("reopen lost the original recovery destination")
@@ -339,11 +361,32 @@ func TestMountRecoveryChild(t *testing.T) {
 		t.Fatal("invalid isolated mount helper environment")
 	}
 	s, _ := openIntegrationService(t, filepath.Join(root, "client"), nil)
+	mode := os.Getenv("SDRIVE_TEST_RECOVERY_MODE")
+	if mode != "network" && mode != "local" && mode != "folder" {
+		t.Fatal("invalid isolated recovery mode")
+	}
+	cache := filepath.Join(root, "selected-cache")
+	if err := os.Mkdir(cache, 0700); err != nil {
+		t.Fatal(err)
+	}
+	isolatedConnectionWorkers(t, s, filepath.Join(root, "client"))
+	if err := s.ChangeCacheLocation(cache); err != nil {
+		t.Fatal(err)
+	}
 	c := configureIntegration(t, s, os.Getenv("SDRIVE_TEST_RECOVERY_URL"), os.Getenv("SDRIVE_TEST_RECOVERY_LETTER"))
+	c.MountMode = mode
+	point := c.Letter + `:\`
+	if mode == "folder" {
+		c.Letter, c.MountMode, c.MountFolder = "", "local", filepath.Join(root, "mounted-folder")
+		point = c.MountFolder
+	}
+	if err := s.UpdateConnection(c); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Mount(c.ID); err != nil {
 		t.Fatal(err)
 	}
-	file, err := os.Create(filepath.Join(c.Letter+`:\`, "recover.txt"))
+	file, err := os.Create(filepath.Join(point, "recover.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +399,7 @@ func TestMountRecoveryChild(t *testing.T) {
 	if err = file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	waitIntegration(t, "durable interrupted file", 10*time.Second, func() bool { return integrationDirty(t, filepath.Join(root, "client")) })
+	waitIntegration(t, "durable interrupted file", 10*time.Second, func() bool { return integrationDirtyAt(t, cache) })
 	checkpoint, err := json.Marshal(s.Snapshot().Connections[0].Connection)
 	if err != nil {
 		t.Fatal(err)

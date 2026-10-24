@@ -1,7 +1,7 @@
 import { errorMessage as message, localizedMessage, type LocalizedMessage } from "../messages";
 import { driveNameError, trimDriveName } from "./name";
 import { useEffect, useId, useState, useReducer } from "react";
-import { api, validationError, type Browser, type Connection, type FieldError, type Snapshot } from "../api";
+import { api, mountTarget, validationError, type Browser, type Connection, type FieldError, type Snapshot } from "../api";
 import { methods, methodKey } from "./methods";
 import { useLanguage } from "../i18n";
 import { useDialog } from "../useDialog";
@@ -37,7 +37,7 @@ export function useConnectionWizard({
   const session = state.step === "auth" ? state.session : undefined;
   const saved = "saved" in state ? state.saved : undefined;
   const savedID = saved?.id || "";
-  const savedLetter = saved?.letter || "";
+  const savedTarget = saved?.target;
   const [transport, setTransport] = useState("explicit");
   const [insecure, setInsecure] = useState(false);
   const [identity, setIdentity] = useState<{
@@ -189,7 +189,7 @@ export function useConnectionWizard({
     !initial.id &&
     p.available === false &&
     !(p.id === "gcs" && values.service_account_file);
-  const noLetters = !initial.id && !savedID && !data.letters.length;
+  const noLetters = !initial.id && !savedID && connection.letter !== "" && !data.letters.length;
   const savedConnection = data.connections.find((c) => c.id === savedID);
   const letterLocked = initial.recovery || !!savedConnection?.recovery || !!savedConnection?.mounted || !!savedConnection?.busy;
   const letters = Array.from(new Set([
@@ -278,10 +278,10 @@ export function useConnectionWizard({
   const connect = () => action(async () => {
     try {
       let id = savedID;
-      if (!id || savedLetter !== connection.letter) {
+      if (!id || JSON.stringify(savedTarget) !== JSON.stringify(mountTarget(connection))) {
         setOperation("validating");
-        id = await api.confirm(sessionID, path, connection.letter);
-        dispatch({ type: "saved", id, letter: connection.letter });
+        id = await api.confirm(sessionID, path, mountTarget(connection));
+        dispatch({ type: "saved", id, target: mountTarget(connection) });
       }
       setOperation("mounting");
       await api.mount(id);

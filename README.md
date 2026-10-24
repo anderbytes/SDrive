@@ -17,6 +17,8 @@ For installation without internet access or on networks that restrict downloads,
 
 Before disconnecting or exiting, close files and wait for uploads. Closing the window keeps drives active in the tray. **Preferences** lets you start SDrive with Windows; automatic mounting is optional per connection. Both are disabled initially.
 
+Choose network-drive or local-disk presentation, or mount into a new local subfolder. Preferences includes safe cache-directory changes and retention/upload timing. Drive options include metadata lifetime, explicit Explorer refresh and provider-reported capacity. See [cache, mounting and browsing](docs/mount-runtime.md) for defaults and limits.
+
 The tray shows connected-drive counts and distinguishes uploads, recovery, unknown status and failures. Right-click it to connect, disconnect or open a drive, or exit safely. Launching SDrive again opens the existing window in the same Windows session. New background problems open the window once; an unchanged problem does not repeatedly interrupt you. Background status checks run every 15 seconds while visual polling is suspended.
 
 Window position, size and maximization are remembered and adjusted to available monitors. **About SDrive** lists application, running rclone, Windows and installed WinFsp/WebView2 versions; unavailable components are shown explicitly.
@@ -49,7 +51,7 @@ The first version does not include Linux support, full offline synchronization, 
 
 ## Data and recovery
 
-`%LOCALAPPDATA%\SDrive` contains preferences, encrypted legacy and per-connection rclone configurations, DPAPI-protected keys, encrypted proxy preferences and cache. Directory permissions are restricted to the current user and SYSTEM. SDrive uses its own configuration and does not change your regular `rclone.conf`.
+`%LOCALAPPDATA%\SDrive` contains preferences, encrypted legacy and per-connection rclone configurations, DPAPI-protected keys, encrypted proxy preferences and the cache-location binding. The cache defaults to this profile and can be changed in Preferences after clean disconnection. Profile/cache directory permissions are restricted to the current user and SYSTEM. SDrive uses its own configuration and does not change your regular `rclone.conf`.
 
 Never delete the cache while recovery is pending. After an interruption, use **Recover** on the original connection. To renew credentials during recovery, use **Reconfigure account**, preserving the server, username, folder and access mode. Destination changes and removal remain blocked until recovery finishes.
 

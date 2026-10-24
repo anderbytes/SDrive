@@ -13,9 +13,9 @@ test("wizard requires a session, authentication, a saved connection and a succes
   state = wizardReducer(state, { type: "status", sessionID: "session", session: fixtures.samples.sessionFilled });
   expect(state).toEqual({ step: "folder", sessionID: "session" });
   expect(wizardReducer(state, { type: "connected" })).toBe(state);
-  state = wizardReducer(state, { type: "saved", id: "saved", letter: "S" });
+  state = wizardReducer(state, { type: "saved", id: "saved", target: { letter: "S", folder: "", mode: "" } });
   expect(wizardReducer(state, { type: "status", sessionID: "session", session: fixtures.samples.sessionEmpty })).toBe(state);
-  state = wizardReducer(state, { type: "saved", id: "saved", letter: "T" });
+  state = wizardReducer(state, { type: "saved", id: "saved", target: { letter: "T", folder: "", mode: "" } });
   state = wizardReducer(state, { type: "connected" });
-  expect(state).toEqual({ step: "complete", sessionID: "session", saved: { id: "saved", letter: "T" } });
+  expect(state).toEqual({ step: "complete", sessionID: "session", saved: { id: "saved", target: { letter: "T", folder: "", mode: "" } } });
 });

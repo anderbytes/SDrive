@@ -6,6 +6,9 @@ export function ConnectionOptions({ wizard }: { wizard: Wizard }) {
   const sessionSupported = dav || ["drive", "onedrive", "sharepoint"].includes(c.provider);
   const proxySupported = dav || ["drive", "onedrive", "sharepoint", "dropbox", "box", "pcloud", "s3", "b2", "azureblob", "gcs"].includes(c.provider);
   return <>
+    <label>{t("Directory metadata lifetime (seconds)")}<input type="number" min="1" max="86400" step="1" disabled={initial.recovery} {...validationProps("directoryCacheSeconds")} value={c.directoryCacheSeconds || 300} onChange={(e) => change({ directoryCacheSeconds: Number(e.target.value) })} /></label>
+    {fieldFeedback("directoryCacheSeconds")}
+    <small>{t("External changes appear on the next directory access after this lifetime, or after Refresh files in Explorer. Some services detect changes earlier. This is separate from SDrive status updates and applies on the next connection.")}</small>
     <p>{t("Network changes apply on the next connection. Zero means unlimited or the engine default.")}</p>
     {(["downloadLimit", "uploadLimit"] as const).map((key) => <label key={key}>
       {t(key === "downloadLimit" ? "Download limit (KiB/s)" : "Upload limit (KiB/s)")}

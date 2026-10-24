@@ -28,6 +28,7 @@ vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
 vi.mock("./api", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api")>(),
   api: {
+    selectDirectory: vi.fn(), changeCacheLocation: vi.fn(), refreshDirectoryCache: vi.fn(),
     browsers: vi.fn(), proxy: vi.fn(), saveProxy: vi.fn(),
     about: vi.fn(),
     diagnostics: vi.fn(),
@@ -75,10 +76,12 @@ const connection: ConnectionView = {
   operation: "",
   pending: 0,
   uploads: null,
+  capacity: { total: null, used: null, free: null, checkedAt: null, state: "" },
   cache: { checkedAt: null, pendingBytes: 0, usedBytes: 0, error: "" },
   error: "",
 };
 const snapshot = {
+  cacheLocation: "C:\\Synthetic\\Cache",
   freeBytes: null,
   providers: [
     {
@@ -823,7 +826,7 @@ test("guided setup chooses a folder before confirming and mounting", async () =>
   );
   fireEvent.click(screen.getByText("Connect drive"));
   await screen.findByText("Drive connected");
-  expect(api.confirm).toHaveBeenCalledWith("draft", "Documents", "S");
+  expect(api.confirm).toHaveBeenCalledWith("draft", "Documents", { letter: "S", folder: "", mode: "" });
   expect(api.mount).toHaveBeenCalledWith("connected-id");
   expect(api.begin).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -1006,7 +1009,7 @@ test("destination validation failure does not mount and allows retry", async () 
   fireEvent.click(connect);
   await screen.findByText("Drive connected");
   expect(api.confirm).toHaveBeenCalledTimes(2);
-  expect(api.confirm).toHaveBeenLastCalledWith("draft", "", "S");
+  expect(api.confirm).toHaveBeenLastCalledWith("draft", "", { letter: "S", folder: "", mode: "" });
   expect(api.mount).toHaveBeenCalledExactlyOnceWith("connected-id");
 });
 
@@ -1220,21 +1223,15 @@ test("an action completing after unmount cannot start another snapshot", async (
   expect(api.snapshot).toHaveBeenCalledTimes(1);
 });
 
-test.each(["en", "pt-BR"])("no letters blocks both creation entries (%s)", async (language) => {
+test.each(["en", "pt-BR"])("no letters still allows folder-mount creation (%s)", async (language) => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, letters: [], settings: { ...snapshot.settings, language: language as "en" | "pt-BR" } });
   render(<App />);
   const english = language === "en";
-  await screen.findByText(english
-    ? "No drive letters are available. Free a letter between D and Z before creating a connection."
-    : "Não há letras de unidade disponíveis. Libere uma letra entre D e Z antes de criar uma conexão.");
   const create = await screen.findByRole("button", { name: english ? "+ New connection" : "+ Nova conexão" });
-  expect((create as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: english ? "Add my first connection" : "Adicionar minha primeira conexão" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(english
-    ? "No drive letters are available. Free a letter between D and Z before creating a connection."
-    : "Não há letras de unidade disponíveis. Libere uma letra entre D e Z antes de criar uma conexão.")).toBeDefined();
+  expect((create as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole("button", { name: english ? "Add my first connection" : "Adicionar minha primeira conexão" }) as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(create);
-  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByRole("dialog")).toBeDefined();
   expect(api.begin).not.toHaveBeenCalled();
 });
 
@@ -1261,14 +1258,57 @@ async function openAuthenticatedFolder() {
   return connect;
 }
 
+test("folder mount confirmation keeps the selected local destination", async () => {
+  const connect = await openAuthenticatedFolder();
+  fireEvent.change(screen.getByLabelText("Mount into"), { target: { value: "folder" } });
+  fireEvent.change(screen.getByLabelText("Local mount folder"), { target: { value: "C:\\Synthetic\\NewMount" } });
+  expect((screen.getByLabelText("Drive presentation") as HTMLSelectElement).value).toBe("local");
+  expect((screen.getByLabelText("Drive presentation") as HTMLSelectElement).disabled).toBe(true);
+  fireEvent.click(connect);
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", { letter: "", folder: "C:\\Synthetic\\NewMount", mode: "local" });
+  expect(screen.getByText("Your files are available at C:\\Synthetic\\NewMount.")).toBeDefined();
+});
+
+test("cache timing preserves an explicit zero upload delay", async () => {
+  vi.mocked(api.settings).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByText(/Preferences/));
+  fireEvent.change(screen.getByLabelText("Cache retention after last access (hours)"), { target: { value: "48" } });
+  fireEvent.change(screen.getByLabelText("Upload delay after last use (seconds)"), { target: { value: "0" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(api.settings).toHaveBeenCalledWith(expect.objectContaining({ cacheMaxAgeHours: 48, writeBackSeconds: 0 })));
+});
+
+test("cache location failure keeps the current location visible", async () => {
+  vi.mocked(api.changeCacheLocation).mockRejectedValue(new Error("Disconnect all drives and resolve pending files before changing the cache."));
+  render(<App />);
+  fireEvent.click(await screen.findByText(/Preferences/));
+  fireEvent.change(screen.getByLabelText("New empty cache directory"), { target: { value: "D:\\NewCache" } });
+  fireEvent.click(screen.getByRole("button", { name: "Change cache location" }));
+  await screen.findByRole("alert");
+  expect(screen.getByText(`Current cache: ${snapshot.cacheLocation}`)).toBeDefined();
+  expect(api.settings).not.toHaveBeenCalled();
+});
+
+test("remote unknown capacity stays separate from pending local files and refresh", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true, pending: 1, capacity: { total: null, used: null, free: 0, checkedAt: null, state: "available" } }] });
+  vi.mocked(api.refreshDirectoryCache).mockResolvedValue();
+  render(<App />);
+  await screen.findByText("Remote capacity: — · Used: — · Available: 0 B");
+  fireEvent.click(screen.getByRole("button", { name: "Refresh files in Explorer" }));
+  await waitFor(() => expect(api.refreshDirectoryCache).toHaveBeenCalledExactlyOnceWith(connection.id));
+  expect(screen.getByText("1 pending upload(s)")).toBeDefined();
+});
+
 test("wizard uses a chosen letter for its first mount", async () => {
   const connect = await openAuthenticatedFolder();
   fireEvent.change(screen.getByLabelText("Windows drive letter"), { target: { value: "T" } });
   fireEvent.click(connect);
   await screen.findByText("Drive connected");
-  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", "T");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", { letter: "T", folder: "", mode: "" });
   expect(api.mount).toHaveBeenCalledExactlyOnceWith("connected-id");
-  expect(screen.getByText("Your files are available on Windows drive T:.")).toBeDefined();
+  expect(screen.getByText("Your files are available at T:.")).toBeDefined();
 });
 
 test("occupied letter before confirmation can be corrected without restarting authentication", async () => {
@@ -1286,7 +1326,7 @@ test("occupied letter before confirmation can be corrected without restarting au
   fireEvent.click(screen.getByRole("button", { name: "Connect drive" }));
   await screen.findByText("Drive connected");
   expect(api.begin).toHaveBeenCalledTimes(1);
-  expect(api.confirm).toHaveBeenLastCalledWith("draft", "", "T");
+  expect(api.confirm).toHaveBeenLastCalledWith("draft", "", { letter: "T", folder: "", mode: "" });
   expect(api.mount).toHaveBeenCalledExactlyOnceWith("connected-id");
 });
 
@@ -1300,8 +1340,8 @@ test("wizard saves a corrected letter on the same connection after a mount failu
   fireEvent.click(await screen.findByRole("button", { name: "Retry connection" }));
   await screen.findByText("Drive connected");
   expect(api.begin).toHaveBeenCalledTimes(1);
-  expect(api.confirm).toHaveBeenNthCalledWith(1, "draft", "", "S");
-  expect(api.confirm).toHaveBeenNthCalledWith(2, "draft", "", "T");
+  expect(api.confirm).toHaveBeenNthCalledWith(1, "draft", "", { letter: "S", folder: "", mode: "" });
+  expect(api.confirm).toHaveBeenNthCalledWith(2, "draft", "", { letter: "T", folder: "", mode: "" });
   expect(api.mount).toHaveBeenNthCalledWith(1, "connected-id");
   expect(api.mount).toHaveBeenNthCalledWith(2, "connected-id");
 });
@@ -1419,7 +1459,7 @@ test("local filtering leaves the destination intact and breadcrumbs return to an
   expect((screen.getByLabelText("Folder, bucket or share") as HTMLInputElement).value).toBe("");
   fireEvent.click(screen.getByRole("button", { name: "Connect drive" }));
   await screen.findByText("Drive connected");
-  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", "S");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", { letter: "S", folder: "", mode: "" });
 });
 
 test("root failure allows a direct destination and unapplied text cannot confirm the previous path", async () => {
@@ -1436,7 +1476,7 @@ test("root failure allows a direct destination and unapplied text cannot confirm
   await waitFor(() => expect((connect as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(connect);
   await screen.findByText("Drive connected");
-  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "allowed/folder", "S");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "allowed/folder", { letter: "S", folder: "", mode: "" });
 });
 
 test("stale folder success and failure cannot replace the latest destination", async () => {
@@ -1461,7 +1501,7 @@ test("stale folder success and failure cannot replace the latest destination", a
   expect(screen.queryByText(/Old failure/)).toBeNull();
   fireEvent.click(connect);
   await screen.findByText("Drive connected");
-  expect(api.confirm).toHaveBeenCalledWith("draft", "latest", "S");
+  expect(api.confirm).toHaveBeenCalledWith("draft", "latest", { letter: "S", folder: "", mode: "" });
 });
 
 test("listing retries cannot overlap and late results are ignored after closing", async () => {
@@ -1617,7 +1657,7 @@ test("recovery keeps its original folder and disables all breadcrumb destination
   expect(screen.queryByRole("button", { name: "↑ Parent folder" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Connect drive" }));
   await screen.findByText("Drive connected");
-  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("recovery", "Original/library", "S");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("recovery", "Original/library", { letter: "S", folder: "", mode: "" });
 });
 
 test("operation stages use the saved Portuguese language", async () => {

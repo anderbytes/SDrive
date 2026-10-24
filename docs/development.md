@@ -94,10 +94,25 @@ try {
 ```
 
 - `TestWindowsMountLifecycle` mounts through `Service`, verifies durable recovery protection and the pinned cache schema, and checks empty/64 MiB/Unicode files, rename, truncating replacement, deletion and read-only rejection. SHA-256 comparisons verify content; checks also require obsolete names to disappear and clean state to survive reopening. External creation/replacement/deletion uses explicit client `vfs/forget`; the fixture server disables directory caching. This does not certify automatic external-change detection.
-- `TestWindowsMountPendingRecovery` blocks uploads, waits for an upload attempt, verifies dirty metadata and the backing file hash, and terminates only its isolated helper. That helper owns the client's rclone kill-on-close job. After process termination and letter release, the parent verifies preserved data, reopens the same profile and checks the saved connection/destination hash before recovering to the original fixture URL. It verifies uploaded content and clean disconnect.
+- `TestWindowsMountPendingRecovery` covers network letters, local-disk letters and local folders using an alternate cache. It blocks uploads, waits for an upload attempt, verifies dirty metadata and the backing file hash, and terminates only its isolated helper. That helper owns the client's rclone kill-on-close job. After process termination and mountpoint release, the parent verifies preserved data, reopens the same profile and checks the saved connection/destination hash before recovering to the original fixture URL. It verifies uploaded content and clean disconnect.
 - `TestWindowsMountOpenFiles` holds a writable handle during disconnect, observes the waiting stage, writes again and tries safe exit concurrently. After closing the handle and permitting uploads it verifies final content and clean disconnect/exit. The ordinary core test `TestExitDuringDisconnectPreservesLateOpenFileWrite` uses channels, a real temporary open handle and RPC doubles to force a write between the clean check and unmount completion; recovery, content and the original destination must survive.
 
-Fixtures use unique, ACL-protected `.tools/integration/run-*` directories. Cleanup stops only owned engines and the local server, then removes successful fixtures. Failures retain synthetic data and `result.json` locally; do not attach keys, encrypted profiles or raw output to reports. Polling/RPCs and child termination have deadlines. Missing prerequisites are explicit skips. The interruption helper requires both mount opt-in and the parent's isolated environment.
+Fixtures use unique, ACL-protected `.tools/integration/run-*` directories. Cleanup stops only owned engines and the local server, then removes successful fixtures. Failures retain synthetic data and `result.json` locally; do not attach keys, encrypted profiles or raw output to reports. Polling/RPCs and child termination have deadlines. Legacy checks skip missing prerequisites. The runtime/recovery checks fail when native mount opt-in is enabled but WinFsp, a disposable letter or required disk space is unavailable. The interruption helper requires both mount opt-in and the parent's isolated environment.
+
+### Cache and mount runtime checks
+
+`TestWindowsMountRuntimeModes` checks network/local drive types, owner ACLs, directory expiry/manual refresh with pending writes, property requests versus content reads, waiting for open files, folder collisions, read-only rejection and reopening. `TestConnectionWorkerUsesSelectedCache` verifies the real worker cache path without a mount. See [runtime behavior](mount-runtime.md).
+
+```powershell
+$previousMountTest = $env:SDRIVE_TEST_MOUNT
+try {
+    $env:SDRIVE_TEST_MOUNT = '1'
+    ./.tools/go/bin/go.exe test . -run '^TestWindowsMountRuntimeModes$|^TestWindowsMountPendingRecovery$' -count=1 -v -timeout 5m
+    if ($LASTEXITCODE) { throw 'Native mount runtime validation failed' }
+} finally { $env:SDRIVE_TEST_MOUNT = $previousMountTest }
+```
+
+`node scripts/ui-smoke.mjs` checks native WebView2 folder-destination controls, cache location/timing, localization and safe exit. With process-scoped `SDRIVE_TEST_MOUNT=1`, the scenario also connects a disposable local folder through the actual Wails bridge, refreshes it and disconnects. Without that opt-in it cancels setup before mounting. Neither scenario installs components or uses personal accounts.
 
 ### Regression inventory
 

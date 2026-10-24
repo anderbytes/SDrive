@@ -90,14 +90,14 @@ func TestConfirmCorrectsLetterWithoutDuplicatingConnection(t *testing.T) {
 	c.Recovery = false
 	s.session = &ConfigSession{ID: "draft", Authenticated: true, connection: c, ctx: context.Background(), rpc: s.rpc}
 	s.driveUsed = func(letter string) bool { return letter == "S" }
-	if _, err := s.ConfirmConfig("draft", "Documents", "S"); err == nil || len(s.store.Connections) != 0 {
+	if _, err := s.ConfirmConfig("draft", "Documents", MountTarget{Letter: "S"}); err == nil || len(s.store.Connections) != 0 {
 		t.Fatal("occupied letter saved a draft")
 	}
-	id, err := s.ConfirmConfig("draft", "Documents", "T")
+	id, err := s.ConfirmConfig("draft", "Documents", MountTarget{Letter: "T"})
 	if err != nil || id != c.ID {
 		t.Fatalf("letter correction before confirmation failed: %v", err)
 	}
-	if _, err := s.ConfirmConfig("draft", "ignored", "U"); err != nil {
+	if _, err := s.ConfirmConfig("draft", "ignored", MountTarget{Letter: "U"}); err != nil {
 		t.Fatal(err)
 	}
 	got := s.store.Connections[0]
@@ -153,7 +153,7 @@ func TestCompletedSetupLetterCorrectionPreservesSafetyAndRollsBack(t *testing.T)
 			if blocked == "invalid" {
 				letter = "C"
 			}
-			if _, err := s.ConfirmConfig("draft", "changed", letter); err == nil {
+			if _, err := s.ConfirmConfig("draft", "changed", MountTarget{Letter: letter}); err == nil {
 				t.Fatal("unsafe correction accepted")
 			}
 			persisted, err := loadStore(s.dir)
@@ -176,7 +176,7 @@ func TestConfirmRechecksLetterAfterDestinationValidation(t *testing.T) {
 	s.session = &ConfigSession{ID: "draft", Authenticated: true, connection: c, ctx: context.Background(), rpc: s.rpc}
 	s.driveUsed = func(string) bool { return false }
 	done := make(chan error, 1)
-	go func() { _, err := s.ConfirmConfig("draft", "", "T"); done <- err }()
+	go func() { _, err := s.ConfirmConfig("draft", "", MountTarget{Letter: "T"}); done <- err }()
 	receive(t, started)
 	s.mu.Lock()
 	s.driveUsed = func(string) bool { return true }
@@ -193,7 +193,7 @@ func TestRecoverySetupCannotChangeLetterBeforeConfirmation(t *testing.T) {
 	s.store.Connections = []Connection{c}
 	s.session = &ConfigSession{ID: "draft", Authenticated: true, inPlace: true, connection: c}
 	s.driveUsed = func(string) bool { return false }
-	if _, err := s.ConfirmConfig("draft", c.Path, "T"); err == nil || s.store.Connections[0] != c || s.session.connection != c {
+	if _, err := s.ConfirmConfig("draft", c.Path, MountTarget{Letter: "T"}); err == nil || s.store.Connections[0] != c || s.session.connection != c {
 		t.Fatal("recovery setup changed its saved letter")
 	}
 }

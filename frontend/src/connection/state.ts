@@ -1,6 +1,6 @@
-import type { Connection, Session } from "../api";
+import type { Connection, MountTarget, Session } from "../api";
 
-type Saved = { id: string; letter: string };
+type Saved = { id: string; target: MountTarget };
 export type WizardState =
   | { step: "service" | "access" | "edit" }
   | { step: "auth"; sessionID: string; session?: Session }
@@ -12,7 +12,7 @@ export type WizardEvent =
   | { type: "start"; sessionID: string }
   | { type: "status"; sessionID: string; session: Session }
   | { type: "answering"; sessionID: string }
-  | { type: "saved"; id: string; letter: string }
+  | { type: "saved"; id: string; target: MountTarget }
   | { type: "connected" };
 
 export function initialWizardState(initial: Connection, auth: boolean): WizardState {
@@ -38,7 +38,7 @@ export function wizardReducer(state: WizardState, event: WizardEvent): WizardSta
         ? { ...state, session: { ...state.session, busy: true } } : state;
     case "saved":
       return state.step === "folder" && event.id
-        ? { ...state, saved: { id: event.id, letter: event.letter } } : state;
+        ? { ...state, saved: { id: event.id, target: event.target } } : state;
     case "connected":
       return state.step === "folder" && state.saved
         ? { ...state, step: "complete", saved: state.saved } : state;

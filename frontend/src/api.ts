@@ -38,6 +38,9 @@ export interface Connection {
   provider: string;
   path: string;
   letter: string;
+  mountMode?: string;
+  mountFolder?: string;
+  directoryCacheSeconds?: number;
   readOnly: boolean;
   autoMount: boolean;
   recovery: boolean;
@@ -68,6 +71,7 @@ export interface ConnectionView extends Connection {
     usedBytes: number | null;
     error: string;
   };
+  capacity: { total: number | null; used: number | null; free: number | null; checkedAt: string | null; state: string };
   error: string;
   errorMessage?: LocalizedMessage;
 }
@@ -75,8 +79,13 @@ export interface Settings {
   language: "en" | "pt-BR";
   autoStart: boolean;
   cacheGiB: number;
+  cacheMaxAgeHours?: number;
+  writeBackSeconds?: number;
 }
+export interface MountTarget { letter: string; folder: string; mode: string }
+export const mountTarget = (c: Connection): MountTarget => ({ letter: c.letter, folder: c.mountFolder || "", mode: c.mountMode || "" });
 export interface Snapshot {
+  cacheLocation: string;
   freeBytes: number | null;
   providers: Provider[];
   connections: ConnectionView[];
@@ -144,6 +153,9 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }
 export const api = {
+  selectDirectory: () => invoke<string>("SelectDirectory"),
+  changeCacheLocation: (path: string) => invoke<void>("ChangeCacheLocation", path),
+  refreshDirectoryCache: (id: string) => invoke<void>("RefreshDirectoryCache", id),
   browsers: () => invoke<Browser[]>("Browsers"),
   proxy: () => invoke<ProxyConfig>("ProxySettings"),
   saveProxy: (proxy: ProxyConfig) => invoke<void>("SaveProxy", proxy),
@@ -161,8 +173,8 @@ export const api = {
   end: (id: string) => invoke<void>("EndConfig", id),
   folders: (id: string, path: string) =>
     invoke<{ name: string; path: string }[]>("ListConfigFolders", id, path),
-  confirm: (id: string, path: string, letter: string) =>
-    invoke<string>("ConfirmConfig", id, path, letter),
+  confirm: (id: string, path: string, target: MountTarget) =>
+    invoke<string>("ConfirmConfig", id, path, target),
   selectFile: (kind: string) => invoke<string>("SelectCredentialFile", kind),
   mount: (id: string) => invoke<void>("Mount", id),
   unmount: (id: string) => invoke<void>("Unmount", id),

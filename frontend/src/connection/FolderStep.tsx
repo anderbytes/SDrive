@@ -1,11 +1,12 @@
+import { MountDestination } from "./MountDestination";
 import type { Wizard } from "./useConnectionWizard";
 
 export function FolderStep({ wizard }: { wizard: Wizard }) {
   const {
     initial, data, t, connection, busy, loading, fieldError,
     setFieldError, fieldID, folderError, filter, setFilter, folders, path,
-    directPath, setDirectPath, savedID, operation, change, close, noLetters,
-    letterLocked, letters, destinationLocked, visibleFolders, navigate, validationProps, fieldFeedback,
+    directPath, setDirectPath, savedID, operation, close, noLetters,
+    destinationLocked, visibleFolders, navigate, validationProps, fieldFeedback,
     setFolderLoad, setFolderRequest, connect,
   } = wizard;
   return (
@@ -103,27 +104,14 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
         </details>
       )}
       {directPath !== path && <p role="status">{t("Destination not applied. Choose Open destination before connecting.")}</p>}
-      <label>
-        {t("Windows drive letter")}
-        <select {...validationProps("letter", `${fieldID}-letter-help`)} aria-label={t("Windows drive letter")} value={letters.includes(connection.letter) ? connection.letter : ""} disabled={busy || letterLocked || noLetters}
-          onChange={(e) => change({ letter: e.target.value })}>
-          {!letters.includes(connection.letter) && <option value="" disabled>{t("Select…")}</option>}
-          {letters.map((letter) => <option key={letter} value={letter}>{letter}:</option>)}
-        </select>
-        <small id={`${fieldID}-letter-help`}>
-          {t(letterLocked
-            ? "Keep the saved letter while recovery or an operation is pending. Resolve pending files before changing it."
-            : "Choose a free letter. If connecting fails, you can correct it here and retry the saved connection.")}
-        </small>
-      </label>
-      {fieldFeedback("letter")}
+      <MountDestination wizard={wizard} />
       <div className="modal-actions">
         <button disabled={busy} onClick={close}>
           {savedID ? t("Close") : t("Cancel")}
         </button>
         <button
           className="primary"
-          disabled={busy || loading || directPath !== path || fieldError?.field === "path" || !data.winFsp || noLetters || (!savedID && !initial.id && !data.letters.includes(connection.letter))}
+          disabled={busy || loading || directPath !== path || fieldError?.field === "path" || !data.winFsp || noLetters || (connection.letter !== "" && !savedID && !initial.id && !data.letters.includes(connection.letter))}
           onClick={() =>
             void connect()
           }

@@ -44,6 +44,9 @@ func (s *Service) listRemotes() ([]string, error) {
 
 // Presence, not Dirty metadata, establishes what must be preserved during settings recovery.
 func (s *Service) cacheRemotes() (map[string]bool, error) {
+	if err := s.cacheReady(); err != nil {
+		return nil, err
+	}
 	remotes := map[string]bool{}
 	if info, err := os.Lstat(s.dataPath()); err == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
 		return nil, fmt.Errorf("unexpected recovery cache entry; preserve the data directory")
@@ -122,7 +125,7 @@ func (s *Service) persistenceReady() error {
 	if s.settingsError != "" {
 		return fmt.Errorf("restore valid settings before changing connections or preferences")
 	}
-	return nil
+	return s.cacheReady()
 }
 
 // StartEngine does not initialize keys or configuration for an unreadable settings file.
@@ -182,6 +185,9 @@ func (s *Service) RestoreSettings() (resultErr error) {
 	}
 	data, err := encodeStore(backup)
 	if err != nil {
+		return err
+	}
+	if err = ensureCacheLocation(s.dir); err != nil {
 		return err
 	}
 	if err = atomicWrite(filepath.Join(s.dir, recoveryMarker), []byte("Preserve credentials and cache until recovery is verified.\n")); err != nil {

@@ -192,12 +192,12 @@ function AppContent() {
           <button
             className="primary"
             disabled={
-              !data || !!data.engineError || !!data.settingsError || data.recoveryHold || !data.letters.length
+              !data || !!data.engineError || !!data.settingsError || data.recoveryHold
             }
             onClick={() =>
               setEditor({
                 connection: blank(
-                  data!.letters.includes("S") ? "S" : data!.letters[0],
+                  data!.letters.includes("S") ? "S" : data!.letters[0] || "S",
                 ),
                 auth: true,
               })
@@ -207,7 +207,7 @@ function AppContent() {
           </button>
         </header>
         {data && !data.settingsError && !data.letters.length && (
-          <p role="status" className="alert warning">{t("No drive letters are available. Free a letter between D and Z before creating a connection.")}</p>
+          <p role="status" className="alert warning">{t("No drive letters are available. Choose a new local subfolder or free a drive letter.")}</p>
         )}
         {error && !restoreConfirm && (
           <div role="alert" className="alert error">
@@ -363,11 +363,11 @@ function AppContent() {
               )}
             </p>
             <button
-              disabled={!data.letters.length || !!data.engineError}
+              disabled={!!data.engineError}
               onClick={() =>
                 setEditor({
                   connection: blank(
-                    data.letters.includes("S") ? "S" : data.letters[0],
+                    data.letters.includes("S") ? "S" : data.letters[0] || "S",
                   ),
                   auth: true,
                 })
@@ -559,11 +559,11 @@ function Drive({
   return (
     <article className="drive">
       <div className={`letter ${c.mounted ? "connected" : ""}`}>
-        {c.letter}
-        <span>:</span>
+        {c.mountFolder ? "▱" : <>{c.letter}<span>:</span></>}
       </div>
       <div className="drive-info">
         <h2>{c.name}</h2>
+        {c.mountFolder && <p>{c.mountFolder}</p>}
         <p>
           {t(p.name)}
           {p.experimental ? ` · ${t("Experimental")}` : ""} · {c.path || t("Root")}
@@ -597,6 +597,8 @@ function Drive({
           used: bytes(c.cache.usedBytes), pending: bytes(c.cache.pendingBytes),
         })}</p>
         <small>{t("Pending sizes are whole local files, not bytes remaining to upload.")}</small>
+        <p>{t("Remote capacity: {total} · Used: {used} · Available: {free}", { total: bytes(c.capacity.total), used: bytes(c.capacity.used), free: bytes(c.capacity.free) })}</p>
+        <small>{t(c.capacity.state === "unsupported" ? "This service does not report capacity." : c.capacity.state === "available" ? "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk." : "Remote capacity is currently unknown.")}</small>
         <br />
         <small>{c.cache.checkedAt
           ? t("Local inspection: {time} (updated every 30 s)", { time: new Date(c.cache.checkedAt).toLocaleTimeString() })
@@ -640,6 +642,7 @@ function Drive({
           <div className="dropdown" onClickCapture={(event) => {
             if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMenu();
           }}>
+            <button disabled={busy || !c.mounted} onClick={() => onAction(api.refreshDirectoryCache, "Refreshing directory metadata…", "Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.")}>{t("Refresh files in Explorer")}</button>
             <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>
               {t("Test access")}
             </button>
@@ -686,6 +689,9 @@ function Preferences({
   const { t } = useLanguage();
   const helpID = useId();
   const [settings, setSettings] = useState(data.settings);
+  const [cachePath, setCachePath] = useState(data.cacheLocation);
+  const [effectiveCache, setEffectiveCache] = useState(data.cacheLocation);
+  const [cacheNotice, setCacheNotice] = useState("");
   const [proxy, setProxy] = useState<ProxyConfig>({ address: "", username: "", password: "", hasPassword: false });
   const [proxyReady, setProxyReady] = useState(false);
   const [proxyDirty, setProxyDirty] = useState(false);
@@ -768,6 +774,23 @@ function Preferences({
               "Applied on the next mount. Open files and pending uploads may exceed the target. SDrive reserves 5 GiB of free space before connecting.",
             )}
           </p>
+          <label>{t("Cache retention after last access (hours)")}<input type="number" min="1" max="720" step="1" value={settings.cacheMaxAgeHours ?? 24} onChange={(e) => setSettings({ ...settings, cacheMaxAgeHours: Number(e.target.value) })} /></label>
+          <label>{t("Upload delay after last use (seconds)")}<input type="number" min="0" max="3600" step="1" value={settings.writeBackSeconds ?? 5} onChange={(e) => setSettings({ ...settings, writeBackSeconds: Number(e.target.value) })} /></label>
+          <p>{t("Timing changes apply on the next connection. Saving a file does not confirm its upload. Open files and pending uploads remain protected regardless of cache retention.")}</p>
+          <fieldset disabled={busy}><legend>{t("Local cache location")}</legend>
+            <p>{t("Current cache: {path}", { path: effectiveCache })}</p>
+            <label>{t("New empty cache directory")}<input type="text" value={cachePath} onChange={(e) => setCachePath(e.target.value)} /></label>
+            <button type="button" onClick={async () => {
+              setBusy(true); setError("");
+              try { const path = await api.selectDirectory(); if (path) setCachePath(path); } catch (e) { setError(message(e)); } finally { setBusy(false); }
+            }}>{t("Choose directory")}</button>
+            <button type="button" disabled={!cachePath || cachePath === effectiveCache} onClick={async () => {
+              setBusy(true); setError(""); setCacheNotice("");
+              try { await api.changeCacheLocation(cachePath); setEffectiveCache(cachePath); setCacheNotice("Cache location changed. The previous cache was preserved."); } catch (e) { setError(message(e)); } finally { setBusy(false); }
+            }}>{t("Change cache location")}</button>
+            <p>{t("Disconnect all drives and resolve pending uploads first. The new directory must be empty and outside this profile. The old cache is preserved; files are not migrated or deleted.")}</p>
+            {cacheNotice && <p role="status">{t(cacheNotice)}</p>}
+          </fieldset>
           <fieldset disabled={!proxyReady || busy}><legend>{t("Connection proxy")}</legend>
             {(["address", "username"] as const).map((key) => <label key={key}>{t(key === "address" ? "Proxy HTTP/HTTPS address" : "Proxy username")}
               <input type="text" autoComplete="off" value={proxy[key]} onChange={(e) => { setProxy({ ...proxy, [key]: e.target.value }); setProxyDirty(true); }} />

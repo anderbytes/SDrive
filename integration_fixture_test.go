@@ -25,6 +25,7 @@ import (
 type integrationFixture struct {
 	root, profile, destination, url, letter string
 	blocked                                 atomic.Bool
+	requests, downloads                     atomic.Int64
 	upload                                  chan struct{}
 	rpc                                     *engine.Engine
 	service                                 *core.Service
@@ -142,6 +143,10 @@ func newIntegrationFixture(t *testing.T, mount bool) *integrationFixture {
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) { w.WriteHeader(http.StatusBadGateway) }
 	gate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.requests.Add(1)
+		if r.Method == http.MethodGet {
+			f.downloads.Add(1)
+		}
 		if r.Method == http.MethodPut && f.blocked.Load() {
 			select {
 			case f.upload <- struct{}{}:
@@ -166,6 +171,7 @@ func openIntegrationService(t *testing.T, dir string, quit func()) (*core.Servic
 	if err != nil {
 		t.Fatal(err)
 	}
+	core.SetAutoStart(s, func(bool) error { return nil })
 	var rpc *engine.Engine
 	core.SetDesktop(s, nil, quit, func() (core.RPC, error) {
 		rpc = integrationEngine(t, dir)
@@ -205,7 +211,7 @@ func configureIntegration(t *testing.T, s *core.Service, endpoint, letter string
 	if err != nil || len(folders) != 1 || folders[0].Path != "library" {
 		t.Fatalf("local folder discovery failed: %v", err)
 	}
-	connectionID, err := s.ConfirmConfig(id, "library", letter)
+	connectionID, err := s.ConfirmConfig(id, "library", core.MountTarget{Letter: letter})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,10 +261,14 @@ func assertIntegrationFile(t *testing.T, path, expected string) {
 }
 
 func integrationDirty(t *testing.T, dir string) bool {
+	return integrationDirtyAt(t, filepath.Join(dir, "cache"))
+}
+
+func integrationDirtyAt(t *testing.T, cache string) bool {
 	t.Helper()
 	dirty := false
 	complete := true
-	err := filepath.WalkDir(filepath.Join(dir, "cache", "vfsMeta"), func(path string, entry os.DirEntry, err error) error {
+	err := filepath.WalkDir(filepath.Join(cache, "vfsMeta"), func(path string, entry os.DirEntry, err error) error {
 		if os.IsNotExist(err) {
 			return nil
 		}

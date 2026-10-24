@@ -261,7 +261,11 @@ func (d *desktop) openMenu() {
 	for _, c := range view.Connections {
 		_, working := d.actions.Load(c.ID)
 		busy := c.Busy || working || exiting
-		submenu := menu.AddSubmenu(strings.ReplaceAll(c.Name, "&", "&&") + " (" + c.Letter + ":)")
+		target := c.Letter + ":"
+		if c.MountFolder != "" {
+			target = c.MountFolder
+		}
+		submenu := menu.AddSubmenu(strings.ReplaceAll(c.Name+" ("+target+")", "&", "&&"))
 		submenu.Add(t("Open in Explorer")).SetEnabled(c.Mounted && !busy).OnClick(func(*application.Context) { d.action(c.ID, func() error { return d.service.OpenExplorer(c.ID) }) })
 		label := "Connect"
 		if c.Mounted {

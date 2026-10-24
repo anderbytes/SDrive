@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"sdrive/internal/i18n"
@@ -22,16 +21,16 @@ func readMounts(ctx context.Context, rpc RPC) ([]engineMount, error) {
 	}
 	seen := map[string]bool{}
 	for _, m := range *result.MountPoints {
-		point := mountLetter(m.MountPoint)
-		if len(point) != 2 || point[0] < 'A' || point[0] > 'Z' || point[1] != ':' || m.Fs == "" || seen[point] {
+		point := mountKey(m.MountPoint)
+		letter := len(point) == 2 && point[0] >= 'A' && point[0] <= 'Z' && point[1] == ':'
+		_, pathErr := platform.LocalPath(m.MountPoint)
+		if (!letter && pathErr != nil) || m.Fs == "" || seen[point] {
 			return nil, fmt.Errorf("could not verify mounted drives; preserve the cache and try again")
 		}
 		seen[point] = true
 	}
 	return *result.MountPoints, nil
 }
-
-func mountLetter(point string) string { return strings.TrimRight(strings.ToUpper(point), `\/`) }
 
 func (s *Service) Mount(id string) (resultErr error) {
 	defer func() { s.diagnostics.Operation("mount", resultErr) }()
@@ -84,13 +83,13 @@ func (s *Service) Mount(id string) (resultErr error) {
 	if !s.winFsp() {
 		return fmt.Errorf("run the SDrive installer again to prepare virtual drives")
 	}
-	if s.driveUsed(c.Letter) {
-		return i18n.NewMessage("drive.letter_in_use", map[string]string{"letter": c.Letter})
+	if err := s.availableMount(c); err != nil {
+		return err
 	}
 	for otherID, active := range s.busy {
 		if active && otherID != id {
 			other := s.index(otherID)
-			if other >= 0 && s.store.Connections[other].Letter == c.Letter {
+			if other >= 0 && mountTargetsOverlap(s.store.Connections[other], c) {
 				return fmt.Errorf("letter in use by another operation")
 			}
 		}
@@ -158,7 +157,10 @@ func (s *Service) Mount(id string) (resultErr error) {
 	s.operations[id] = "mounting"
 	s.snapshotID++
 	delete(s.inspections, id)
-	cacheGiB := s.store.Settings.CacheGiB
+	options := mountOptions(c, s.store.Settings)
+	if err = s.availableMount(c); err != nil {
+		return err
+	}
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -167,7 +169,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 		err = callRPC(ctx, rpc, "config/update", map[string]any{"name": "sd_" + c.Remote, "parameters": map[string]string{"url": selectedURL}, "opt": map[string]bool{"nonInteractive": true, "noObscure": true}}, &result)
 	}
 	if err == nil {
-		err = callRPC(ctx, rpc, "mount/mount", map[string]any{"fs": remote(c), "mountPoint": c.Letter + ":", "mountOpt": map[string]any{"NetworkMode": true, "VolumeName": c.Name}, "vfsOpt": map[string]any{"CacheMode": "full", "CacheMaxSize": int64(cacheGiB) << 30, "CacheMinFreeSpace": int64(5) << 30, "CacheMaxAge": int64(24 * time.Hour), "WriteBack": int64(5 * time.Second), "ReadOnly": c.ReadOnly}}, nil)
+		err = callRPC(ctx, rpc, "mount/mount", options, nil)
 	}
 	var actual []engineMount
 	var checkErr error
@@ -185,7 +187,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 		if checkErr == nil {
 			active := false
 			for _, mount := range actual {
-				if mountLetter(mount.MountPoint) == c.Letter+":" && mount.Fs == remote(c) {
+				if mountKey(mount.MountPoint) == mountKey(mountPoint(c)) && mount.Fs == remote(c) {
 					active = true
 				}
 			}
@@ -323,7 +325,7 @@ func (s *Service) drainAndUnmount(c Connection) (unmounted bool, resultErr error
 	s.operations[c.ID] = "unmounting"
 	s.snapshotID++
 	s.mu.Unlock()
-	if err := callRPC(ctx, rpc, "mount/unmount", map[string]string{"mountPoint": c.Letter + ":"}, nil); err != nil {
+	if err := callRPC(ctx, rpc, "mount/unmount", map[string]string{"mountPoint": mountPoint(c)}, nil); err != nil {
 		return false, fmt.Errorf("could not unmount; close open files and try again")
 	}
 	// Shutdown removes the VFS from RC, so inspect durable metadata after unmount.

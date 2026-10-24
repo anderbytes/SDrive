@@ -1,6 +1,6 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 import { Call } from "@wailsio/runtime";
-import { api, type Browser, type ProxyConfig, type AboutInfo, type ConfigInput, type Connection, type ConnectionView, type Field, type FieldError, type Provider, type Question, type Session, type Settings, type Snapshot } from "./api";
+import { api, type MountTarget, type Browser, type ProxyConfig, type AboutInfo, type ConfigInput, type Connection, type ConnectionView, type Field, type FieldError, type Provider, type Question, type Session, type Settings, type Snapshot } from "./api";
 import fixtures from "./bridge-fixtures.json";
 
 vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
@@ -36,6 +36,8 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
   expectTypeOf<keyof AboutInfo>().toEqualTypeOf<keyof typeof samples.about>();
   expectTypeOf<keyof FieldError>().toEqualTypeOf<keyof typeof samples.dynamicFieldError>();
   expectTypeOf<keyof ConnectionView["cache"]>().toEqualTypeOf<keyof typeof connection.cache>();
+  expectTypeOf<keyof ConnectionView["capacity"]>().toEqualTypeOf<keyof typeof connection.capacity>();
+  expectTypeOf<keyof MountTarget>().toEqualTypeOf<keyof typeof samples.mountTarget>();
   expectTypeOf<keyof NonNullable<ConnectionView["uploads"]>>().toEqualTypeOf<keyof typeof connection.uploads>();
   expectTypeOf<ConnectionView["pending"]>().toEqualTypeOf<number | null>();
   expectTypeOf<Snapshot["freeBytes"]>().toEqualTypeOf<number | null>();
@@ -58,6 +60,7 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
 type BridgeKey = Exclude<keyof typeof api, "copyDiagnostics" | "onDesktopVisibility">;
 type Calls = { [K in BridgeKey]: Parameters<(typeof api)[K]> };
 type Results = {
+  selectDirectory: string; changeCacheLocation: void; refreshDirectoryCache: void;
   browsers: Browser[]; proxy: ProxyConfig; saveProxy: void;
   about: AboutInfo; diagnostics: string; desktopVisible: boolean; snapshot: Snapshot;
   begin: string; status: Session; answer: void; end: void; folders: typeof samples.folders;
@@ -67,10 +70,11 @@ type Results = {
   restoreSettings: void; verifyRecovery: void; retryCleanup: void;
 };
 const calls = {
+  selectDirectory: [], changeCacheLocation: ["C:\\Synthetic\\Cache"], refreshDirectoryCache: ["connection"],
   browsers: [], proxy: [], saveProxy: [{ address: "", username: "", password: "", hasPassword: false }],
   about: [], diagnostics: [], desktopVisible: [], snapshot: [],
   begin: [samples.configInput], status: ["session"], answer: ["session", "answer"], end: ["session"],
-  folders: ["session", "folder"], confirm: ["session", "folder", "S"], selectFile: ["service_account_file"],
+  folders: ["session", "folder"], confirm: ["session", "folder", { letter: "S", folder: "", mode: "" }], selectFile: ["service_account_file"],
   mount: ["connection"], unmount: ["connection"], test: ["connection"], remove: ["connection"],
   update: [samples.configInput.connection], fields: ["connection"],
   settings: [{ ...filled.settings, language: "en" }], open: ["connection"], prerequisite: ["winfsp"],

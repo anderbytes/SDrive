@@ -32,6 +32,7 @@ type View struct {
 	MaintenanceError string           `json:"maintenanceError"`
 	StartupWarning   string           `json:"startupWarning"`
 	FreeBytes        *uint64          `json:"freeBytes"`
+	CacheLocation    string           `json:"cacheLocation"`
 }
 type ConnectionView struct {
 	Connection
@@ -43,10 +44,12 @@ type ConnectionView struct {
 	ErrorMessage *i18n.Message `json:"errorMessage,omitempty"`
 	Uploads      *UploadView   `json:"uploads"`
 	Cache        CacheView     `json:"cache"`
+	Capacity     CapacityView  `json:"capacity"`
 }
 type Service struct {
 	mu                   sync.Mutex
 	dir                  string
+	cacheRoot            string
 	store                Store
 	rpc                  RPC
 	workers              map[string]RPC
@@ -72,9 +75,11 @@ type Service struct {
 	quit                 func()
 	restart              func() (RPC, error)
 	pickFile             func(string) (string, error)
+	pickDirectory        func() (string, error)
 	languageChanged      func(string)
 	snapshotID           uint64
 	inspections          map[string]*cacheInspection
+	capacities           map[string]*capacityInspection
 	desktopVisible       func() bool
 	snapshotChanged      func(uint64, View)
 	appVersion           string
@@ -84,7 +89,15 @@ type Service struct {
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
 	store, loadErr := loadStore(dir)
 	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, winFsp: platform.WinFspInstalled, driveUsed: platform.DriveUsed, mounted: map[string]bool{}, busy: map[string]bool{}, operations: map[string]string{}, errors: map[string]string{}}
+	if location, err := readCacheLocation(dir); err == nil {
+		s.cacheRoot = location.Path
+	} else if !os.IsNotExist(err) {
+		loadErr = err
+	}
 	s.initializeRecovery(loadErr)
+	if err := s.cacheReady(); err != nil {
+		s.settingsError = err.Error()
+	}
 	if s.settingsError == "" {
 		_ = s.cleanup()
 		if matches, err := platform.AutoStartMatches(s.store.Settings.AutoStart); err != nil || !matches {
@@ -189,6 +202,7 @@ func (s *Service) Snapshot() View {
 	rpc := s.rpc
 	_, backupErr := s.backupStore()
 	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.winFsp(), EngineError: s.engineError}
+	v.CacheLocation = s.dataPath()
 	if s.rpc != nil && !s.rpc.Alive() {
 		v.EngineError = "Engine stopped. Restart SDrive to recover your drives."
 		if stopped, ok := s.rpc.(interface{ EngineExitSummary() string }); ok {
@@ -211,7 +225,7 @@ func (s *Service) Snapshot() View {
 		v.Connections = append(v.Connections, cv)
 	}
 	s.mu.Unlock()
-	if free, err := platform.FreeBytes(s.dir); err == nil {
+	if free, err := platform.FreeBytes(v.CacheLocation); err == nil {
 		v.FreeBytes = &free
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -244,21 +258,21 @@ func (s *Service) Snapshot() View {
 			if s.snapshotID == snapshotID && s.rpc == rpc && s.connectionRPC(cv.Connection) == connectionRPC && current >= 0 && s.store.Connections[current] == cv.Connection && !s.busy[cv.ID] && mountsErr == nil && connectionRPC != nil && connectionRPC.Alive() {
 				active := false
 				for _, m := range mounts {
-					if mountLetter(m.MountPoint) == cv.Letter+":" {
+					if mountKey(m.MountPoint) == mountKey(mountPoint(cv.Connection)) {
 						active = m.Fs == remote(cv.Connection)
 						if !active {
-							cv.Error = "drive letter belongs to a different mount; preserve the cache"
+							cv.Error = "Mount destination belongs to a different mount; preserve the cache."
 						}
 					}
 				}
 				if s.mounted[cv.ID] && !active {
 					cv.Error = "drive was unexpectedly unmounted; use Connect to recover pending files"
 				}
-				if active && !s.driveUsed(cv.Letter) {
-					cv.Error = "engine reports a mount but the Windows drive is unavailable; try Disconnect and preserve the cache"
+				if active && !s.mountPresent(cv.Connection) {
+					cv.Error = "Engine reports a mount but the Windows destination is unavailable; try Disconnect and preserve the cache."
 				}
-				if !active && s.driveUsed(cv.Letter) {
-					cv.Error = "drive letter is occupied outside this connection; preserve the cache"
+				if !active && s.mountPresent(cv.Connection) {
+					cv.Error = "Mount destination is occupied outside this connection; preserve the cache."
 				}
 				if cv.Error != "" {
 					s.errors[cv.ID] = cv.Error
@@ -308,10 +322,14 @@ func (s *Service) Snapshot() View {
 				cv.Pending = nil
 				cv.Uploads = nil
 				cv.Cache = CacheView{Error: "Could not inspect local cache; preserve the files and try again."}
+				cv.Capacity = CapacityView{}
 			}
 			s.mu.Unlock()
 			if cv.ErrorMessage != nil && cv.ErrorMessage.Message != cv.Error {
 				cv.ErrorMessage = nil
+			}
+			if cv.Mounted {
+				cv.Capacity = s.sampleCapacity(ctx, cv.Connection, connectionRPC)
 			}
 		}(i)
 	}
@@ -335,7 +353,7 @@ func (s *Service) UpdateConnection(c Connection) error {
 	return s.updateConnection(c)
 }
 
-// Caller holds s.mu; completed setup may reuse this for a letter-only correction.
+// Caller holds s.mu; completed setup may reuse this to correct a mount destination.
 func (s *Service) updateConnection(c Connection) error {
 	if err := s.persistenceReady(); err != nil {
 		return err
@@ -364,12 +382,16 @@ func (s *Service) updateConnection(c Connection) error {
 		return fmt.Errorf("use Reconfigure account to change access mode and update Google Drive OAuth consent")
 	}
 	for _, other := range s.store.Connections {
-		if other.ID != c.ID && other.Letter == c.Letter {
-			return fmt.Errorf("letter already reserved")
+		if other.ID != c.ID && mountTargetsOverlap(other, c) {
+			field := "letter"
+			if c.MountFolder != "" {
+				field = "mountFolder"
+			}
+			return &FieldError{Field: field, Message: "The mount destination is reserved by another connection."}
 		}
 	}
-	if c.Letter != old.Letter {
-		if err := s.availableLetter(c); err != nil {
+	if mountTarget(c) != mountTarget(old) {
+		if err := s.availableMount(c); err != nil {
 			return err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -499,12 +521,15 @@ func (s *Service) OpenExplorer(id string) error {
 		s.mu.Unlock()
 		return fmt.Errorf("drive is not mounted")
 	}
-	letter := s.store.Connections[i].Letter
+	target := mountPoint(s.store.Connections[i])
+	if s.store.Connections[i].MountFolder == "" {
+		target += `\`
+	}
 	s.mu.Unlock()
 	if s.open == nil {
 		return fmt.Errorf("desktop interface unavailable")
 	}
-	return s.open(letter + `:\`)
+	return s.open(target)
 }
 func (s *Service) Prerequisite(which string) error {
 	urls := map[string]string{"winfsp": "https://winfsp.dev/rel/", "webview2": "https://developer.microsoft.com/microsoft-edge/webview2/", "oauth-drive": "https://rclone.org/drive/#making-your-own-client-id", "oauth-onedrive": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-sharepoint": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-dropbox": "https://rclone.org/dropbox/#get-your-own-dropbox-app-id", "oauth-box": "https://rclone.org/box/#get-your-own-box-app-id", "oauth-pcloud": "https://rclone.org/pcloud/", "oauth-gcs": "https://rclone.org/googlecloudstorage/"}
@@ -515,7 +540,12 @@ func (s *Service) Prerequisite(which string) error {
 	return s.open(url)
 }
 
-func (s *Service) dataPath() string { return filepath.Join(s.dir, "cache") }
+func (s *Service) dataPath() string {
+	if s.cacheRoot != "" {
+		return s.cacheRoot
+	}
+	return filepath.Join(s.dir, "cache")
+}
 
 func (s *Service) recordConnectionError(id string, err error) {
 	s.errors[id] = err.Error()

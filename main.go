@@ -166,7 +166,7 @@ func main() {
 	core.SetDiagnostics(service, diagnosticLog)
 	app.RegisterService(application.NewService(service))
 	core.SetDesktop(service, func(target string) error {
-		if len(target) == 3 && target[1:] == `:\` {
+		if filepath.IsAbs(target) {
 			return app.Browser.OpenFile(target)
 		}
 		return app.Browser.OpenURL(target)
@@ -198,7 +198,7 @@ func main() {
 		return rpc, nil
 	})
 	core.SetConnectionEngine(service, func(c core.Connection, proxy string) (core.RPC, error) {
-		return startConnectionEngine(dir, c, proxy, diagnosticLog)
+		return startConnectionEngine(dir, core.CachePath(service), c, proxy, diagnosticLog)
 	})
 	defer core.CloseConnectionEngines(service)
 	core.StartEngine(service)
@@ -210,6 +210,9 @@ func main() {
 			dialog.AddFilter(i18n.Text(core.Language(service), "JSON credentials"), "*.json")
 		}
 		return dialog.PromptForSingleSelection()
+	})
+	core.SetDirectoryPicker(service, func() (string, error) {
+		return app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Select local directory")).CanChooseDirectories(true).CanChooseFiles(false).PromptForSingleSelection()
 	})
 	var metadata struct {
 		Version string `json:"version"`
@@ -355,7 +358,7 @@ func selfCheck() error {
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"profiles": len(core.Catalog()), "encryptedConfig": true, "dpapi": true, "authenticatedRPC": true, "winFsp": platform.WinFspInstalled(), "rclone": engine.Version})
 }
 
-func startConnectionEngine(dir string, c core.Connection, proxy string, diagnosticLog *diagnostics.Collector) (core.RPC, error) {
+func startConnectionEngine(dir, cachePath string, c core.Connection, proxy string, diagnosticLog *diagnostics.Collector) (core.RPC, error) {
 	binary, err := engine.FindBinary()
 	if err != nil {
 		return nil, err
@@ -375,5 +378,5 @@ func startConnectionEngine(dir string, c core.Connection, proxy string, diagnost
 			return nil, err
 		}
 	}
-	return engine.StartWithOptions(binary, workerDir, diagnosticLog, engine.Options{CacheDir: filepath.Join(dir, "cache"), Memory: c.SessionOnly, UploadLimit: c.UploadLimit, DownloadLimit: c.DownloadLimit, ProxyURL: proxy, ConnectTimeout: c.ConnectTimeout, IdleTimeout: c.IdleTimeout})
+	return engine.StartWithOptions(binary, workerDir, diagnosticLog, engine.Options{CacheDir: cachePath, Memory: c.SessionOnly, UploadLimit: c.UploadLimit, DownloadLimit: c.DownloadLimit, ProxyURL: proxy, ConnectTimeout: c.ConnectTimeout, IdleTimeout: c.IdleTimeout})
 }

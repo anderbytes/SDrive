@@ -74,7 +74,7 @@ func TestSettingsVersionsAndHistoricalCompatibility(t *testing.T) {
 			t.Fatalf("supported settings rejected: %+v, %v", store, err)
 		}
 	}
-	for _, version := range []string{"null", "0", "3", "-1", `"1"`, "1.5"} {
+	for _, version := range []string{"null", "0", "4", "-1", `"1"`, "1.5"} {
 		dir := t.TempDir()
 		writeFixture(t, dir, "settings.json", []byte(`{"version":`+version+","+legacy[1:]))
 		writeFixture(t, dir, "settings.backup.json", []byte(legacy))
@@ -93,7 +93,7 @@ func TestBackupPreservesPreviousSettingsAndFailedWrites(t *testing.T) {
 	}
 	first := readFixture(t, dir, "settings.json")
 	var shape map[string]any
-	if json.Unmarshal(first, &shape) != nil || shape["version"] != float64(2) {
+	if json.Unmarshal(first, &shape) != nil || shape["version"] != float64(3) {
 		t.Fatal("new settings are not versioned")
 	}
 	next := old
@@ -464,6 +464,14 @@ func TestMalformedCacheTreesNeverAuthorizeCleanup(t *testing.T) {
 				t.Fatal(err)
 			}
 			path := filepath.Join(dir, tree)
+			if tree == "cache" {
+				if err := os.Remove(filepath.Join(path, cacheOwnerFile)); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -472,7 +480,7 @@ func TestMalformedCacheTreesNeverAuthorizeCleanup(t *testing.T) {
 			}
 			rpc := &fakeRPC{}
 			s, _ := New(dir, rpc, "")
-			if s.maintenanceError == "" || len(rpc.calls) != 0 {
+			if (s.maintenanceError == "" && s.settingsError == "") || len(rpc.calls) != 0 {
 				t.Fatal("malformed cache authorized cleanup")
 			}
 			if string(readFixture(t, dir, tree)) != "unexpected data" {

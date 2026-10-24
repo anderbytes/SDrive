@@ -8,8 +8,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"sdrive/internal/i18n"
 )
 
 type Folder struct {
@@ -85,7 +83,7 @@ func (s *Service) ListConfigFolders(id, path string) ([]Folder, error) {
 	return folders, err
 }
 
-func (s *Service) ConfirmConfig(id, path, letter string) (string, error) {
+func (s *Service) ConfirmConfig(id, path string, target MountTarget) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ss := s.session
@@ -93,13 +91,13 @@ func (s *Service) ConfirmConfig(id, path, letter string) (string, error) {
 		return "", fmt.Errorf("setup is not ready")
 	}
 	if ss.Complete {
-		if letter != ss.connection.Letter {
+		if target != mountTarget(ss.connection) {
 			i := s.index(ss.connection.ID)
 			if i < 0 {
 				return "", fmt.Errorf("connection not found")
 			}
 			c := s.store.Connections[i]
-			c.Letter = letter
+			target.apply(&c)
 			if err := s.updateConnection(c); err != nil {
 				return "", err
 			}
@@ -107,16 +105,17 @@ func (s *Service) ConfirmConfig(id, path, letter string) (string, error) {
 		}
 		return ss.connection.ID, nil
 	}
-	if ss.inPlace && (path != ss.connection.Path || letter != ss.connection.Letter) {
+	if ss.inPlace && (path != ss.connection.Path || target != mountTarget(ss.connection)) {
 		return "", fmt.Errorf("keep the destination during recovery")
 	}
 	c, rpc := ss.connection, ss.rpc
 	candidate := c
-	candidate.Path, candidate.Letter = path, letter
+	candidate.Path = path
+	target.apply(&candidate)
 	if err := validateConnection(&candidate); err != nil {
 		return "", err
 	}
-	if err := s.availableLetter(candidate); err != nil {
+	if err := s.availableMount(candidate); err != nil {
 		return "", err
 	}
 	ss.Busy = true
@@ -145,7 +144,7 @@ func (s *Service) ConfirmConfig(id, path, letter string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := s.availableLetter(candidate); err != nil {
+	if err := s.availableMount(candidate); err != nil {
 		return "", err
 	}
 	ss.connection = candidate
@@ -158,19 +157,6 @@ func (s *Service) ConfirmConfig(id, path, letter string) (string, error) {
 	}
 	ss.Error = ""
 	return ss.connection.ID, nil
-}
-
-// Caller holds s.mu; recheck after provider calls because Windows letters can change.
-func (s *Service) availableLetter(c Connection) error {
-	for _, other := range s.store.Connections {
-		if other.ID != c.ID && other.Letter == c.Letter {
-			return fmt.Errorf("letter already reserved")
-		}
-	}
-	if s.driveUsed(c.Letter) {
-		return i18n.NewMessage("drive.letter_in_use", map[string]string{"letter": c.Letter})
-	}
-	return nil
 }
 
 func SetFilePicker(s *Service, picker func(string) (string, error)) { s.pickFile = picker }

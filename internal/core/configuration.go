@@ -145,7 +145,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		}
 		oldRemote = old.Remote
 		if old.Recovery {
-			if c.Provider != old.Provider || c.Path != old.Path || c.Letter != old.Letter || c.ReadOnly != old.ReadOnly {
+			if c.Provider != old.Provider || c.Path != old.Path || mountTarget(c) != mountTarget(old) || c.ReadOnly != old.ReadOnly || c.DirectoryCacheSeconds != old.DirectoryCacheSeconds {
 				return "", fmt.Errorf("preserve provider, folder, letter and access mode during recovery")
 			}
 			if c.UploadLimit != old.UploadLimit || c.DownloadLimit != old.DownloadLimit || c.UseProxy != old.UseProxy || c.ConnectTimeout != old.ConnectTimeout || c.IdleTimeout != old.IdleTimeout || c.AlternateURL != old.AlternateURL {
@@ -168,8 +168,12 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		c.Binding = ""
 	}
 	for _, existing := range s.store.Connections {
-		if existing.ID != c.ID && existing.Letter == c.Letter {
-			return "", fmt.Errorf("letter already reserved by another connection")
+		if existing.ID != c.ID && mountTargetsOverlap(existing, c) {
+			field := "letter"
+			if c.MountFolder != "" {
+				field = "mountFolder"
+			}
+			return "", &FieldError{Field: field, Message: "The mount destination is reserved by another connection."}
 		}
 	}
 	p, _ := provider(c.Provider)
@@ -440,8 +444,8 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 		ss.oldRemote = ""
 	}
 	for _, other := range s.store.Connections {
-		if other.ID != ss.connection.ID && other.Letter == ss.connection.Letter {
-			return "The chosen letter was reserved by another connection. Cancel and choose another letter."
+		if other.ID != ss.connection.ID && mountTargetsOverlap(other, ss.connection) {
+			return "The mount destination is reserved by another connection."
 		}
 	}
 	previous := append([]Connection{}, s.store.Connections...)
