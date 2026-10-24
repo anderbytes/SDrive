@@ -138,6 +138,7 @@ type desktop struct {
 	ready           chan struct{}
 	tray            *application.SystemTray
 	menu            *application.Menu
+	menuOpen        bool
 	problems        map[string]string
 	geometry        windowGeometry
 	geometryTimer   *time.Timer
@@ -239,6 +240,12 @@ func (d *desktop) action(key string, action func() error) {
 }
 
 func (d *desktop) openMenu() {
+	// Windows can deliver another tray notification while the native popup is tracking.
+	if d.menuOpen || d.stopped.Load() {
+		return
+	}
+	d.menuOpen = true
+	defer func() { d.menuOpen = false }()
 	if d.menu != nil {
 		d.menu.Destroy()
 	}

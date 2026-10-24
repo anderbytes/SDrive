@@ -237,3 +237,17 @@ func TestTrayActionRejectsDuplicateOperation(t *testing.T) {
 		t.Fatal("duplicate action started")
 	}
 }
+
+func TestTrayRepeatedOpenPreservesActiveMenu(t *testing.T) {
+	menu := application.NewMenu()
+	defer menu.Destroy()
+	exit := menu.Add("Exit safely").OnClick(func(*application.Context) {})
+	explorer := menu.AddSubmenu("Drive (S:)").Add("Open in Explorer").OnClick(func(*application.Context) {})
+	d := &desktop{menu: menu, menuOpen: true}
+
+	// A second Windows notification arrives inside the first popup's message loop.
+	d.openMenu()
+	if d.menu != menu || menu.FindByLabel("Exit safely") != exit || menu.FindByLabel("Open in Explorer") != explorer {
+		t.Fatal("repeated notification replaced or destroyed the active menu")
+	}
+}

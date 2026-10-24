@@ -133,6 +133,8 @@ The root tests start a disposable child process with the real Wails message-only
 
 `About()` adds component-version diagnostics to the service bridge. `DesktopVisible()` supplies initial native visibility; the `desktop:visibility` event carries a boolean for subsequent changes. Native visibility includes minimization. The interface polls every three seconds when visible and refreshes immediately on return. While hidden, a native loop samples the existing `Snapshot` every 15 seconds; only current snapshots reach the tray. Active authentication/setup status checks retain their existing behavior.
 
+Tray regression checks must include a real right-click, including in the hidden-icons overflow, reopening the menu and selecting **Exit safely** in both supported languages. Windows can deliver another tray notification inside the popup's message loop; it must not replace or destroy the active menu. Sending a single synthetic notification does not reproduce this case. `TestTrayRepeatedOpenPreservesActiveMenu` covers preservation of the menu and its drive submenu during a repeated notification.
+
 For native acceptance, use a new temporary profile by setting `LOCALAPPDATA` only in the child process environment. Check background startup, second launch and focus, close-to-tray, minimization, geometry after restart, About and safe exit. Stop only that profile's own rclone child to verify that a new background engine failure reveals the window and an unchanged failure does not reveal it again. Verify taskbar/DPI and monitor-removal behavior separately on suitable hardware. Do not reuse a personal profile or terminate another instance to run these checks. Use the native UI smoke harness separately.
 
 ## Diagnostic checks
