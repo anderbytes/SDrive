@@ -42,6 +42,19 @@ export interface Connection {
   autoMount: boolean;
   recovery: boolean;
   targetHash: string;
+  authMethod?: string;
+  sessionOnly?: boolean;
+  uploadLimit?: number;
+  downloadLimit?: number;
+  useProxy?: boolean;
+  browser?: string;
+  privateBrowser?: boolean;
+  connectTimeout?: number;
+  idleTimeout?: number;
+  alternateURL?: string;
+  resourceID?: string;
+  primaryURL?: string;
+  binding?: string;
 }
 export interface ConnectionView extends Connection {
   mounted: boolean;
@@ -105,7 +118,11 @@ export interface ConfigInput {
   transport: string;
   hostKey: string;
   guided: boolean;
+  forgetCredentials?: boolean;
 }
+
+export interface Browser { id: string; name: string }
+export interface ProxyConfig { address: string; username: string; password: string; hasPassword: boolean }
 
 export interface FieldError {
   field: string;
@@ -127,6 +144,9 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }
 export const api = {
+  browsers: () => invoke<Browser[]>("Browsers"),
+  proxy: () => invoke<ProxyConfig>("ProxySettings"),
+  saveProxy: (proxy: ProxyConfig) => invoke<void>("SaveProxy", proxy),
   about: () => invoke<AboutInfo>("About"),
   diagnostics: () => invoke<string>("Diagnostics"),
   copyDiagnostics: (report: string) => Clipboard.SetText(report),

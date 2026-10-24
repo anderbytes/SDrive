@@ -1,4 +1,5 @@
 import { errorMessage as message, type LocalizedMessage } from "./messages";
+import { SecretInput } from "./connection/SecretInput";
 import { ConnectionEditor } from "./connection/ConnectionEditor";
 import { useDialog } from "./useDialog";
 import { LanguageProvider, useLanguage, type Language } from "./i18n";
@@ -9,6 +10,7 @@ import {
   type Connection,
   type ConnectionView,
   type Provider,
+  type ProxyConfig,
   type Snapshot,
 } from "./api";
 
@@ -30,7 +32,7 @@ const blank = (letter: string): Connection => ({
   id: "",
   remote: "",
   name: "",
-  provider: "drive",
+  provider: "webdav",
   path: "",
   letter,
   readOnly: false,
@@ -607,7 +609,7 @@ function Drive({
         <button
           disabled={busy}
           className={c.mounted ? "" : "primary"}
-          onClick={() => onAction(c.mounted ? api.unmount : api.mount, c.mounted ? "Checking pending uploads…" : "Validating account…")}
+          onClick={() => c.sessionOnly && !c.mounted ? onEdit(true) : onAction(c.mounted ? api.unmount : api.mount, c.mounted ? "Checking pending uploads…" : "Validating account…")}
         >
           {c.mounted
             ? t("Disconnect")
@@ -684,6 +686,11 @@ function Preferences({
   const { t } = useLanguage();
   const helpID = useId();
   const [settings, setSettings] = useState(data.settings);
+  const [proxy, setProxy] = useState<ProxyConfig>({ address: "", username: "", password: "", hasPassword: false });
+  const [proxyReady, setProxyReady] = useState(false);
+  const [proxyDirty, setProxyDirty] = useState(false);
+  useEffect(() => { let active = true; void api.proxy().then((p) => { if (active) { setProxy(p); setProxyReady(true); } }).catch((e) => { if (active) setError(message(e)); }); return () => { active = false; }; }, []);
+
   const [error, setError] = useState<string | LocalizedMessage>("");
   const [busy, setBusy] = useState(false);
   const dialog = useDialog(() => {
@@ -708,6 +715,7 @@ function Preferences({
             e.preventDefault();
             setBusy(true);
             try {
+              if (proxyDirty) await api.saveProxy(proxy);
               await api.settings(settings);
               onClose();
             } catch (e) {
@@ -760,6 +768,14 @@ function Preferences({
               "Applied on the next mount. Open files and pending uploads may exceed the target. SDrive reserves 5 GiB of free space before connecting.",
             )}
           </p>
+          <fieldset disabled={!proxyReady || busy}><legend>{t("Connection proxy")}</legend>
+            {(["address", "username"] as const).map((key) => <label key={key}>{t(key === "address" ? "Proxy HTTP/HTTPS address" : "Proxy username")}
+              <input type="text" autoComplete="off" value={proxy[key]} onChange={(e) => { setProxy({ ...proxy, [key]: e.target.value }); setProxyDirty(true); }} />
+            </label>)}
+            <SecretInput label={t("Proxy password")} value={proxy.password} required={false} onChange={(value) => { setProxy({ ...proxy, password: value }); setProxyDirty(true); }} />
+            {proxy.hasPassword && <p>{t("A proxy password is saved. Leave blank to keep it for the same address and username.")}</p>}
+            <p>{t("Choose Use proxy separately for each connection. Changes apply on the next connection; the local engine API always stays direct.")}</p>
+          </fieldset>
           <p>
             {t(
               "Credentials are encrypted. The cache contains local files accessible to your Windows user.",

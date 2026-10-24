@@ -1,7 +1,8 @@
 import { errorMessage as message, localizedMessage, type LocalizedMessage } from "../messages";
 import { driveNameError, trimDriveName } from "./name";
 import { useEffect, useId, useState, useReducer } from "react";
-import { api, validationError, type Connection, type FieldError, type Snapshot } from "../api";
+import { api, validationError, type Browser, type Connection, type FieldError, type Snapshot } from "../api";
+import { methods, methodKey } from "./methods";
 import { useLanguage } from "../i18n";
 import { useDialog } from "../useDialog";
 import { initialWizardState, wizardReducer } from "./state";
@@ -22,8 +23,14 @@ export function useConnectionWizard({
   onClose,
 }: EditorProps) {
   const { t } = useLanguage();
-  const [connection, setConnection] = useState(initial);
+  const serviceMethods = methods(data.providers);
+  const firstBasic = serviceMethods.find((m) => !m.advanced);
+  const [connection, setConnection] = useState(initial.id ? initial : { ...initial, provider: firstBasic?.provider.id || data.providers[0].id, authMethod: firstBasic?.authMethod || "oauth" });
+  const [category, setCategory] = useState(initial.id && data.providers.find((p) => p.id === initial.provider)?.oauth && initial.authMethod !== "serviceAccount" ? "advanced" : "basic");
+  const [browsers, setBrowsers] = useState<Browser[]>([{ id: "", name: "Default browser" }]);
+  const [forgetCredentials, setForgetCredentials] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
+  useEffect(() => { let active = true; void api.browsers().then((value) => { if (active) setBrowsers(value); }).catch(() => {}); return () => { active = false; }; }, []);
   const [state, dispatch] = useReducer(wizardReducer, initialWizardState(initial, auth));
   const { step } = state;
   const sessionID = "sessionID" in state ? state.sessionID : "";
@@ -84,6 +91,11 @@ export function useConnectionWizard({
         .then((fields) => {
           if (active) {
             setValues(fields.values);
+            if (initial.provider === "gcs") {
+              const authMethod = fields.values.service_account_file ? "serviceAccount" : "oauth";
+              setConnection((c) => ({ ...c, authMethod }));
+              setCategory(authMethod === "oauth" ? "advanced" : "basic");
+            }
             if (fields.transport) setTransport(fields.transport);
             setAccessLoad("ready");
           }
@@ -219,6 +231,17 @@ export function useConnectionWizard({
   const advance = () => {
     if (validateName()) dispatch({ type: "access" });
   };
+  const selectMethod = (key: string) => {
+    const method = serviceMethods.find((m) => m.key === key);
+    if (!method) return;
+    change({ provider: method.provider.id, authMethod: method.authMethod, name: "", sessionOnly: false, alternateURL: "", connectTimeout: 0, idleTimeout: 0, useProxy: false });
+    setValues({}); setIdentity(undefined); setTrusted(false); setTransport("explicit"); setInsecure(false);
+  };
+  const selectCategory = (next: string) => {
+    setCategory(next);
+    const matching = serviceMethods.filter((m) => m.advanced === (next === "advanced"));
+    if (!matching.some((m) => m.key === methodKey(connection, data.providers)) && matching[0]) selectMethod(matching[0].key);
+  };
   const update = () => action(async () => {
     if (!validateName()) return;
     await api.update({ ...connection, name: trimDriveName(connection.name) });
@@ -242,6 +265,7 @@ export function useConnectionWizard({
         allowInsecure: insecure,
         hostKey: trusted ? identity?.key || "" : "",
         guided: true,
+        ...(forgetCredentials ? { forgetCredentials: true } : {}),
       });
       setValues({});
       dispatch({ type: "start", sessionID: id });
@@ -276,6 +300,7 @@ export function useConnectionWizard({
     noLetters, letterLocked, letters, question, destinationLocked, visibleFolders, navigate,
     validationProps, fieldFeedback, setValue, begin, dispatch, setValues, fieldsLoaded,
     setFolderLoad, setFolderRequest, answerQuestion, connect,
+    category, selectCategory, serviceMethods, selectMethod, browsers, forgetCredentials, setForgetCredentials,
   };
 }
 

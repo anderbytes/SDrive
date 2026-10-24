@@ -197,6 +197,10 @@ func main() {
 		}
 		return rpc, nil
 	})
+	core.SetConnectionEngine(service, func(c core.Connection, proxy string) (core.RPC, error) {
+		return startConnectionEngine(dir, c, proxy, diagnosticLog)
+	})
+	defer core.CloseConnectionEngines(service)
 	core.StartEngine(service)
 	hidden := len(os.Args) > 1 && os.Args[1] == "--background" && service.Snapshot().SettingsError == ""
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "SDrive", Width: 1180, Height: 800, MinWidth: 850, MinHeight: 620, Hidden: hidden})
@@ -349,4 +353,27 @@ func selfCheck() error {
 		return fmt.Errorf("key found in plain text")
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"profiles": len(core.Catalog()), "encryptedConfig": true, "dpapi": true, "authenticatedRPC": true, "winFsp": platform.WinFspInstalled(), "rclone": engine.Version})
+}
+
+func startConnectionEngine(dir string, c core.Connection, proxy string, diagnosticLog *diagnostics.Collector) (core.RPC, error) {
+	binary, err := engine.FindBinary()
+	if err != nil {
+		return nil, err
+	}
+	workerDir := filepath.Join(dir, "connections", "sd_"+c.Remote)
+	if !c.SessionOnly {
+		if err = os.MkdirAll(workerDir, 0700); err != nil {
+			return nil, err
+		}
+		if err = platform.ProtectDir(workerDir); err != nil {
+			return nil, err
+		}
+		if _, err = platform.Key(workerDir); err != nil {
+			return nil, err
+		}
+		if err = engine.Init(binary, workerDir); err != nil {
+			return nil, err
+		}
+	}
+	return engine.StartWithOptions(binary, workerDir, diagnosticLog, engine.Options{CacheDir: filepath.Join(dir, "cache"), Memory: c.SessionOnly, UploadLimit: c.UploadLimit, DownloadLimit: c.DownloadLimit, ProxyURL: proxy, ConnectTimeout: c.ConnectTimeout, IdleTimeout: c.IdleTimeout})
 }

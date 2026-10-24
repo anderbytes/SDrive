@@ -2,7 +2,7 @@
 
 **Implemented setup** and **mocked tests** do not mean validation with a real account. Do not report third-party results without running the scenarios and recording sanitized evidence.
 
-This development distribution has empty project OAuth registrations. Google Drive, OneDrive, SharePoint, Dropbox, Box, pCloud and Google Cloud Storage OAuth sign-in are unavailable without configured application registrations. GCS also supports service account files. Maintainers configure identities as described in the [development guide](development.md); regular users do not need to create a Client ID.
+OAuth uses the user's own application registration for Google Drive, OneDrive, SharePoint, Dropbox, Box, pCloud and Google Cloud Storage. All remain selectable in Advanced, with required application credentials and [per-service setup instructions](oauth-setup.md). GCS service-account access is a separate Basic method using the same backend. Local implementation and automated tests do not certify live service approval, cancellation or renewal.
 
 | Profile | rclone backend | Setup and automated tests | Live service |
 | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ Tests also compare field names for all 18 profiles against the real rclone versi
 
 The [integration suite](development.md#recovery-and-filesystem-integration-checks) uses a disposable loopback WebDAV server, synthetic files and isolated encrypted profiles. Engine-only service/configuration and content checks do not certify a live provider. Native tests cover service mounting, interrupted pending uploads at the original destination, open handles/late writes and filesystem content. Native checks require compatible WinFsp and explicit opt-in. Synthetic fixtures do not change the live-service validation status above.
 
-New OAuth connections without project registration are stopped at service selection. GCS remains selectable because a service account JSON file does not require project OAuth. Existing connections with a custom OAuth identity can still renew. The form explains SSH private keys/passphrases, Azure account keys versus SAS URLs, and GCS service accounts; this guidance does not certify those authentication modes against a live account.
+New OAuth connections validate user application credentials before opening authorization; renewal keeps the saved identity when its Client ID is unchanged. A changed ID cannot reuse the old secret. The form explains SSH keys, Azure credentials and GCS service accounts. [Connectivity](connectivity.md) states the HTTP-only networking controls, verified WebDAV fallback and restricted session-only support. These controls do not change any live-service result in the matrix.
 
 ## Recovery identity limits
 
@@ -50,7 +50,7 @@ The pinned rclone 1.75.2 source has no `UserInfo` implementation for the 18 SDri
 | Azure Blob | Configured account, endpoint and path | SAS host/container are also constrained during recovery renewal; this does not prove the signing identity |
 | Google Cloud Storage | Configured project identifiers and path | OAuth/service-account credential changes do not prove identity; credential file paths are excluded |
 
-The check is based on [rclone 1.75.2 backend implementations](https://github.com/rclone/rclone/tree/v1.75.2/backend) and the existing SDrive hash fields, not live provider certification. Hash format and settings format are unchanged. Stronger proof for profiles without stable account identifiers requires separately scoped provider integration and real-account validation.
+The check is based on [rclone 1.75.2 backend implementations](https://github.com/rclone/rclone/tree/v1.75.2/backend) and the existing SDrive hash fields, not live provider certification. The original destination-hash fields remain compatible. Settings writes now use version 2 while versions 1 and unversioned profiles remain readable. Session-only connections additionally require the verifiable identities described in the connectivity guide; unsupported combinations cannot enable that mode. Stronger proof for profiles without stable account identifiers requires separately scoped provider integration and real-account validation.
 
 Local regressions cover all FTP modes, renewal consent, invalid configuration responses, saved-remote checks, recovery library mismatch, cancellation during verification, sensitive questions and UI behavior. A temporary real-rclone test checks the completion response and FTP configuration persistence without contacting a provider. Recognized error signals are categorized conservatively; unrecognized provider responses retain generic feedback. All live-service entries above remain **Not verified**.
 

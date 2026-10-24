@@ -28,6 +28,15 @@ func (s *Service) RestartEngine() (resultErr error) {
 	if s.restart == nil {
 		return fmt.Errorf("restart unavailable")
 	}
+	for _, mounted := range s.mounted {
+		if mounted && s.startConnection != nil {
+			return fmt.Errorf("unmount drives before restarting the engine")
+		}
+	}
+	for remote, worker := range s.workers {
+		closeRPC(worker)
+		delete(s.workers, remote)
+	}
 	rpc, err := s.restart()
 	if err != nil {
 		s.engineError = err.Error()
@@ -52,7 +61,7 @@ func AutoMount(s *Service) {
 	connections := append([]Connection{}, s.store.Connections...)
 	s.mu.Unlock()
 	for _, c := range connections {
-		if c.AutoMount {
+		if c.AutoMount && !c.SessionOnly {
 			_ = s.Mount(c.ID)
 		}
 	}

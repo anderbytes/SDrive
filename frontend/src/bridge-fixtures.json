@@ -227,6 +227,30 @@
       "returns": [
         "error"
       ]
+    },
+    "browsers": {
+      "name": "Browsers",
+      "args": [],
+      "returns": [
+        "[]platform.Browser"
+      ]
+    },
+    "proxy": {
+      "name": "ProxySettings",
+      "args": [],
+      "returns": [
+        "core.ProxyConfig",
+        "error"
+      ]
+    },
+    "saveProxy": {
+      "name": "SaveProxy",
+      "args": [
+        "core.ProxyConfig"
+      ],
+      "returns": [
+        "error"
+      ]
     }
   },
   "samples": {
@@ -249,7 +273,20 @@
         "readOnly": false,
         "autoMount": false,
         "recovery": false,
-        "targetHash": ""
+        "targetHash": "",
+        "authMethod": "oauth",
+        "sessionOnly": true,
+        "uploadLimit": 1024,
+        "downloadLimit": 2048,
+        "useProxy": true,
+        "browser": "edge",
+        "privateBrowser": true,
+        "connectTimeout": 30,
+        "idleTimeout": 60,
+        "alternateURL": "https://alternate.example.test/dav",
+        "resourceID": "synthetic-resource",
+        "primaryURL": "https://example.test/dav",
+        "binding": "{}"
       },
       "values": {
         "host": "example.test"
@@ -257,7 +294,8 @@
       "allowInsecure": false,
       "transport": "",
       "hostKey": "",
-      "guided": true
+      "guided": true,
+      "forgetCredentials": true
     },
     "connectionUnknown": {
       "id": "connection",
@@ -460,7 +498,20 @@
             "pendingBytes": 512,
             "usedBytes": 1024,
             "error": ""
-          }
+          },
+          "authMethod": "oauth",
+          "sessionOnly": true,
+          "uploadLimit": 1024,
+          "downloadLimit": 2048,
+          "useProxy": true,
+          "browser": "edge",
+          "privateBrowser": true,
+          "connectTimeout": 30,
+          "idleTimeout": 60,
+          "alternateURL": "https://alternate.example.test/dav",
+          "resourceID": "synthetic-resource",
+          "primaryURL": "https://example.test/dav",
+          "binding": "{}"
         }
       ],
       "settings": {

@@ -152,6 +152,8 @@ func TestConfiguredRemoteRequiresOAuthOrAlternateCredentials(t *testing.T) {
 		}
 		switch id {
 		case "drive":
+			config["client_id"] = "app"
+			config["client_secret"] = "secret"
 			config["token"] = "synthetic-token"
 		case "gcs":
 			config["service_account_file"] = "synthetic.json"
@@ -192,7 +194,7 @@ func TestCredentialModesHaveInstructions(t *testing.T) {
 func TestRecoveryRenewalVerifiesLibraryBeforeSuccess(t *testing.T) {
 	for _, changeLibrary := range []bool{false, true} {
 		t.Run(fmt.Sprint(changeLibrary), func(t *testing.T) {
-			config := map[string]string{"type": "onedrive", "drive_id": "original-library", "token": "synthetic-token", "client_id": "custom-public-id"}
+			config := map[string]string{"type": "onedrive", "drive_id": "original-library", "token": "synthetic-token", "client_id": "custom-public-id", "client_secret": "custom-secret"}
 			rpc := &fakeRPC{handle: func(_ context.Context, method string, _ any) (any, error) {
 				if method == "config/get" {
 					return config, nil

@@ -213,13 +213,22 @@ Core regressions cover retry, restricted-root access, unsafe paths rejected befo
 
 Authentication regressions also verify strict completion response fields against the pinned local rclone binary, all three FTP transports and password obscuring in a temporary encrypted profile. The FTP configuration checks do not contact a storage server. Setup verifies saved remotes before success; frontend tests cover failed access-detail loading, renewed transport/consent, sensitive-question masking, show/hide controls and service-account availability. `ConnectionFields` returns `{values, transport}` to the frontend; `values` includes only non-secret catalog fields. See the [provider identity limits](provider-validation.md#recovery-identity-limits) before describing these checks as account verification.
 
-`internal/core/oauth.json` is embedded in the application and starts empty. Registration is a maintainer task: register the desktop application with the provider, configure rclone-compatible local redirects, complete required consent/approvals and test sign-in. This is not an end-user installation step.
+OAuth registration belongs to the user or their organization, not SDrive maintainers. No registration file or shared client is embedded in the build. Follow [OAuth setup](oauth-setup.md) for the supported account/redirect/permission flows, and keep credentials out of source and fixtures.
 
-The format is an object per profile ID containing `clientId` and, only when required for a public desktop client, `clientSecret`. OAuth profiles: `drive`, `onedrive`, `sharepoint`, `dropbox`, `box`, `pcloud` and `gcs`. OneDrive and SharePoint can share a registration, with an explicit entry for each profile. GCS also accepts a service account file without an OAuth identity.
+Connection supervision uses isolated per-remote processes while preserving the legacy encrypted source and cache names. Each persistent worker owns its encrypted file; session-only workers use `--config NUL`. Proxy secrets live in `proxy.enc`, encrypted with the DPAPI-backed profile key, and are omitted from bridge views. Read [connectivity](connectivity.md) before changing process routing, cache identity, authentication storage or protocol controls.
 
-These values will be public in the executable and distributed source archive. Never put server secrets or personal account credentials in this file. No user tokens belong in a build. The flow remains between the application, browser and provider, without an SDrive intermediary server.
+Focused connection checks:
 
-Without a configured identity, new OAuth sign-in is unavailable with a clear message, while the provider stays in the catalog. Existing connections with a custom identity keep it during renewal if the project has not configured one yet. Public integration release also requires live validation; filling in the file does not prove provider approval. Google Drive requires attention to [shared client deprecation](https://rclone.org/drive/#making-your-own-client-id) and [verification requirements](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification).
+```powershell
+./.tools/go/bin/go.exe test ./internal/core ./internal/engine ./internal/platform ./internal/i18n
+npm --prefix frontend test
+npm --prefix frontend run build
+$env:SDRIVE_TEST_ENGINE = '1'
+try { ./.tools/go/bin/go.exe test . ./internal/engine -run '^Test(ConnectionEngine|SessionOnlyEngine|ProviderProxy)' -count=1 -v }
+finally { Remove-Item Env:SDRIVE_TEST_ENGINE }
+```
+
+These real-engine tests create disposable loopback WebDAV storage, independent limited client processes, an authenticated rejecting proxy, encrypted isolated profiles and in-memory credential workers. They check transfer contents/timing, proxy/RPC separation, legacy import and reopening. They do not access real provider accounts, launch a personal browser or mount drives. Use the existing native UI smoke harness separately. Live OAuth setup, cancellation and renewal require provider-specific validation. Legacy charset conversion is unsupported by the pinned engine.
 
 ## Online and offline installers
 

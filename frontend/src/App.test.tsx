@@ -17,6 +17,10 @@ Object.defineProperties(HTMLDialogElement.prototype, {
   showModal: { configurable: true, value() { this.setAttribute("open", ""); } },
   close: { configurable: true, value() { this.removeAttribute("open"); } },
 });
+const selectAvailableCategory = () => {
+  const select = screen.queryByLabelText("Connection type") || screen.queryByLabelText("Tipo de conexão");
+  if (select instanceof HTMLSelectElement && !select.options.length) fireEvent.click(screen.getByRole("tab", { name: /^(Advanced|Avançados)$/ }));
+};
 const cancelDialog = () => fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
 
 vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
@@ -24,6 +28,7 @@ vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
 vi.mock("./api", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api")>(),
   api: {
+    browsers: vi.fn(), proxy: vi.fn(), saveProxy: vi.fn(),
     about: vi.fn(),
     diagnostics: vi.fn(),
     copyDiagnostics: vi.fn(),
@@ -99,6 +104,8 @@ const snapshot = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(api.browsers).mockResolvedValue([{ id: "", name: "Default browser" }]);
+  vi.mocked(api.proxy).mockResolvedValue({ address: "", username: "", password: "", hasPassword: false });
   vi.mocked(api.desktopVisible).mockResolvedValue(true);
   vi.mocked(api.onDesktopVisibility).mockReturnValue(() => {});
   vi.mocked(api.snapshot).mockResolvedValue(snapshot);
@@ -109,11 +116,70 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
+test("Basic is initially selected and category tabs support keyboard navigation", async () => {
+  const gcs = { ...snapshot.providers[0], id: "gcs", name: "Google Cloud Storage", backend: "google cloud storage" };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider, gcs] });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  const basic = screen.getByRole("tab", { name: "Basic" });
+  expect(basic.getAttribute("aria-selected")).toBe("true");
+  expect(screen.queryByRole("option", { name: "Google Drive" })).toBeNull();
+  expect(screen.getByRole("option", { name: "Google Cloud Storage — service account" })).toBeDefined();
+  fireEvent.keyDown(basic, { key: "ArrowRight" });
+  const advanced = screen.getByRole("tab", { name: "Advanced" });
+  expect(advanced.getAttribute("aria-selected")).toBe("true");
+  expect(document.activeElement).toBe(advanced);
+  expect(screen.getByText(/These connections require additional setup/)).toBeDefined();
+  expect(screen.getByRole("option", { name: "Google Cloud Storage — OAuth" })).toBeDefined();
+  expect(screen.queryByRole("option", { name: "FTP / FTPS" })).toBeNull();
+  fireEvent.keyDown(advanced, { key: "Home" });
+  expect(basic.getAttribute("aria-selected")).toBe("true");
+  expect(document.activeElement).toBe(basic);
+});
+
+test("Connect on a session-only drive requests authentication instead of mounting", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, sessionOnly: true, authMethod: "oauth" }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { root_folder_id: "synthetic-root" }, transport: "" });
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+  await screen.findByRole("heading", { name: "Reconfigure account" });
+  expect(api.mount).not.toHaveBeenCalled();
+  expect((screen.getByLabelText("Connect automatically when SDrive starts") as HTMLInputElement).disabled).toBe(true);
+});
+
+test("network form converts KiB limits to independent byte rates", async () => {
+  const webdav = { ...snapshot.providers[0], id: "webdav", name: "WebDAV", backend: "webdav", oauth: false };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [webdav], connections: [{ ...connection, provider: "webdav" }] });
+  vi.mocked(api.update).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.change(screen.getByLabelText("Download limit (KiB/s)"), { target: { value: "512" } });
+  fireEvent.change(screen.getByLabelText("Upload limit (KiB/s)"), { target: { value: "128" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ downloadLimit: 512 * 1024, uploadLimit: 128 * 1024 })));
+});
+
+test("private browser selection reaches authentication without silently falling back", async () => {
+  vi.mocked(api.browsers).mockResolvedValue([{ id: "", name: "Default browser" }, { id: "edge", name: "Microsoft Edge" }]);
+  vi.mocked(api.begin).mockResolvedValue("private-draft");
+  vi.mocked(api.status).mockResolvedValue({ ...bridgeFixtures.samples.sessionEmpty, id: "private-draft", busy: true });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await screen.findByRole("option", { name: "Microsoft Edge" });
+  fireEvent.change(screen.getByLabelText("Sign-in browser"), { target: { value: "edge" } });
+  fireEvent.click(screen.getByLabelText("Open a private sign-in window"));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ connection: expect.objectContaining({ browser: "edge", privateBrowser: true }) })));
+});
+
 test("new drive accepts eighty emoji code points and blocks eighty-one without truncating", async () => {
   vi.mocked(api.begin).mockResolvedValue("draft");
   vi.mocked(api.status).mockResolvedValue({ ...bridgeFixtures.samples.sessionEmpty, id: "draft", busy: true });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   const input = screen.getByLabelText("Drive name") as HTMLInputElement;
   const tooLong = "😀".repeat(81);
   fireEvent.change(input, { target: { value: tooLong } });
@@ -397,6 +463,7 @@ test("dialog opens modally, handles cancellation and restores the opener", async
   const opener = await screen.findByText("Add my first connection");
   opener.focus();
   fireEvent.click(opener);
+  selectAvailableCategory();
   expect(show).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("dialog").hasAttribute("open")).toBe(true);
   expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close setup" }));
@@ -410,6 +477,7 @@ test("empty state opens accessible connection form", async () => {
   render(<App />);
   await screen.findByText("One letter. All your files.");
   fireEvent.click(screen.getByText("Add my first connection"));
+  selectAvailableCategory();
   expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("true");
   expect(screen.getByLabelText("Drive name")).toBeDefined();
 });
@@ -425,6 +493,7 @@ test("cancel OAuth cleans up draft", async () => {
   });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.change(screen.getByLabelText("Drive name"), {
     target: { value: "Conta" },
   });
@@ -480,6 +549,7 @@ test("provider question accepts MFA and does not persist it in browser storage",
   vi.mocked(api.answer).mockResolvedValue();
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.change(screen.getByLabelText("Drive name"), {
     target: { value: "Conta" },
   });
@@ -520,6 +590,7 @@ test.each(["en", "pt-BR"])("drive labels and experimental text follow %s without
   expect(screen.getByRole("heading", { name: "Root" })).toBeDefined();
   expect(screen.getByText("Google Drive · Experimental · My drives")).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "+ New connection" : "+ Nova conexão" }));
+  selectAvailableCategory();
   expect(screen.getByRole("option", { name: "Google Drive (experimental)" })).toBeDefined();
 });
 
@@ -636,6 +707,7 @@ test("native cancellation preserves setup when asynchronous cleanup fails and al
   vi.mocked(api.end).mockRejectedValueOnce(new Error("cleanup failed"));
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
   await screen.findByText("Waiting for authentication…");
@@ -684,6 +756,7 @@ test("password visibility is local and resets when access is reopened", async ()
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider] });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.change(screen.getByLabelText("Connection type"), { target: { value: "ftp" } });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   const password = screen.getByLabelText("Password");
@@ -703,8 +776,8 @@ test("password visibility is local and resets when access is reopened", async ()
   expect(sessionStorage.length).toBe(0);
 });
 
-test("existing custom OAuth connection can still renew when project sign-in is unavailable", async () => {
-  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [{ ...snapshot.providers[0], available: false }], connections: [connection] });
+test("existing user-owned OAuth connection can renew with its saved identity", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: snapshot.providers, connections: [connection] });
   vi.mocked(api.fields).mockResolvedValue({ values: { client_id: "custom-public-id" }, transport: "" });
   vi.mocked(api.begin).mockResolvedValue("custom");
   vi.mocked(api.status).mockResolvedValue({ authenticated: false, connectionID: "", id: "custom", busy: true, complete: false, question: null, error: "" });
@@ -741,6 +814,7 @@ test("guided setup chooses a folder before confirming and mounting", async () =>
   ]);
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   fireEvent.click(await screen.findByRole("button", { name: "▱ Documents" }));
@@ -774,6 +848,7 @@ test("destination validation errors prevent mounting", async () => {
   );
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   const connect = await screen.findByText("Connect drive");
@@ -785,26 +860,22 @@ test("destination validation errors prevent mounting", async () => {
   expect(api.mount).not.toHaveBeenCalled();
 });
 
-test("missing project OAuth is explained without asking the user for Client ID", async () => {
-  vi.mocked(api.snapshot).mockResolvedValue({
-    ...snapshot,
-    providers: [
-      {
-        ...snapshot.providers[0],
-        available: false,
-        notice: "Project sign-in is not ready yet",
-      },
-    ],
-  });
+test("OAuth setup requires a user-owned application and shows mandatory fields directly", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [{ ...snapshot.providers[0], fields: [
+    { key: "client_id", label: "Client ID", secret: false, required: false, default: "", advanced: false, file: false },
+    { key: "client_secret", label: "Client Secret", secret: true, required: false, default: "", advanced: false, file: false },
+  ] }] });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  expect(screen.getByRole("tab", { name: "Basic" }).getAttribute("aria-selected")).toBe("true");
+  fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+  expect(screen.getByText(/These connections require additional setup/)).toBeDefined();
   fireEvent.click(screen.getByText("Continue"));
-  expect(screen.getByText("Project sign-in is not ready yet")).toBeDefined();
-  expect(
-    (screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement)
-      .disabled,
-  ).toBe(true);
-  expect(screen.queryByText(/Client ID/)).toBeNull();
+  expect((screen.getByLabelText("Client ID") as HTMLInputElement).required).toBe(true);
+  expect((screen.getByLabelText("Client Secret") as HTMLInputElement).required).toBe(true);
+  expect(screen.getByLabelText("Client ID").closest("details")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  expect(api.begin).not.toHaveBeenCalled();
 });
 
 test("cancelling after authentication keeps the draft unconfirmed", async () => {
@@ -819,6 +890,7 @@ test("cancelling after authentication keeps the draft unconfirmed", async () => 
   });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   await screen.findByText("Choose what to connect");
@@ -827,7 +899,7 @@ test("cancelling after authentication keeps the draft unconfirmed", async () => 
   expect(api.confirm).not.toHaveBeenCalled();
 });
 
-test("GCS file picker enables service-account access without project OAuth", async () => {
+test("GCS service-account access is in Basic without OAuth fields", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({
     ...snapshot,
     providers: [
@@ -838,7 +910,7 @@ test("GCS file picker enables service-account access without project OAuth", asy
         backend: "google cloud storage",
         experimental: false,
         oauth: true,
-        available: false,
+        available: true,
         fields: [
           { advanced: false,
             key: "service_account_file",
@@ -855,10 +927,11 @@ test("GCS file picker enables service-account access without project OAuth", asy
   vi.mocked(api.selectFile).mockResolvedValue("C:\\Credentials\\account.json");
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.change(screen.getByLabelText("Connection type"), {
-    target: { value: "gcs" },
+    target: { value: "gcs:serviceAccount" },
   });
-  expect(screen.getByText("Browser sign-in is unavailable. Continue to select a service account JSON file.")).toBeDefined();
+  expect(screen.getByRole("tab", { name: "Basic" }).getAttribute("aria-selected")).toBe("true");
   expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(screen.getByText("Continue"));
   expect(screen.getByText("Select a service account JSON file authorized for your bucket. Browser sign-in is not required.")).toBeDefined();
@@ -891,6 +964,7 @@ test("mount failure keeps the saved connection and retries without duplicating i
   vi.mocked(api.mount).mockRejectedValueOnce(new Error("Letter in use"));
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   const connect = await screen.findByText("Connect drive");
@@ -920,6 +994,7 @@ test("destination validation failure does not mount and allows retry", async () 
   vi.mocked(api.confirm).mockRejectedValueOnce(new Error("Folder unavailable"));
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   const connect = await screen.findByRole("button", { name: "Connect drive" });
@@ -1099,6 +1174,7 @@ test("Portuguese wizard translates provider metadata and keeps library names", a
   });
   render(<App />);
   fireEvent.click(await screen.findByText("Adicionar minha primeira conexão"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText("Continuar"));
   expect(screen.getByLabelText("Usuário")).toBeDefined();
   fireEvent.click(screen.getByText("Entrar com Google Drive"));
@@ -1165,6 +1241,7 @@ test.each(["en", "pt-BR"])("no letters blocks both creation entries (%s)", async
 test("letters becoming unavailable blocks authentication in an open wizard", async () => {
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, letters: [] });
   await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(true), { timeout: 4000 });
@@ -1176,6 +1253,7 @@ async function openAuthenticatedFolder() {
   vi.mocked(api.status).mockResolvedValue({connectionID: "", id: "draft", busy: false, complete: false, authenticated: true, question: null, error: "" });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   const connect = await screen.findByRole("button", { name: "Connect drive" });
@@ -1425,6 +1503,7 @@ test.each(["en", "pt-BR"])("folder controls and retry feedback are translated (%
   vi.mocked(api.folders).mockRejectedValueOnce(new Error("could not access this folder; check the destination and account permissions"));
   render(<App />);
   fireEvent.click(await screen.findByText(language === "en" ? "Add my first connection" : "Adicionar minha primeira conexão"));
+  selectAvailableCategory();
   fireEvent.click(screen.getByText(language === "en" ? "Continue" : "Continuar"));
   fireEvent.click(screen.getByText(language === "en" ? "Sign in with Google Drive" : "Entrar com Google Drive"));
   const retry = await screen.findByRole("button", { name: language === "en" ? "Retry folder listing" : "Tentar listar pastas novamente" });
@@ -1584,6 +1663,7 @@ test("SSH identity probing retries and requires fresh trust after changing the s
   vi.mocked(api.status).mockResolvedValue({ id: "ssh-session", busy: true, authenticated: false, complete: false, question: null, error: "", connectionID: "" });
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
   fireEvent.change(screen.getByLabelText("Connection type"), { target: { value: "sftp" } });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   const host = screen.getByLabelText("Server");

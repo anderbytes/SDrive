@@ -120,25 +120,23 @@ func TestCancelAuthenticatedDraftPreservesOldRemote(t *testing.T) {
 	}
 }
 
-func TestProjectOAuthAvailabilityAndInjection(t *testing.T) {
+func TestUserOAuthAvailabilityAndValidation(t *testing.T) {
 	p, _ := provider("drive")
-	if p.Available || !p.OAuth {
-		t.Fatal("unconfigured login advertised")
+	if !p.Available || !p.OAuth {
+		t.Fatal("user-owned OAuth not available")
 	}
-	if oauthParameters(p, map[string]string{}) == nil {
-		t.Fatal("shared OAuth fallback accepted")
+	for _, params := range []map[string]string{{}, {"client_id": "app"}, {"client_secret": "secret"}} {
+		if oauthParameters(p, params) == nil {
+			t.Fatal("shared-client fallback accepted")
+		}
 	}
-	previous := projectOAuth
-	projectOAuth = map[string]oauthIdentity{"drive": {ClientID: "desktop-client", ClientSecret: "public-desktop-metadata"}}
-	t.Cleanup(func() { projectOAuth = previous })
-	p, _ = provider("drive")
-	params := map[string]string{}
-	if !p.Available || oauthParameters(p, params) != nil || params["client_id"] != "desktop-client" {
-		t.Fatal("project OAuth not applied")
+	params := map[string]string{"client_id": "app", "client_secret": "secret"}
+	if oauthParameters(p, params) != nil || params["client_id"] != "app" || params["client_secret"] != "secret" {
+		t.Fatal("user identity replaced")
 	}
 	gcs, _ := provider("gcs")
 	if oauthParameters(gcs, map[string]string{"service_account_file": "credentials.json"}) != nil {
-		t.Fatal("service account incorrectly requires OAuth")
+		t.Fatal("service account requires OAuth")
 	}
 }
 

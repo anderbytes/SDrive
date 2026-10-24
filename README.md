@@ -9,7 +9,7 @@ Open source desktop application that mounts remote storage as drives in Explorer
 3. Sign in through your browser or enter the credentials provided by your storage administrator.
 4. Choose a folder and click **Connect drive**. Access is checked automatically. Use **Open in Explorer** to access your files.
 
-The drive name and letter are suggested automatically. Technical settings are under **Advanced options**. The standard flow does not require knowledge of rclone, editing files or creating a Client ID. Sign-in is unavailable when this build has no OAuth application registration for the selected service.
+The drive name and letter are suggested automatically. **Basic** contains password/address access, object-storage credentials and GCS service accounts. **Advanced** contains OAuth methods requiring your own application registration, Client ID and Client Secret; follow the [service setup instructions](docs/oauth-setup.md). Technical connection options remain separate. See [authentication and connectivity](docs/connectivity.md) for browser choice, session-only access, per-drive bandwidth, proxy and verified WebDAV fallback, including their supported-service limits.
 
 The online installer includes SDrive and rclone. Compatible WinFsp and WebView2 installations are reused; only missing or incompatible components are downloaded. Follow progress in the installer window. If a download fails, choose **Retry** or **Cancel**.
 
@@ -39,7 +39,7 @@ English is the application's default and the language of the repository, source 
 
 ## Development
 
-See the [maintainer guide](docs/development.md) to build, test and configure sign-in registrations, and the [localization guide](docs/localization.md) to add interface languages. These steps are not required to install or use the application.
+See the [maintainer guide](docs/development.md) to build and test, and the [localization guide](docs/localization.md) to add interface languages. Building is not required to install the application. OAuth registrations belong to each user or their organization; SDrive supplies no shared client.
 
 ## Project status
 
@@ -49,7 +49,7 @@ The first version does not include Linux support, full offline synchronization, 
 
 ## Data and recovery
 
-`%LOCALAPPDATA%\SDrive` contains preferences, encrypted rclone configuration, a DPAPI-protected key and cache. Directory permissions are restricted to the current user and SYSTEM. SDrive uses its own configuration and does not change your regular `rclone.conf`.
+`%LOCALAPPDATA%\SDrive` contains preferences, encrypted legacy and per-connection rclone configurations, DPAPI-protected keys, encrypted proxy preferences and cache. Directory permissions are restricted to the current user and SYSTEM. SDrive uses its own configuration and does not change your regular `rclone.conf`.
 
 Never delete the cache while recovery is pending. After an interruption, use **Recover** on the original connection. To renew credentials during recovery, use **Reconfigure account**, preserving the server, username, folder and access mode. Destination changes and removal remain blocked until recovery finishes.
 

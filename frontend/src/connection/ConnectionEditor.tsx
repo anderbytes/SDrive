@@ -1,3 +1,5 @@
+import { advancedDisclaimer, methodKey, oauthInstructions } from "./methods";
+import { ConnectionOptions } from "./ConnectionOptions";
 import { api } from "../api";
 import { useConnectionWizard, type EditorProps } from "./useConnectionWizard";
 import { AccessFields } from "./AccessFields";
@@ -65,32 +67,21 @@ export function ConnectionEditor(props: EditorProps) {
               advance();
             }}
           >
-            <label>
-              {t("Connection type")}
-              <select
-                value={connection.provider}
-                onChange={(e) => {
-                  change({ provider: e.target.value, name: "" });
-                  setValues({});
-                  setIdentity(undefined);
-                  setTrusted(false);
-                  setTransport("explicit");
-                  setInsecure(false);
-                }}
-              >
-                {data.providers.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {t(item.name)}
-                    {item.experimental ? ` (${t("experimental")})` : ""}
-                    {item.id === "gcs" && item.available === false
-                      ? t(" — service account available")
-                      : item.available === false
-                      ? t(" — sign-in not configured")
-                      : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div role="tablist" aria-label={t("Connection setup category")}>
+              {["basic", "advanced"].map((category) => <button key={category} id={`${fieldID}-${category}-tab`} type="button" role="tab" aria-selected={wizard.category === category} aria-controls={`${fieldID}-services`} tabIndex={wizard.category === category ? 0 : -1}
+                onClick={() => wizard.selectCategory(category)}
+                onKeyDown={(e) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) { e.preventDefault(); const next = e.key === "Home" ? "basic" : e.key === "End" ? "advanced" : category === "basic" ? "advanced" : "basic"; wizard.selectCategory(next); document.getElementById(`${fieldID}-${next}-tab`)?.focus(); } }}>
+                {t(category === "basic" ? "Basic" : "Advanced")}
+              </button>)}
+            </div>
+            <div id={`${fieldID}-services`} role="tabpanel" aria-labelledby={`${fieldID}-${wizard.category}-tab`}>
+              {wizard.category === "advanced" && <p className="alert warning">{t(advancedDisclaimer)}</p>}
+              <label>{t("Connection type")}<select value={methodKey(connection, data.providers)} onChange={(e) => wizard.selectMethod(e.target.value)}>
+                {wizard.serviceMethods.filter((m) => m.advanced === (wizard.category === "advanced")).map((m) => <option key={m.key} value={m.key}>{t(m.label)}{m.provider.experimental ? ` (${t("experimental")})` : ""}</option>)}
+              </select></label>
+              {!wizard.serviceMethods.some((m) => m.advanced === (wizard.category === "advanced")) && <p>{t("No connection methods in this category.")}</p>}
+              {wizard.category === "advanced" && <p>{t(oauthInstructions[p.id] || "")}</p>}
+            </div>
             <label>
               {t("Drive name")}
               <input
@@ -101,12 +92,12 @@ export function ConnectionEditor(props: EditorProps) {
               />
             </label>
             {fieldFeedback("name")}
-            {unavailable && <p role="status">{t(p.id === "gcs" ? "Browser sign-in is unavailable. Continue to select a service account JSON file." : p.notice || "")}</p>}
+            {unavailable && <p role="status">{t(p.notice || "")}</p>}
             <div className="modal-actions">
               <button type="button" onClick={close}>
                 {t("Cancel")}
               </button>
-              <button className="primary" disabled={noLetters || (unavailable && p.id !== "gcs")}>{t("Continue")}</button>
+              <button className="primary" disabled={noLetters || !wizard.serviceMethods.some((m) => m.key === methodKey(connection, data.providers) && m.advanced === (wizard.category === "advanced"))}>{t("Continue")}</button>
             </div>
           </form>
         )}
@@ -118,14 +109,14 @@ export function ConnectionEditor(props: EditorProps) {
             }}
           >
             <h3>
-              {p.id === "gcs" && (p.available === false || values.service_account_file)
+              {p.id === "gcs" && connection.authMethod === "serviceAccount"
                 ? t("Access to {provider}", { provider: p.name })
                 : p.oauth
                 ? t("Sign in to {provider}", { provider: p.name })
                 : t("Access to {provider}", { provider: p.name })}
             </h3>
             <p>
-              {p.id === "gcs" && (p.available === false || values.service_account_file)
+              {p.id === "gcs" && connection.authMethod === "serviceAccount"
                 ? t("Select a service account JSON file authorized for your bucket. Browser sign-in is not required.")
                 : p.oauth
                 ? t(
@@ -137,9 +128,13 @@ export function ConnectionEditor(props: EditorProps) {
             </p>
             {unavailable && (
               <div className="alert warning" role="status">
-                {t(p.id === "gcs" ? "Browser sign-in is unavailable. Continue to select a service account JSON file." : p.notice || "")}
+                {t(p.notice || "")}
               </div>
             )}
+            {p.oauth && connection.authMethod !== "serviceAccount" && <>
+              <p>{t(oauthInstructions[p.id] || "")}</p>
+              <button type="button" onClick={() => void action(() => api.prerequisite(`oauth-${p.id}`))}>{t("Open service setup instructions")}</button>
+            </>}
             {p.experimental && (
               <div className="alert warning">
                 {t(
@@ -190,6 +185,8 @@ export function ConnectionEditor(props: EditorProps) {
               <details>
                 <summary>{t("Advanced options")}</summary>
                 <AccessFields advanced wizard={wizard} />
+                <ConnectionOptions wizard={wizard} />
+                {p.id === "ftp" && <p>{t("FTP uses passive transfers only. Active mode, Mode Z compression and legacy filename charsets are not supported.")}</p>}
                 {p.id === "ftp" && (
                   <>
                     <label>
@@ -240,6 +237,7 @@ export function ConnectionEditor(props: EditorProps) {
                   <input
                     type="checkbox"
                     aria-describedby={`${fieldID}-automount-help`}
+                    disabled={connection.sessionOnly}
                     checked={connection.autoMount}
                     onChange={(e) => change({ autoMount: e.target.checked })}
                   />
@@ -342,6 +340,7 @@ export function ConnectionEditor(props: EditorProps) {
               />
             </label>
             {fieldFeedback("path")}
+            <ConnectionOptions wizard={wizard} />
             <label className="check">
               <input
                 type="checkbox"
@@ -358,7 +357,8 @@ export function ConnectionEditor(props: EditorProps) {
               <input
                 type="checkbox"
                 aria-describedby={`${fieldID}-automount-help`}
-                checked={connection.autoMount}
+                disabled={connection.sessionOnly}
+                    checked={connection.autoMount}
                 onChange={(e) => change({ autoMount: e.target.checked })}
               />
               {t("Connect automatically when SDrive starts")}

@@ -1,6 +1,6 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 import { Call } from "@wailsio/runtime";
-import { api, type AboutInfo, type ConfigInput, type Connection, type ConnectionView, type Field, type FieldError, type Provider, type Question, type Session, type Settings, type Snapshot } from "./api";
+import { api, type Browser, type ProxyConfig, type AboutInfo, type ConfigInput, type Connection, type ConnectionView, type Field, type FieldError, type Provider, type Question, type Session, type Settings, type Snapshot } from "./api";
 import fixtures from "./bridge-fixtures.json";
 
 vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
@@ -58,6 +58,7 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
 type BridgeKey = Exclude<keyof typeof api, "copyDiagnostics" | "onDesktopVisibility">;
 type Calls = { [K in BridgeKey]: Parameters<(typeof api)[K]> };
 type Results = {
+  browsers: Browser[]; proxy: ProxyConfig; saveProxy: void;
   about: AboutInfo; diagnostics: string; desktopVisible: boolean; snapshot: Snapshot;
   begin: string; status: Session; answer: void; end: void; folders: typeof samples.folders;
   confirm: string; selectFile: string; mount: void; unmount: void; test: void; remove: void;
@@ -66,6 +67,7 @@ type Results = {
   restoreSettings: void; verifyRecovery: void; retryCleanup: void;
 };
 const calls = {
+  browsers: [], proxy: [], saveProxy: [{ address: "", username: "", password: "", hasPassword: false }],
   about: [], diagnostics: [], desktopVisible: [], snapshot: [],
   begin: [samples.configInput], status: ["session"], answer: ["session", "answer"], end: ["session"],
   folders: ["session", "folder"], confirm: ["session", "folder", "S"], selectFile: ["service_account_file"],

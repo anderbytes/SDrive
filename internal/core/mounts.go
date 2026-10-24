@@ -54,6 +54,10 @@ func (s *Service) Mount(id string) (resultErr error) {
 	if i < 0 {
 		return fmt.Errorf("connection not found")
 	}
+	if worker := s.workers[s.store.Connections[i].Remote]; worker != nil && !worker.Alive() && !s.busy[id] {
+		s.mounted[id] = false
+		s.stopConnection(s.store.Connections[i])
+	}
 	if s.mounted[id] || s.busy[id] {
 		return fmt.Errorf("connection already mounted or busy")
 	}
@@ -99,23 +103,44 @@ func (s *Service) Mount(id string) (resultErr error) {
 		return fmt.Errorf("keep at least 5 GiB free on the cache disk")
 	}
 	previous := c.Recovery
-	rpc := s.rpc
+	s.busy[id] = true
+	owned = true
+	if c.SessionOnly && s.workers[c.Remote] == nil && s.startConnection != nil {
+		return fmt.Errorf("Sign in again before connecting this session-only drive.")
+	}
+	if worker := s.workers[c.Remote]; worker != nil && !worker.Alive() {
+		s.stopConnection(c)
+	}
+	if err := s.ensureConnection(c); err != nil {
+		return err
+	}
+	rpc := s.connectionRPC(c)
 	s.busy[id] = true
 	owned = true
 	s.operations[id] = "validating"
 	s.snapshotID++
 	delete(s.inspections, id)
 	s.mu.Unlock()
-	ctxTarget, cancelTarget := context.WithTimeout(context.Background(), 5*time.Second)
+	ctxTarget, cancelTarget := context.WithTimeout(context.Background(), 45*time.Second)
 	var config map[string]string
 	err = callRPC(ctxTarget, rpc, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config)
+	selectedURL := ""
+	if err == nil {
+		selectedURL, err = s.verifyDestination(ctxTarget, &c, config, false)
+	}
+	if c.PrimaryURL != "" && config != nil {
+		config["url"] = c.PrimaryURL
+	}
 	cancelTarget()
 	s.mu.Lock()
 	i = s.index(id)
-	if err == nil && (i < 0 || s.rpc != rpc || s.exiting) {
+	if err == nil && (i < 0 || s.connectionRPC(c) != rpc || s.exiting) {
 		err = fmt.Errorf("connection operation changed; try again")
 	}
 	if err != nil {
+		return err
+	}
+	if err = oauthParametersForConnection(c, config); err != nil {
 		return err
 	}
 	targetHash, err := checkDestination(c, config)
@@ -137,7 +162,13 @@ func (s *Service) Mount(id string) (resultErr error) {
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	err = callRPC(ctx, rpc, "mount/mount", map[string]any{"fs": remote(c), "mountPoint": c.Letter + ":", "mountOpt": map[string]any{"NetworkMode": true, "VolumeName": c.Name}, "vfsOpt": map[string]any{"CacheMode": "full", "CacheMaxSize": int64(cacheGiB) << 30, "CacheMinFreeSpace": int64(5) << 30, "CacheMaxAge": int64(24 * time.Hour), "WriteBack": int64(5 * time.Second), "ReadOnly": c.ReadOnly}}, nil)
+	if selectedURL != "" && selectedURL != config["url"] {
+		var result ConfigResult
+		err = callRPC(ctx, rpc, "config/update", map[string]any{"name": "sd_" + c.Remote, "parameters": map[string]string{"url": selectedURL}, "opt": map[string]bool{"nonInteractive": true, "noObscure": true}}, &result)
+	}
+	if err == nil {
+		err = callRPC(ctx, rpc, "mount/mount", map[string]any{"fs": remote(c), "mountPoint": c.Letter + ":", "mountOpt": map[string]any{"NetworkMode": true, "VolumeName": c.Name}, "vfsOpt": map[string]any{"CacheMode": "full", "CacheMaxSize": int64(cacheGiB) << 30, "CacheMinFreeSpace": int64(5) << 30, "CacheMaxAge": int64(24 * time.Hour), "WriteBack": int64(5 * time.Second), "ReadOnly": c.ReadOnly}}, nil)
+	}
 	var actual []engineMount
 	var checkErr error
 	if err != nil {
@@ -186,13 +217,7 @@ func checkDestination(c Connection, config map[string]string) (string, error) {
 	if config["type"] != p.Backend {
 		return "", fmt.Errorf("destination type does not match the saved connection")
 	}
-	identity := map[string]string{"profile": c.Provider, "path": c.Path}
-	for _, key := range []string{"type", "host", "port", "user", "username", "url", "vendor", "account", "endpoint", "region", "provider", "project_number", "project_id", "root_folder_id", "team_drive", "drive_id", "drive_type", "site_id", "site_url", "hostname", "root_id"} {
-		if key == "account" && c.Provider == "b2" {
-			continue
-		}
-		identity[key] = config[key]
-	}
+	identity := destinationFields(c, config)
 	encoded, _ := json.Marshal(identity)
 	hash := fmt.Sprintf("%x", sha256.Sum256(encoded))
 	if c.Recovery && (c.TargetHash == "" || c.TargetHash != hash) {
@@ -203,7 +228,7 @@ func checkDestination(c Connection, config map[string]string) (string, error) {
 
 func (s *Service) pending(ctx context.Context, c Connection) (int, error) {
 	s.mu.Lock()
-	rpc := s.rpc
+	rpc := s.connectionRPC(c)
 	s.mu.Unlock()
 	return s.pendingOn(ctx, rpc, c)
 }
@@ -265,13 +290,14 @@ func (s *Service) Unmount(id string) (resultErr error) {
 		s.store.Connections[i].Recovery = true
 		return err
 	}
+	s.stopConnection(c)
 	return nil
 }
 
 func (s *Service) drainAndUnmount(c Connection) (unmounted bool, resultErr error) {
 	defer func() { s.diagnostics.Operation("cache", resultErr) }()
 	s.mu.Lock()
-	rpc := s.rpc
+	rpc := s.connectionRPC(c)
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
@@ -374,4 +400,18 @@ func (s *Service) Exit() (resultErr error) {
 		s.quit()
 	}
 	return nil
+}
+
+func destinationFields(c Connection, config map[string]string) map[string]string {
+	identity := map[string]string{"profile": c.Provider, "path": c.Path}
+	for _, key := range []string{"type", "host", "port", "user", "username", "url", "vendor", "account", "endpoint", "region", "provider", "project_number", "project_id", "root_folder_id", "team_drive", "drive_id", "drive_type", "site_id", "site_url", "hostname", "root_id"} {
+		if key == "account" && c.Provider == "b2" {
+			continue
+		}
+		identity[key] = config[key]
+	}
+	if c.PrimaryURL != "" {
+		identity["url"] = c.PrimaryURL
+	}
+	return identity
 }

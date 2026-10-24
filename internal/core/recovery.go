@@ -91,6 +91,14 @@ func (s *Service) initializeRecovery(loadErr error) {
 		return
 	}
 	// Missing settings cannot turn an established profile into an empty first-run profile.
+	if _, err := os.Stat(filepath.Join(s.dir, "proxy.enc")); !os.IsNotExist(err) {
+		s.settingsError = "Local settings are missing. Preserve the data directory and restore a valid backup."
+		return
+	}
+	if entries, err := os.ReadDir(filepath.Join(s.dir, "connections")); (err == nil && len(entries) > 0) || (err != nil && !os.IsNotExist(err)) {
+		s.settingsError = "Local settings are missing. Preserve the data directory and restore a valid backup."
+		return
+	}
 	_, backupErr := os.Stat(filepath.Join(s.dir, "settings.backup.json"))
 	cache, cacheErr := s.cacheRemotes()
 	if !os.IsNotExist(backupErr) || cacheErr != nil || len(cache) > 0 || s.recoveryHold {
@@ -245,6 +253,9 @@ func (s *Service) VerifyRecovery() (resultErr error) {
 		if generatedRemote(name) && !known[name] {
 			return fmt.Errorf("credentials absent from restored settings remain preserved; manual recovery is required")
 		}
+	}
+	if err := s.isolatedRecoveryInventory(known, available); err != nil {
+		return err
 	}
 	for name := range known {
 		if !available[name] {

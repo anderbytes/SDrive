@@ -10,7 +10,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
   return p.fields
       .filter(
         (f) =>
-          !["client_id", "client_secret"].includes(f.key) &&
+          (!(p.id === "gcs") || (wizard.connection.authMethod === "serviceAccount" ? !["client_id", "client_secret"].includes(f.key) : f.key !== "service_account_file")) &&
           !!f.advanced === advanced,
       )
       .map((f) => (
@@ -18,7 +18,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
           {f.secret ? (
             <SecretInput label={t(f.label)}
               validation={validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
-              value={values[f.key] ?? f.default ?? ""} required={f.required}
+              value={values[f.key] ?? f.default ?? ""} required={f.required || (f.key === "client_secret" && !wizard.initial.id)}
               onChange={(value) => setValue(f.key, value)} />
           ) : <label>
           {t(f.label)}
@@ -43,7 +43,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
               {...validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
               type="text"
               autoComplete="off"
-              required={f.required}
+              required={f.required || f.key === "client_id" || (f.key === "service_account_file" && wizard.connection.authMethod === "serviceAccount")}
               value={values[f.key] ?? f.default ?? ""}
               onChange={(e) => setValue(f.key, e.target.value)}
             />

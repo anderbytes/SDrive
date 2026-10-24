@@ -15,16 +15,29 @@ import (
 )
 
 type Connection struct {
-	ID         string `json:"id"`
-	Remote     string `json:"remote"`
-	Name       string `json:"name"`
-	Provider   string `json:"provider"`
-	Path       string `json:"path"`
-	Letter     string `json:"letter"`
-	ReadOnly   bool   `json:"readOnly"`
-	AutoMount  bool   `json:"autoMount"`
-	Recovery   bool   `json:"recovery"`
-	TargetHash string `json:"targetHash"`
+	ID             string `json:"id"`
+	Remote         string `json:"remote"`
+	Name           string `json:"name"`
+	Provider       string `json:"provider"`
+	Path           string `json:"path"`
+	Letter         string `json:"letter"`
+	ReadOnly       bool   `json:"readOnly"`
+	AutoMount      bool   `json:"autoMount"`
+	Recovery       bool   `json:"recovery"`
+	TargetHash     string `json:"targetHash"`
+	AuthMethod     string `json:"authMethod,omitempty"`
+	SessionOnly    bool   `json:"sessionOnly,omitempty"`
+	UploadLimit    int64  `json:"uploadLimit,omitempty"`
+	DownloadLimit  int64  `json:"downloadLimit,omitempty"`
+	UseProxy       bool   `json:"useProxy,omitempty"`
+	Browser        string `json:"browser,omitempty"`
+	PrivateBrowser bool   `json:"privateBrowser,omitempty"`
+	ConnectTimeout int    `json:"connectTimeout,omitempty"`
+	IdleTimeout    int    `json:"idleTimeout,omitempty"`
+	AlternateURL   string `json:"alternateURL,omitempty"`
+	ResourceID     string `json:"resourceID,omitempty"`
+	PrimaryURL     string `json:"primaryURL,omitempty"`
+	Binding        string `json:"binding,omitempty"`
 }
 type Settings struct {
 	Language  string `json:"language"`
@@ -69,7 +82,7 @@ func decodeStore(b []byte) (Store, error) {
 	}
 	if shape.Version != nil {
 		var version int
-		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || version != 1 {
+		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2) {
 			return s, errSettingsVersion
 		}
 	}
@@ -116,7 +129,7 @@ func encodeStore(s Store) ([]byte, error) {
 	b, err := json.MarshalIndent(struct {
 		Version int `json:"version"`
 		Store
-	}{Version: 1, Store: s}, "", "  ")
+	}{Version: 2, Store: s}, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +165,9 @@ func saveStore(dir string, s Store) error {
 func atomicWrite(path string, data []byte) error { return platform.AtomicWrite(path, data) }
 
 func validateConnection(c *Connection) error {
+	if err := validateNetwork(*c); err != nil {
+		return err
+	}
 	c.Name = strings.TrimSpace(c.Name)
 	if c.Name == "" || utf8.RuneCountInString(c.Name) > 80 {
 		return &FieldError{Field: "name", Message: "name must contain between 1 and 80 characters"}

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -62,7 +63,8 @@ func randomSecret() string {
 func environment(extra ...string) []string {
 	result := []string{}
 	for _, v := range os.Environ() {
-		if !strings.HasPrefix(strings.ToUpper(v), "RCLONE_") {
+		key := strings.ToUpper(strings.SplitN(v, "=", 2)[0])
+		if !strings.HasPrefix(key, "RCLONE_") && key != "HTTP_PROXY" && key != "HTTPS_PROXY" && key != "ALL_PROXY" && key != "NO_PROXY" {
 			result = append(result, v)
 		}
 	}
@@ -104,15 +106,44 @@ func Init(binary, dir string) error {
 }
 
 func Start(binary, dir string, log *diagnostics.Collector) (*Engine, error) {
+	return StartWithOptions(binary, dir, log, Options{CacheDir: filepath.Join(dir, "cache")})
+}
+
+type Options struct {
+	CacheDir                    string
+	Memory                      bool
+	UploadLimit, DownloadLimit  int64
+	ProxyURL                    string
+	ConnectTimeout, IdleTimeout int
+}
+
+func StartWithOptions(binary, dir string, log *diagnostics.Collector, options Options) (*Engine, error) {
 	e := &Engine{diagnostics: log, user: randomSecret(), password: randomSecret(), done: make(chan struct{}), client: &http.Client{Timeout: 6 * time.Minute, Transport: &http.Transport{Proxy: nil}}}
 	log.Record("engine_start", "started", "none", nil)
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(binary, "rcd", "--config", filepath.Join(dir, "rclone.conf"), "--cache-dir", filepath.Join(dir, "cache"), "--rc-addr", "127.0.0.1:0", "--use-json-log", "--log-level", "INFO", "--ask-password=false", "--password-command", quote(exe)+" --config-key "+quote(dir))
+	configPath := filepath.Join(dir, "rclone.conf")
+	if options.Memory {
+		configPath = os.DevNull
+	}
+	args := []string{"rcd", "--config", configPath, "--cache-dir", options.CacheDir, "--rc-addr", "127.0.0.1:0", "--use-json-log", "--log-level", "INFO", "--ask-password=false", "--password-command", quote(exe) + " --config-key " + quote(dir)}
+	if options.UploadLimit != 0 || options.DownloadLimit != 0 {
+		args = append(args, "--bwlimit", strconv.FormatInt(options.UploadLimit, 10)+"B:"+strconv.FormatInt(options.DownloadLimit, 10)+"B")
+	}
+	if options.ConnectTimeout > 0 {
+		args = append(args, "--contimeout", strconv.Itoa(options.ConnectTimeout)+"s")
+	}
+	if options.IdleTimeout > 0 {
+		args = append(args, "--timeout", strconv.Itoa(options.IdleTimeout)+"s")
+	}
+	cmd := exec.Command(binary, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	cmd.Env = environment("RCLONE_RC_USER="+e.user, "RCLONE_RC_PASS="+e.password)
+	if options.ProxyURL != "" {
+		cmd.Env = append(cmd.Env, "RCLONE_HTTP_PROXY="+options.ProxyURL)
+	}
 	cmd.WaitDelay = time.Second
 	ready := make(chan string, 1)
 	logs := &logWriter{e: e, ready: ready}

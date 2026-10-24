@@ -93,6 +93,10 @@ func (f *fakeRPC) Call(ctx context.Context, method string, input, out any) error
 }
 func fixture(p Provider) map[string]string {
 	values := map[string]string{}
+	if p.OAuth {
+		values["client_id"] = "user-owned-test-app"
+		values["client_secret"] = "user-owned-test-secret"
+	}
 	for _, f := range p.Fields {
 		if f.Default != "" {
 			values[f.Key] = f.Default
@@ -247,7 +251,7 @@ func TestWizardSecretsAndContinuation(t *testing.T) {
 		return ConfigResult{}, nil
 	}}
 	s := testService(t, rpc)
-	id, err := s.BeginConfig(ConfigInput{Connection: Connection{Name: "Nuvem", Provider: "dropbox", Letter: "S"}})
+	id, err := s.BeginConfig(ConfigInput{Connection: Connection{Name: "Nuvem", Provider: "dropbox", Letter: "S"}, Values: map[string]string{"client_id": "app", "client_secret": "secret"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +403,7 @@ func TestRejectedProviderErrorsDoNotExposeSecrets(t *testing.T) {
 	s := testService(t, &fakeRPC{handle: func(context.Context, string, any) (any, error) {
 		return ConfigResult{Error: "password=private-value"}, nil
 	}})
-	id, err := s.BeginConfig(ConfigInput{Connection: Connection{Name: "Teste", Provider: "box", Letter: "S"}})
+	id, err := s.BeginConfig(ConfigInput{Connection: Connection{Name: "Teste", Provider: "box", Letter: "S"}, Values: map[string]string{"client_id": "app", "client_secret": "secret"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +494,7 @@ func TestTokenQuestionsAreMaskedEvenWithoutProviderHint(t *testing.T) {
 		}
 		return map[string]any{}, nil
 	}})
-	id, err := s.BeginConfig(ConfigInput{Connection: Connection{Name: "Conta", Provider: "box", Letter: "S"}})
+	id, err := s.BeginConfig(ConfigInput{Connection: Connection{Name: "Conta", Provider: "box", Letter: "S"}, Values: map[string]string{"client_id": "app", "client_secret": "secret"}})
 	if err != nil {
 		t.Fatal(err)
 	}

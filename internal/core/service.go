@@ -49,6 +49,9 @@ type Service struct {
 	dir                  string
 	store                Store
 	rpc                  RPC
+	workers              map[string]RPC
+	starting             map[string]bool
+	startConnection      func(Connection, string) (RPC, error)
 	settingsError        string
 	incompatibleSettings bool
 	recoveryHold         bool
@@ -204,7 +207,7 @@ func (s *Service) Snapshot() View {
 		}
 	}
 	for _, c := range s.store.Connections {
-		cv := ConnectionView{Connection: c, Mounted: s.mounted[c.ID] && v.EngineError == "", Busy: s.busy[c.ID], Operation: s.operations[c.ID], Error: s.errors[c.ID], ErrorMessage: s.localizedErrors[c.ID]}
+		cv := ConnectionView{Connection: c, Mounted: s.mounted[c.ID] && s.connectionRPC(c) != nil && s.connectionRPC(c).Alive(), Busy: s.busy[c.ID], Operation: s.operations[c.ID], Error: s.errors[c.ID], ErrorMessage: s.localizedErrors[c.ID]}
 		v.Connections = append(v.Connections, cv)
 	}
 	s.mu.Unlock()
@@ -213,88 +216,106 @@ func (s *Service) Snapshot() View {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	var mounts []engineMount
-	var mountsErr error
-	if len(v.Connections) > 0 && rpc != nil && rpc.Alive() {
-		mounts, mountsErr = readMounts(ctx, rpc)
-	}
+	var checks sync.WaitGroup
 	for i := range v.Connections {
-		cv := &v.Connections[i]
-		s.mu.Lock()
-		current := s.index(cv.ID)
-		if s.snapshotID == snapshotID && s.rpc == rpc && current >= 0 && s.store.Connections[current] == cv.Connection && !s.busy[cv.ID] && mountsErr == nil && rpc != nil && rpc.Alive() {
-			active := false
-			for _, m := range mounts {
-				if mountLetter(m.MountPoint) == cv.Letter+":" {
-					active = m.Fs == remote(cv.Connection)
-					if !active {
-						cv.Error = "drive letter belongs to a different mount; preserve the cache"
+		checks.Add(1)
+		go func(i int) {
+			defer checks.Done()
+			cv := &v.Connections[i]
+			s.mu.Lock()
+			connectionRPC := s.connectionRPC(cv.Connection)
+			hasWorker := s.workers[cv.Remote] != nil
+			s.mu.Unlock()
+			var mounts []engineMount
+			var mountsErr error
+			if connectionRPC != nil && connectionRPC.Alive() && (s.startConnection == nil || hasWorker) {
+				mounts, mountsErr = readMounts(ctx, connectionRPC)
+			}
+			if hasWorker && !connectionRPC.Alive() {
+				cv.Mounted = false
+				cv.Error = "Connection engine stopped. Reconnect to recover your files."
+				mountsErr = fmt.Errorf("could not verify mounted drives; preserve the cache and try again")
+			}
+			s.mu.Lock()
+			current := s.index(cv.ID)
+			if hasWorker && !connectionRPC.Alive() && s.connectionRPC(cv.Connection) == connectionRPC {
+				s.mounted[cv.ID] = false
+			}
+			if s.snapshotID == snapshotID && s.rpc == rpc && s.connectionRPC(cv.Connection) == connectionRPC && current >= 0 && s.store.Connections[current] == cv.Connection && !s.busy[cv.ID] && mountsErr == nil && connectionRPC != nil && connectionRPC.Alive() {
+				active := false
+				for _, m := range mounts {
+					if mountLetter(m.MountPoint) == cv.Letter+":" {
+						active = m.Fs == remote(cv.Connection)
+						if !active {
+							cv.Error = "drive letter belongs to a different mount; preserve the cache"
+						}
+					}
+				}
+				if s.mounted[cv.ID] && !active {
+					cv.Error = "drive was unexpectedly unmounted; use Connect to recover pending files"
+				}
+				if active && !s.driveUsed(cv.Letter) {
+					cv.Error = "engine reports a mount but the Windows drive is unavailable; try Disconnect and preserve the cache"
+				}
+				if !active && s.driveUsed(cv.Letter) {
+					cv.Error = "drive letter is occupied outside this connection; preserve the cache"
+				}
+				if cv.Error != "" {
+					s.errors[cv.ID] = cv.Error
+				}
+				s.mounted[cv.ID] = active
+				cv.Mounted = active
+				if active && !cv.Recovery {
+					s.store.Connections[current].Recovery = true
+					cv.Recovery = true
+					if err := saveStore(s.dir, s.store); err != nil {
+						cv.Error = "could not save mount recovery state; preserve the data directory"
 					}
 				}
 			}
-			if s.mounted[cv.ID] && !active {
-				cv.Error = "drive was unexpectedly unmounted; use Connect to recover pending files"
+			s.mu.Unlock()
+			var statsErr error
+			var used *uint64
+			if cv.Mounted {
+				cv.Uploads, used, statsErr = readCacheStats(ctx, connectionRPC, cv.Connection)
 			}
-			if active && !s.driveUsed(cv.Letter) {
-				cv.Error = "engine reports a mount but the Windows drive is unavailable; try Disconnect and preserve the cache"
-			}
-			if !active && s.driveUsed(cv.Letter) {
-				cv.Error = "drive letter is occupied outside this connection; preserve the cache"
-			}
-			if cv.Error != "" {
-				s.errors[cv.ID] = cv.Error
-			}
-			s.mounted[cv.ID] = active
-			cv.Mounted = active
-			if active && !cv.Recovery {
-				s.store.Connections[current].Recovery = true
-				cv.Recovery = true
-				if err := saveStore(s.dir, s.store); err != nil {
-					cv.Error = "could not save mount recovery state; preserve the data directory"
-				}
-			}
-		}
-		s.mu.Unlock()
-		var statsErr error
-		var used *uint64
-		if cv.Mounted {
-			cv.Uploads, used, statsErr = readCacheStats(ctx, rpc, cv.Connection)
-		}
-		sample := s.sampleCache(ctx, cv.Connection)
-		cv.Cache = sample.CacheView
-		if sample.err == nil {
-			count := sample.pending
-			cv.Pending = &count
-		}
-		if sample.err != nil && cv.Cache.Error == "" {
-			cv.Cache.Error = "Could not inspect local cache; preserve the files and try again."
-		}
-		if cv.Mounted {
-			cv.Cache.UsedBytes = used
-			if statsErr != nil {
-				cv.Pending = nil
-				cv.Cache.Error = statsErr.Error()
-			} else if cv.Pending != nil {
-				count := max(*cv.Pending, cv.Uploads.Active+cv.Uploads.Queued, cv.Uploads.CacheErrors)
+			sample := s.sampleCache(ctx, cv.Connection)
+			cv.Cache = sample.CacheView
+			if sample.err == nil {
+				count := sample.pending
 				cv.Pending = &count
 			}
-		}
-		if mountsErr != nil {
-			cv.Pending = nil
-			cv.Cache.Error = mountsErr.Error()
-		}
-		s.mu.Lock()
-		inspection := s.inspections[cv.ID]
-		if inspection == nil || inspection.result.CheckedAt != cv.Cache.CheckedAt || inspection.connection != cv.Connection || s.rpc != rpc {
-			cv.Pending = nil
-			cv.Uploads = nil
-			cv.Cache = CacheView{Error: "Could not inspect local cache; preserve the files and try again."}
-		}
-		s.mu.Unlock()
-		if cv.ErrorMessage != nil && cv.ErrorMessage.Message != cv.Error {
-			cv.ErrorMessage = nil
-		}
+			if sample.err != nil && cv.Cache.Error == "" {
+				cv.Cache.Error = "Could not inspect local cache; preserve the files and try again."
+			}
+			if cv.Mounted {
+				cv.Cache.UsedBytes = used
+				if statsErr != nil {
+					cv.Pending = nil
+					cv.Cache.Error = statsErr.Error()
+				} else if cv.Pending != nil {
+					count := max(*cv.Pending, cv.Uploads.Active+cv.Uploads.Queued, cv.Uploads.CacheErrors)
+					cv.Pending = &count
+				}
+			}
+			if mountsErr != nil {
+				cv.Pending = nil
+				cv.Cache.Error = mountsErr.Error()
+			}
+			s.mu.Lock()
+			inspection := s.inspections[cv.ID]
+			if inspection == nil || inspection.result.CheckedAt != cv.Cache.CheckedAt || inspection.connection != cv.Connection || s.rpc != rpc || s.connectionRPC(cv.Connection) != connectionRPC {
+				cv.Pending = nil
+				cv.Uploads = nil
+				cv.Cache = CacheView{Error: "Could not inspect local cache; preserve the files and try again."}
+			}
+			s.mu.Unlock()
+			if cv.ErrorMessage != nil && cv.ErrorMessage.Message != cv.Error {
+				cv.ErrorMessage = nil
+			}
+		}(i)
 	}
+	checks.Wait()
 	s.mu.Lock()
 	changed := s.snapshotChanged
 	current := s.snapshotID == snapshotID && s.rpc == rpc
@@ -358,8 +379,15 @@ func (s *Service) updateConnection(c Connection) error {
 			return fmt.Errorf("unmount and resolve pending files before editing")
 		}
 	}
+	if c.SessionOnly != old.SessionOnly || c.AuthMethod != old.AuthMethod || c.AlternateURL != old.AlternateURL || ((old.SessionOnly || old.AlternateURL != "") && c.Path != old.Path) {
+		return fmt.Errorf("Use Reconfigure account to change authentication settings.")
+	}
+	s.stopConnection(old)
 	c.Remote = old.Remote
 	c.TargetHash = old.TargetHash
+	c.PrimaryURL = old.PrimaryURL
+	c.ResourceID = old.ResourceID
+	c.Binding = old.Binding
 	c.Recovery = false
 	s.store.Connections[i] = c
 	if err := saveStore(s.dir, s.store); err != nil {
@@ -400,9 +428,7 @@ func (s *Service) Remove(id string) error {
 		s.store.Connections = previous
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := s.call(ctx, "config/delete", map[string]string{"name": "sd_" + c.Remote}, nil); err != nil {
+	if err := s.forgetRemote(c.Remote); err != nil {
 		s.store.Connections = previous
 		if saveErr := saveStore(s.dir, s.store); saveErr != nil {
 			return fmt.Errorf("failed to remove credentials and restore settings; preserve the data directory")
@@ -426,7 +452,17 @@ func (s *Service) TestConnection(id string) error {
 		return fmt.Errorf("connection operation in progress")
 	}
 	c := s.store.Connections[i]
-	rpc := s.rpc
+	if c.SessionOnly && s.workers[c.Remote] == nil && s.startConnection != nil {
+		s.mu.Unlock()
+		return fmt.Errorf("Sign in again before connecting this session-only drive.")
+	}
+	s.busy[id] = true
+	if err := s.ensureConnection(c); err != nil {
+		s.busy[id] = false
+		s.mu.Unlock()
+		return err
+	}
+	rpc := s.connectionRPC(c)
 	s.busy[id] = true
 	s.operations[id] = "validating"
 	s.snapshotID++
@@ -446,7 +482,7 @@ func (s *Service) TestConnection(id string) error {
 	}
 	s.mu.Lock()
 	current := s.index(id)
-	valid := s.rpc == rpc && current >= 0 && s.store.Connections[current] == c
+	valid := s.connectionRPC(c) == rpc && current >= 0 && s.store.Connections[current] == c
 	s.mu.Unlock()
 	if !valid {
 		return fmt.Errorf("connection changed; try again")
@@ -471,7 +507,7 @@ func (s *Service) OpenExplorer(id string) error {
 	return s.open(letter + `:\`)
 }
 func (s *Service) Prerequisite(which string) error {
-	urls := map[string]string{"winfsp": "https://winfsp.dev/rel/", "webview2": "https://developer.microsoft.com/microsoft-edge/webview2/", "oauth-drive": "https://rclone.org/drive/#making-your-own-client-id"}
+	urls := map[string]string{"winfsp": "https://winfsp.dev/rel/", "webview2": "https://developer.microsoft.com/microsoft-edge/webview2/", "oauth-drive": "https://rclone.org/drive/#making-your-own-client-id", "oauth-onedrive": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-sharepoint": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-dropbox": "https://rclone.org/dropbox/#get-your-own-dropbox-app-id", "oauth-box": "https://rclone.org/box/#get-your-own-box-app-id", "oauth-pcloud": "https://rclone.org/pcloud/", "oauth-gcs": "https://rclone.org/googlecloudstorage/"}
 	url, ok := urls[which]
 	if !ok || s.open == nil {
 		return fmt.Errorf("unknown link")

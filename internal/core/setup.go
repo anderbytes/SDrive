@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -120,7 +121,22 @@ func (s *Service) ConfirmConfig(id, path, letter string) (string, error) {
 	}
 	ss.Busy = true
 	s.mu.Unlock()
-	_, err := listFolders(ss.ctx, rpc, c, path)
+	var config map[string]string
+	err := error(nil)
+	if candidate.SessionOnly || candidate.AlternateURL != "" {
+		err = callRPC(ss.ctx, rpc, "config/get", map[string]string{"name": "sd_" + candidate.Remote}, &config)
+		if err == nil {
+			_, err = s.verifyDestination(ss.ctx, &candidate, config, true)
+		}
+		if err == nil && candidate.SessionOnly {
+			binding := destinationFields(candidate, config)
+			raw, _ := json.Marshal(binding)
+			candidate.Binding = string(raw)
+		}
+	}
+	if err == nil {
+		_, err = listFolders(ss.ctx, rpc, c, path)
+	}
 	s.mu.Lock()
 	ss.Busy = false
 	if s.session != ss || ss.closing || ss.connection != c {
@@ -250,6 +266,9 @@ func sensitiveQuestion(name string) bool {
 func validateConfiguredRemote(p Provider, config map[string]string) error {
 	invalid := fmt.Errorf("the engine did not save a valid account configuration; cancel and try again")
 	if config == nil || config["type"] != p.Backend {
+		return invalid
+	}
+	if oauthParameters(p, config) != nil {
 		return invalid
 	}
 	for _, f := range p.Fields {

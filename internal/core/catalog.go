@@ -36,7 +36,7 @@ func field(key, label string, secret, required bool) Field {
 }
 
 func Catalog() []Provider {
-	oauth := []Field{field("client_id", "Custom Client ID (optional)", false, false), field("client_secret", "Custom client secret (optional)", true, false)}
+	oauth := []Field{field("client_id", "Client ID", false, false), field("client_secret", "Client Secret", true, false)}
 	webdav := []Field{field("url", "WebDAV HTTPS URL", false, true), field("user", "Username", false, false), field("pass", "Password / app password", true, false)}
 	login := []Field{field("user", "Username", false, true), field("pass", "Password", true, true)}
 	server := []Field{field("host", "Server", false, true), field("port", "Port (optional)", false, false), field("user", "Username", false, true), field("pass", "Password (optional with SSH key)", true, false)}
@@ -68,7 +68,6 @@ func Catalog() []Provider {
 			switch f.Key {
 			case "client_id", "client_secret":
 				p.OAuth = true
-				f.Advanced = true
 			case "port", "domain", "mailbox_password", "project_number":
 				f.Advanced = true
 			case "host":
@@ -92,9 +91,11 @@ func Catalog() []Provider {
 				f.Hint = "Select the JSON credentials file for a service account authorized to access your bucket. This does not use browser sign-in."
 			}
 		}
-		if p.OAuth && projectOAuth[p.ID].ClientID == "" {
-			p.Available = false
-			p.Notice = "Sign-in requires an OAuth application registration configured for this build."
+		if p.ID == "ftp" {
+			p.Fields = append(p.Fields, Field{Key: "disable_epsv", Label: "Use PASV instead of EPSV", Choices: []string{"false", "true"}, Default: "false", Advanced: true}, Field{Key: "disable_mlsd", Label: "Use LIST instead of MLSD", Choices: []string{"false", "true"}, Default: "false", Advanced: true})
+		}
+		if p.ID == "drive" {
+			p.Fields = append(p.Fields, Field{Key: "root_folder_id", Label: "Root folder ID (optional)", Advanced: true})
 		}
 	}
 	return providers

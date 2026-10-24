@@ -13,9 +13,11 @@
 
 TLS certificates are verified. HTTP and plain FTP require explicit selection per connection. For SFTP, the public key is obtained without authentication; the user verifies its fingerprint and accepts the key before sending credentials. Key changes are not accepted automatically. This initial verification helps avoid trusting a malicious intermediary.
 
-OAuth opens the external browser. New guided connections use desktop identities maintained by the project, without silently falling back to shared rclone clients. Each provider registration must be ready before advertising sign-in. Existing connections with a custom identity keep that identity when the project has not configured one yet. Provider limits, administrator consent and policies may prevent sign-in; SDrive does not bypass those restrictions. Proton Drive depends on a beta backend.
+OAuth opens the selected external browser using an application registered by the user. Client ID and Client Secret for the supported registration flows are checked before authorization, including non-guided bridge calls. Saved user identities are preserved during renewal; changing the Client ID requires its matching secret. Neither SDrive nor rclone shared clients are used as fallback. Provider approval, administrator consent and Testing-mode renewal remain the user's responsibility. See [OAuth setup](oauth-setup.md).
 
-Embedded desktop OAuth identities are public application metadata, not a way to store server secrets. User tokens and credentials remain in the encrypted file. Known additional steps have English source messages and interface translations; unknown steps stop the wizard with support instructions.
+Persistent tokens/secrets remain in DPAPI-backed encrypted configuration; session-only connections use an in-memory worker. No Client Secret is embedded in the application. Known additional steps have English messages and Portuguese translations; unknown steps stop the wizard. Browser URLs are obtained only from the authenticated engine, constrained to its loopback callback and never stored in diagnostics. Private mode requires a supported installed browser and is never silently ignored.
+
+[Connection networking](connectivity.md) documents per-connection processes, supported HTTP bandwidth/proxy routing, session-only recovery and read-only WebDAV identity verification. The legacy root config and per-remote configurations have separate writers. The local authenticated RPC remains direct. Original remote names/cache namespaces remain stable during legacy import and pending recovery.
 
 ## Writes and recovery
 
@@ -47,7 +49,7 @@ The helper process belongs to a Windows Job Object, preventing it from running u
 
 ## Local settings recovery
 
-`settings.json` uses format version 1. The supported historical format has no version and may omit the language, which defaults to English. Both formats require a connections array and a settings object containing an explicit startup preference and cache limit. Empty objects, null values, incomplete structures and unsupported versions cannot authorize credential cleanup. Reading an old file does not migrate it; the next successful save writes version 1. An incompatible version requires a compatible application, rather than restoration by an older application.
+`settings.json` uses format version 2. Version 1 remains readable. The supported historical format has no version and may omit the language, which defaults to English. All supported formats require a connections array and a settings object containing an explicit startup preference and cache limit. Empty objects, null values, incomplete structures and unsupported versions cannot authorize credential cleanup. Reading an old file does not migrate it; the next successful save writes version 2. An incompatible version requires a compatible application, rather than restoration by an older application.
 
 Every settings save first preserves the previous valid file as `settings.backup.json`, then atomically replaces the primary file. The first save also creates the initial backup. A failed backup prevents replacement; an invalid existing primary is never overwritten by an ordinary save. Both files contain connection metadata, not encrypted credentials or cached file contents. They are not a backup of the whole profile. An intentional connection removal or credential replacement can make an older connection's credentials unavailable.
 

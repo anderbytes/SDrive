@@ -58,12 +58,13 @@ func (r *ConfigResult) UnmarshalJSON(data []byte) error {
 }
 
 type ConfigInput struct {
-	Connection    Connection        `json:"connection"`
-	Values        map[string]string `json:"values"`
-	AllowInsecure bool              `json:"allowInsecure"`
-	Transport     string            `json:"transport"`
-	HostKey       string            `json:"hostKey"`
-	Guided        bool              `json:"guided"`
+	Connection        Connection        `json:"connection"`
+	Values            map[string]string `json:"values"`
+	AllowInsecure     bool              `json:"allowInsecure"`
+	Transport         string            `json:"transport"`
+	HostKey           string            `json:"hostKey"`
+	Guided            bool              `json:"guided"`
+	ForgetCredentials bool              `json:"forgetCredentials,omitempty"`
 }
 type ConfigSession struct {
 	ID            string    `json:"id"`
@@ -84,6 +85,8 @@ type ConfigSession struct {
 	done          chan struct{}
 	closing       bool
 	rpc           RPC
+	browserOpened bool
+	browserError  string
 }
 
 func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr error) {
@@ -114,19 +117,55 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 			return "", fmt.Errorf("connection not found")
 		}
 		old := s.store.Connections[i]
+		if worker := s.workers[old.Remote]; worker != nil && !worker.Alive() && !s.busy[c.ID] {
+			s.mounted[c.ID] = false
+			s.stopConnection(old)
+		}
+		if old.SessionOnly != c.SessionOnly && old.Recovery {
+			return "", fmt.Errorf("Resolve pending recovery before changing credential storage.")
+		}
+		if !old.SessionOnly && c.SessionOnly && !input.ForgetCredentials {
+			return "", &FieldError{Field: "sessionOnly", Message: "Confirm removal of saved credentials before enabling session-only sign-in."}
+		}
+		if old.SessionOnly != c.SessionOnly {
+			ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
+			pending, err := s.cachedPending(ctx, old)
+			done()
+			if err != nil || pending != 0 {
+				return "", fmt.Errorf("unmount and resolve pending files before editing")
+			}
+		}
 		if s.mounted[c.ID] || s.busy[c.ID] {
 			return "", fmt.Errorf("unmount before reconfiguring")
+		}
+		if !old.SessionOnly {
+			if err := s.loadConnectionRPC(old); err != nil {
+				return "", err
+			}
 		}
 		oldRemote = old.Remote
 		if old.Recovery {
 			if c.Provider != old.Provider || c.Path != old.Path || c.Letter != old.Letter || c.ReadOnly != old.ReadOnly {
 				return "", fmt.Errorf("preserve provider, folder, letter and access mode during recovery")
 			}
+			if c.UploadLimit != old.UploadLimit || c.DownloadLimit != old.DownloadLimit || c.UseProxy != old.UseProxy || c.ConnectTimeout != old.ConnectTimeout || c.IdleTimeout != old.IdleTimeout || c.AlternateURL != old.AlternateURL {
+				return "", fmt.Errorf("Preserve network settings during pending recovery.")
+			}
+			browser, privateBrowser := c.Browser, c.PrivateBrowser
 			c = old
+			c.Browser, c.PrivateBrowser = browser, privateBrowser
 			inPlace = true
 		}
 	} else {
 		c.ID = newID()
+	}
+	if !input.Guided && (c.SessionOnly || c.AlternateURL != "") {
+		return "", fmt.Errorf("Use guided setup to verify the selected destination.")
+	}
+	if !inPlace {
+		c.ResourceID = ""
+		c.PrimaryURL = ""
+		c.Binding = ""
 	}
 	for _, existing := range s.store.Connections {
 		if existing.ID != c.ID && existing.Letter == c.Letter {
@@ -134,13 +173,29 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		}
 	}
 	p, _ := provider(c.Provider)
+	if c.AuthMethod == "" {
+		if p.OAuth {
+			c.AuthMethod = "oauth"
+		}
+		if p.ID == "gcs" && input.Values["service_account_file"] != "" {
+			c.AuthMethod = "serviceAccount"
+		}
+	}
+	if p.ID == "gcs" {
+		if c.AuthMethod == "serviceAccount" && input.Values["service_account_file"] == "" {
+			return "", fieldMessage("service_account_file", "validation.required", map[string]string{"label": "Service account JSON file"})
+		}
+		if c.AuthMethod == "oauth" && input.Values["service_account_file"] != "" {
+			return "", fmt.Errorf("Select one authentication method before continuing.")
+		}
+	}
 	params, err := parameters(p, input.Values, input.AllowInsecure, input.Transport)
 	if err != nil {
 		return "", err
 	}
 	sessionCtx, stop := context.WithCancel(context.Background())
 	ctx, cancel := context.WithTimeout(sessionCtx, 10*time.Minute)
-	ss := &ConfigSession{ID: newID(), Busy: true, connection: c, ConnectionID: c.ID, cancel: cancel, ctx: sessionCtx, stop: stop, rpc: s.rpc, done: make(chan struct{}), inPlace: inPlace, guided: input.Guided}
+	ss := &ConfigSession{ID: newID(), Busy: true, connection: c, ConnectionID: c.ID, cancel: cancel, ctx: sessionCtx, stop: stop, rpc: s.connectionRPC(c), done: make(chan struct{}), inPlace: inPlace, guided: input.Guided}
 	s.session = ss
 	done := ss.done
 	started := false
@@ -154,27 +209,40 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 			}
 		}
 	}()
-	getConfig := func(name string, out any) error {
+	getConfig := func(name string, out *map[string]string) error {
 		getCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 		defer stop()
+		legacy := s.rpc
 		s.mu.Unlock()
 		err := callRPC(getCtx, ss.rpc, "config/get", map[string]string{"name": name}, out)
+		if err == nil && len(*out) == 0 && ss.rpc != legacy && !c.SessionOnly {
+			err = callRPC(getCtx, legacy, "config/get", map[string]string{"name": name}, out)
+		}
+		if c.SessionOnly && c.Binding != "" {
+			err = json.Unmarshal([]byte(c.Binding), out)
+		}
 		s.mu.Lock()
 		if s.session != ss || ss.closing || ctx.Err() != nil {
 			return fmt.Errorf("setup changed; try again")
 		}
 		return err
 	}
-	if input.Guided {
-		if err = oauthParameters(p, params); err != nil {
-			if oldRemote == "" {
-				return "", err
-			}
+	if p.OAuth && !(p.ID == "gcs" && c.AuthMethod == "serviceAccount") {
+		if oldRemote != "" {
 			var existing map[string]string
-			if getErr := getConfig("sd_"+oldRemote, &existing); getErr != nil || existing["client_id"] == "" {
-				return "", err
+			err := getConfig("sd_"+oldRemote, &existing)
+			if err != nil {
+				return "", fmt.Errorf("could not load access details; cancel and try again")
 			}
-			params["client_id"], params["client_secret"] = existing["client_id"], existing["client_secret"]
+			if params["client_id"] == "" {
+				params["client_id"] = existing["client_id"]
+			}
+			if params["client_secret"] == "" && params["client_id"] == existing["client_id"] {
+				params["client_secret"] = existing["client_secret"]
+			}
+		}
+		if err = oauthParameters(p, params); err != nil {
+			return "", err
 		}
 	}
 	if p.ID == "sftp" {
@@ -192,6 +260,10 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		}
 	}
 	params["config_is_local"] = "true"
+	if s.startConnection != nil {
+		params["config_auth_no_browser"] = "true"
+	}
+	recreate := false
 	if inPlace {
 		var existing map[string]string
 		if err = getConfig("sd_"+c.Remote, &existing); err != nil {
@@ -210,6 +282,9 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 			}
 		}
 		for key, value := range params {
+			if (key == "disable_epsv" || key == "disable_mlsd") && value == "false" && existing[key] == "" {
+				continue
+			}
 			if key == "sas_url" {
 				next, _ := url.Parse(value)
 				old, _ := url.Parse(existing[key])
@@ -217,7 +292,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 					return "", fmt.Errorf("the SAS URL must keep the destination during recovery")
 				}
 			}
-			if key == "config_is_local" || key == "client_id" || key == "client_secret" || key == "scope" || key == "host_keys" || key == "access_key_id" || key == "service_account_file" || (key == "account" && p.ID == "b2") {
+			if key == "config_is_local" || key == "config_auth_no_browser" || key == "client_id" || key == "client_secret" || key == "scope" || key == "host_keys" || key == "access_key_id" || key == "service_account_file" || (key == "account" && p.ID == "b2") {
 				continue
 			}
 			secret := false
@@ -230,6 +305,16 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 				return "", fmt.Errorf("during recovery only renew credentials, keeping the server and username")
 			}
 		}
+		if p.OAuth {
+			recreate = true
+			for key, value := range destinationFields(c, existing) {
+				if key != "type" && key != "profile" && key != "path" {
+					if _, ok := params[key]; !ok {
+						params[key] = value
+					}
+				}
+			}
+		}
 		delete(params, "host_keys")
 		oldRemote = ""
 	} else {
@@ -238,13 +323,30 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		c.TargetHash = ""
 	}
 	delete(s.inspections, c.ID)
+	if ss.rpc, err = s.prepareConnection(ctx, c, inPlace && !recreate); err != nil {
+		return "", err
+	}
 	ss.connection, ss.oldRemote = c, oldRemote
 	id := ss.ID
-	started = true
 	method := "config/create"
 	if inPlace {
 		method = "config/update"
+		if (c.SessionOnly || recreate) && s.startConnection != nil {
+			method = "config/create"
+			var binding map[string]string
+			if c.SessionOnly && json.Unmarshal([]byte(c.Binding), &binding) != nil {
+				return "", fmt.Errorf("Invalid saved destination binding. Preserve pending files.")
+			}
+			for key, value := range binding {
+				if key != "type" && key != "profile" && key != "path" {
+					if _, ok := params[key]; !ok {
+						params[key] = value
+					}
+				}
+			}
+		}
 	}
+	started = true
 	go func() {
 		defer cancel()
 		defer close(done)
@@ -254,6 +356,9 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 }
 
 func (s *Service) configure(ctx context.Context, id string, rpc RPC, method string, input map[string]any) {
+	if s.startConnection != nil {
+		go s.launchAuthorization(ctx, id, rpc)
+	}
 	var result ConfigResult
 	err := callRPC(ctx, rpc, method, input, &result)
 	var config map[string]string
@@ -278,10 +383,16 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 	}()
 	if ctx.Err() != nil {
 		ss.Error = "Setup expired; cancel and try again"
+		if ss.browserError != "" {
+			ss.Error = ss.browserError
+		}
 		return
 	}
 	if err != nil {
 		ss.Error = setupFailure(err)
+		if ss.browserError != "" {
+			ss.Error = ss.browserError
+		}
 		return
 	}
 	ss.state = result.State
@@ -322,6 +433,12 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 
 // Caller holds s.mu; cancellation must never remove a committed remote.
 func (s *Service) commitConfig(ss *ConfigSession) string {
+	if i := s.index(ss.connection.ID); i >= 0 && !s.store.Connections[i].SessionOnly && ss.connection.SessionOnly && ss.oldRemote != "" {
+		if err := s.forgetRemote(ss.oldRemote); err != nil {
+			return "Could not remove saved credentials. Session-only mode was not enabled."
+		}
+		ss.oldRemote = ""
+	}
 	for _, other := range s.store.Connections {
 		if other.ID != ss.connection.ID && other.Letter == ss.connection.Letter {
 			return "The chosen letter was reserved by another connection. Cancel and choose another letter."
@@ -345,13 +462,18 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 		defer cancel()
 		name := ss.oldRemote
 		ss.Busy = true
+		oldRPC := s.connectionRPC(Connection{Remote: name})
 		s.mu.Unlock()
-		err := callRPC(ctx, ss.rpc, "config/delete", map[string]string{"name": "sd_" + name}, nil)
+		err := callRPC(ctx, oldRPC, "config/delete", map[string]string{"name": "sd_" + name}, nil)
+		if err == nil && oldRPC != s.rpc {
+			err = callRPC(ctx, s.rpc, "config/delete", map[string]string{"name": "sd_" + name}, nil)
+		}
 		s.mu.Lock()
 		ss.Busy = false
 		if err != nil {
 			return "Connection saved; old credential cleanup failed. Try Done again."
 		}
+		s.stopConnection(Connection{Remote: name})
 		ss.oldRemote = ""
 	}
 
@@ -424,10 +546,17 @@ func (s *Service) EndConfig(id string) (resultErr error) {
 	if !ss.Complete && !ss.inPlace {
 		name = ss.connection.Remote
 	}
+	cleanupRPC, legacy := rpc, s.rpc
+	if ss.Complete && name != "" {
+		cleanupRPC = s.connectionRPC(Connection{Remote: name})
+	}
 	s.mu.Unlock()
 	var cleanupErr error
-	if rpc != nil && rpc.Alive() && name != "" {
-		cleanupErr = rpc.Call(ctx, "config/delete", map[string]string{"name": "sd_" + name}, nil)
+	if cleanupRPC != nil && cleanupRPC.Alive() && name != "" {
+		cleanupErr = cleanupRPC.Call(ctx, "config/delete", map[string]string{"name": "sd_" + name}, nil)
+	}
+	if cleanupErr == nil && ss.Complete && name != "" && cleanupRPC != legacy {
+		cleanupErr = callRPC(ctx, legacy, "config/delete", map[string]string{"name": "sd_" + name}, nil)
 	}
 	s.mu.Lock()
 	if cleanupErr != nil {
@@ -435,6 +564,12 @@ func (s *Service) EndConfig(id string) (resultErr error) {
 	}
 	if s.session != ss {
 		return nil
+	}
+	if ss.Complete && name != "" {
+		s.stopConnection(Connection{Remote: name})
+	}
+	if !ss.inPlace && !ss.Complete || ss.connection.SessionOnly && !s.mounted[ss.connection.ID] {
+		s.stopConnection(ss.connection)
 	}
 	s.session = nil
 	return nil
@@ -484,17 +619,33 @@ func (s *Service) ConnectionFields(id string) (ConnectionFieldsView, error) {
 		return ConnectionFieldsView{}, fmt.Errorf("connection not found")
 	}
 	c := s.store.Connections[i]
-	rpc := s.rpc
+	if !c.SessionOnly {
+		if err := s.loadConnectionRPC(c); err != nil {
+			s.mu.Unlock()
+			return ConnectionFieldsView{}, err
+		}
+	}
+	rpc, legacy := s.connectionRPC(c), s.rpc
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var config map[string]string
-	if err := callRPC(ctx, rpc, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config); err != nil {
-		return ConnectionFieldsView{}, fmt.Errorf("could not load access details; cancel and try again")
+	if c.SessionOnly && c.Binding != "" {
+		_ = json.Unmarshal([]byte(c.Binding), &config)
+	}
+	if config == nil {
+		if err := callRPC(ctx, rpc, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config); err != nil {
+			return ConnectionFieldsView{}, fmt.Errorf("could not load access details; cancel and try again")
+		}
+	}
+	if len(config) == 0 && rpc != legacy && !c.SessionOnly {
+		if err := callRPC(ctx, legacy, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config); err != nil {
+			return ConnectionFieldsView{}, fmt.Errorf("could not load access details; cancel and try again")
+		}
 	}
 	s.mu.Lock()
 	current := s.index(id)
-	valid := s.rpc == rpc && current >= 0 && s.store.Connections[current] == c
+	valid := s.connectionRPC(c) == rpc && current >= 0 && s.store.Connections[current] == c
 	s.mu.Unlock()
 	if !valid {
 		return ConnectionFieldsView{}, fmt.Errorf("connection changed; try again")

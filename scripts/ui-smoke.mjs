@@ -12,8 +12,14 @@ await runSmoke(async ({ page, dav, exited, artifacts }) => {
     .click();
   assert.equal(
     await page.getByLabel("Connection type").locator("option").count(),
-    18,
+    12,
   );
+  assert.equal(await page.getByRole("tab", { name: "Basic", exact: true }).getAttribute("aria-selected"), "true");
+  await page.getByRole("tab", { name: "Advanced", exact: true }).click();
+  assert.equal(await page.getByLabel("Connection type").locator("option").count(), 7);
+  await page.getByText("These connections require additional setup.", { exact: false }).waitFor();
+  await page.getByRole("tab", { name: "Advanced", exact: true }).press("Home");
+  assert.equal(await page.getByRole("tab", { name: "Basic", exact: true }).getAttribute("aria-selected"), "true");
   await page.getByLabel("Connection type").selectOption("webdav");
   await page
     .getByRole("button", { name: "Continue", exact: true })
@@ -87,6 +93,6 @@ await runSmoke(async ({ page, dav, exited, artifacts }) => {
     .click();
   assert.equal(await exited, 0);
   console.log(
-    "Native Wails/WebView2 smoke: 18 profiles, real WebDAV wizard and folder browsing, cancellation, settings, English/Portuguese switching, safe exit — OK",
+    "Native Wails/WebView2 smoke: Basic/Advanced tabs and keyboard, 18 profiles, real WebDAV wizard and folder browsing, cancellation, settings, English/Portuguese switching, safe exit — OK",
   );
 });
