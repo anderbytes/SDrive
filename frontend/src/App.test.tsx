@@ -246,6 +246,7 @@ test("network form converts KiB limits to independent byte rates", async () => {
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
   fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(screen.getByRole("tab", { name: "Network" }));
   fireEvent.change(screen.getByLabelText("Download limit (KiB/s)"), { target: { value: "512" } });
   fireEvent.change(screen.getByLabelText("Upload limit (KiB/s)"), { target: { value: "128" } });
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
@@ -1744,8 +1745,10 @@ test("edit path errors remain associated with the entered path", async () => {
   vi.mocked(api.update).mockRejectedValue(new Error("path must not contain ..", { cause: { field: "path", message: "path must not contain .." } }));
   render(<App />);
   fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(screen.getByRole("tab", { name: "Files" }));
   const input = screen.getByLabelText("Folder / bucket / share") as HTMLInputElement;
   fireEvent.change(input, { target: { value: "../outside" } });
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   const error = await screen.findByText("path must not contain ..");
   expect(input.value).toBe("../outside");
@@ -2008,4 +2011,95 @@ test("only one drive tooltip opens and its content follows refreshed snapshots",
     expect(screen.getByRole("tooltip").textContent).toContain("Updated library");
     expect(screen.getByRole("tooltip").textContent).not.toContain("First library");
   } finally { vi.useRealTimers(); }
+});
+
+
+test.each(["en", "pt-BR"] as const)("edit tabs group settings and support keyboard navigation (%s)", async (language) => {
+  const english = language === "en";
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection], settings: { ...snapshot.settings, language } });
+  render(<App />);
+  fireEvent.click(await screen.findByText(english ? "Edit drive" : "Editar unidade"));
+  const general = screen.getByRole("tab", { name: english ? "General" : "Geral" });
+  const files = screen.getByRole("tab", { name: english ? "Files" : "Arquivos" });
+  const network = screen.getByRole("tab", { name: english ? "Network" : "Rede" });
+  expect(screen.getAllByRole("tab")).toHaveLength(3);
+  expect(general.getAttribute("aria-selected")).toBe("true");
+  expect(screen.getByRole("tabpanel").id).toBe(general.getAttribute("aria-controls"));
+  expect(within(screen.getByRole("tabpanel")).getByLabelText(english ? "Drive name" : "Nome da unidade")).toBeTruthy();
+  fireEvent.keyDown(general, { key: "ArrowRight" });
+  expect(document.activeElement).toBe(files);
+  expect(screen.getByRole("tabpanel").id).toBe(files.getAttribute("aria-controls"));
+  const panel = screen.getByRole("tabpanel");
+  expect(panel.querySelector('[data-field="path"]')).toBeTruthy();
+  expect(panel.querySelector('[data-field="directoryCacheSeconds"]')).toBeTruthy();
+  expect(panel.querySelector('[data-field="bandwidth"]')).toBeNull();
+  fireEvent.keyDown(files, { key: "End" });
+  expect(document.activeElement).toBe(network);
+  expect(screen.getByRole("tabpanel").querySelector('[data-field="bandwidth"]')).toBeTruthy();
+  fireEvent.keyDown(network, { key: "ArrowRight" });
+  expect(document.activeElement).toBe(general);
+  fireEvent.keyDown(general, { key: "ArrowLeft" });
+  expect(document.activeElement).toBe(network);
+  fireEvent.keyDown(network, { key: "Home" });
+  expect(document.activeElement).toBe(general);
+});
+
+test("editing preserves values across tabs and saves them together", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  vi.mocked(api.update).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "Renamed drive" } });
+  fireEvent.click(screen.getByLabelText("Connect automatically when SDrive starts"));
+  fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+  fireEvent.change(screen.getByLabelText("Folder / bucket / share"), { target: { value: "Documents" } });
+  fireEvent.change(screen.getByLabelText("Directory metadata lifetime (seconds)"), { target: { value: "600" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Network" }));
+  fireEvent.change(screen.getByLabelText("Download limit (KiB/s)"), { target: { value: "512" } });
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  expect((screen.getByLabelText("Drive name") as HTMLInputElement).value).toBe("Renamed drive");
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({
+    name: "Renamed drive", autoMount: true, path: "Documents", directoryCacheSeconds: 600, downloadLimit: 512 * 1024,
+  })));
+});
+
+test("server errors reveal the network tab and focus the invalid field", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  vi.mocked(api.update).mockRejectedValue(new Error("Invalid bandwidth", { cause: { field: "bandwidth", message: "Invalid bandwidth" } }));
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await screen.findByText("Invalid bandwidth");
+  await waitFor(() => expect(screen.getByRole("tab", { name: "Network" }).getAttribute("aria-selected")).toBe("true"));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Download limit (KiB/s)")));
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  expect(screen.getByRole("tab", { name: "General" }).getAttribute("aria-selected")).toBe("true");
+});
+
+test.each(["name", "directoryCacheSeconds", "bandwidth"])("native validation reveals a hidden invalid field (%s)", async (field) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  const dialog = screen.getByRole("dialog");
+  const input = dialog.querySelector<HTMLInputElement>(`[data-field="${field}"]`)!;
+  const panel = input.closest<HTMLElement>('[role="tabpanel"]')!;
+  fireEvent.change(input, { target: { value: field === "name" ? "" : "-1" } });
+  fireEvent.click(screen.getByRole("tab", { name: field === "name" ? "Files" : "General" }));
+  expect(panel.hidden).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  expect(panel.hidden).toBe(false);
+  expect(api.update).not.toHaveBeenCalled();
+});
+
+test("multiple invalid panels keep the first invalid field visible", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+  fireEvent.change(screen.getByLabelText("Directory metadata lifetime (seconds)"), { target: { value: "-1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  expect(screen.getByRole("tab", { name: "General" }).getAttribute("aria-selected")).toBe("true");
+  expect(api.update).not.toHaveBeenCalled();
 });

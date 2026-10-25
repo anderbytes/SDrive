@@ -594,3 +594,9 @@ header, .summary, .actions, .modal-actions, .alert { flex-wrap: wrap; }
   .drive-tooltip, .detail-attention { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
   .drive-detail-icon.attention { color: LinkText; }
 }
+
+.edit-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.edit-tabs [aria-selected="true"] { color: #61e0bb; background: #183c35; border-color: #61e0bb; font-weight: 650; }
+@media (forced-colors: active) {
+  .edit-tabs [aria-selected="true"] { color: HighlightText; background: Highlight; border-color: Highlight; }
+}

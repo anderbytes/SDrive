@@ -35,6 +35,7 @@ export function useConnectionWizard({
   useEffect(() => { let active = true; void api.browsers().then((value) => { if (active) setBrowsers(value); }).catch(() => {}); return () => { active = false; }; }, []);
   const [state, dispatch] = useReducer(wizardReducer, initialWizardState(initial, auth));
   const { step } = state;
+  const [editTab, setEditTab] = useState("general");
   const sessionID = "sessionID" in state ? state.sessionID : "";
   const session = state.step === "auth" ? state.session : undefined;
   const saved = "saved" in state ? state.saved : undefined;
@@ -175,6 +176,12 @@ export function useConnectionWizard({
       if (parent instanceof HTMLDetailsElement) parent.open = true;
       parent = parent.parentElement;
     }
+    const panel = input.closest<HTMLElement>("[data-edit-tab]");
+    if (panel?.hidden && panel.dataset.editTab) {
+      setEditTab(panel.dataset.editTab);
+      const frame = requestAnimationFrame(() => input.focus());
+      return () => cancelAnimationFrame(frame);
+    }
     input.focus();
   }, [fieldError, busy, loading]);
   useEffect(() => {
@@ -303,7 +310,7 @@ export function useConnectionWizard({
     noLetters, letterLocked, letters, question, destinationLocked, visibleFolders, navigate,
     validationProps, fieldFeedback, setValue, begin, dispatch, setValues, fieldsLoaded,
     setFolderLoad, setFolderRequest, answerQuestion, connect,
-    category, selectCategory, serviceMethods, selectMethod, browsers, forgetCredentials, setForgetCredentials,
+    editTab, setEditTab, category, selectCategory, serviceMethods, selectMethod, browsers, forgetCredentials, setForgetCredentials,
   };
 }
 

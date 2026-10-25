@@ -1,7 +1,8 @@
+import { flushSync } from "react-dom";
 import { MountDestination } from "./MountDestination";
 import { TransportCapability } from "../TransportSecurity";
 import { advancedDisclaimer, methodKey, oauthInstructions } from "./methods";
-import { ConnectionOptions } from "./ConnectionOptions";
+import { ConnectionOptions, DirectoryCacheOptions, NetworkOptions } from "./ConnectionOptions";
 import { api } from "../api";
 import { useConnectionWizard, type EditorProps } from "./useConnectionWizard";
 import { AccessFields } from "./AccessFields";
@@ -16,7 +17,7 @@ export function ConnectionEditor(props: EditorProps) {
     setIdentity, trusted, setTrusted, session, busy, loading, error,
     fieldID, savedID, p, change, action, close, dialog,
     unavailable, noLetters, validationProps, fieldFeedback, begin, dispatch, setValues,
-    fieldsLoaded,
+    fieldsLoaded, editTab, setEditTab,
   } = wizard;
   return (
     <dialog
@@ -302,55 +303,89 @@ export function ConnectionEditor(props: EditorProps) {
         )}
         {step === "edit" && (
           <form
+            onInvalidCapture={(e) => {
+              const firstInvalid = e.currentTarget.querySelector("input:invalid, select:invalid, textarea:invalid");
+              if (e.target !== firstInvalid) {
+                e.preventDefault();
+                return;
+              }
+              const tab = firstInvalid?.closest<HTMLElement>("[data-edit-tab]")?.dataset.editTab;
+              if (tab && tab !== editTab) flushSync(() => setEditTab(tab));
+            }}
             onSubmit={(e) => {
               e.preventDefault();
               void update();
             }}
           >
-            <label>
-              {t("Drive name")}
-              <input
-                {...validationProps("name")}
-                required
-                value={connection.name}
-                onChange={(e) => change({ name: e.target.value })}
-              />
-            </label>
-            {fieldFeedback("name")}
-            <MountDestination wizard={wizard} />
-            <label>
-              {t("Folder / bucket / share")}
-              <input
-                {...validationProps("path")}
-                value={connection.path}
-                onChange={(e) => change({ path: e.target.value })}
-              />
-            </label>
-            {fieldFeedback("path")}
-            <ConnectionOptions wizard={wizard} />
-            <label className="check">
-              <input
-                type="checkbox"
-                aria-describedby={`${fieldID}-readonly-help`}
-                checked={connection.readOnly}
-                disabled={connection.provider === "drive"}
-                onChange={(e) => change({ readOnly: e.target.checked })}
-              />
-              {t("Mount read only")}
-            </label>
-            <small id={`${fieldID}-readonly-help`}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</small>
-            {connection.provider === "drive" && <p>{t("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")}</p>}
-            <label className="check">
-              <input
-                type="checkbox"
-                aria-describedby={`${fieldID}-automount-help`}
-                disabled={connection.sessionOnly}
-                    checked={connection.autoMount}
-                onChange={(e) => change({ autoMount: e.target.checked })}
-              />
-              {t("Connect automatically when SDrive starts")}
-            </label>
-            <small id={`${fieldID}-automount-help`}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</small>
+            <div className="edit-tabs" role="tablist" aria-label={t("Drive settings")}>
+              {(["general", "files", "network"] as const).map((tab, index, tabs) => (
+                <button key={tab} id={`${fieldID}-edit-${tab}-tab`} type="button" role="tab"
+                  aria-selected={editTab === tab} aria-controls={`${fieldID}-edit-${tab}-panel`}
+                  tabIndex={editTab === tab ? 0 : -1}
+                  onClick={() => setEditTab(tab)}
+                  onKeyDown={(e) => {
+                    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+                    e.preventDefault();
+                    const next = e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[tabs.length - 1]
+                      : tabs[(index + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+                    setEditTab(next);
+                    document.getElementById(`${fieldID}-edit-${next}-tab`)?.focus();
+                  }}>
+                  {t(tab === "general" ? "General" : tab === "files" ? "Files" : "Network")}
+                </button>
+              ))}
+            </div>
+            <div id={`${fieldID}-edit-general-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-general-tab`} data-edit-tab="general" hidden={editTab !== "general"}>
+              <label>
+                {t("Drive name")}
+                <input
+                  {...validationProps("name")}
+                  required
+                  value={connection.name}
+                  onChange={(e) => change({ name: e.target.value })}
+                />
+              </label>
+              {fieldFeedback("name")}
+              <MountDestination wizard={wizard} />
+              <label className="check">
+                <input
+                  type="checkbox"
+                  aria-describedby={`${fieldID}-readonly-help`}
+                  checked={connection.readOnly}
+                  disabled={connection.provider === "drive"}
+                  onChange={(e) => change({ readOnly: e.target.checked })}
+                />
+                {t("Mount read only")}
+              </label>
+              <small id={`${fieldID}-readonly-help`}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</small>
+              {connection.provider === "drive" && <p>{t("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")}</p>}
+              <label className="check">
+                <input
+                  type="checkbox"
+                  aria-describedby={`${fieldID}-automount-help`}
+                  disabled={connection.sessionOnly}
+                      checked={connection.autoMount}
+                  onChange={(e) => change({ autoMount: e.target.checked })}
+                />
+                {t("Connect automatically when SDrive starts")}
+              </label>
+              <small id={`${fieldID}-automount-help`}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</small>
+            </div>
+            <div id={`${fieldID}-edit-files-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-files-tab`} data-edit-tab="files" hidden={editTab !== "files"}>
+              <label>
+                {t("Folder / bucket / share")}
+                <input
+                  {...validationProps("path")}
+                  value={connection.path}
+                  onChange={(e) => change({ path: e.target.value })}
+                />
+              </label>
+              {fieldFeedback("path")}
+              <DirectoryCacheOptions wizard={wizard} />
+            </div>
+            <div id={`${fieldID}-edit-network-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-network-tab`} data-edit-tab="network" hidden={editTab !== "network"}>
+              <NetworkOptions wizard={wizard} />
+            </div>
             <div className="modal-actions">
               <button type="button" disabled={busy} onClick={close}>
                 {t("Cancel")}
