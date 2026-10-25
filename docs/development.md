@@ -269,6 +269,12 @@ Both variants verify SHA-256, Authenticode signature and publisher CN through na
 
 The package runs without elevation, preserves the original user and elevates only the WinFsp MSI. Exit codes 0 and 3010 mean success and success with restart pending. Authorization cancellation or installation failure prevents reporting completion. WebView2 is installed using `/silent /install`, following [Microsoft documentation](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution#offline-deployment).
 
+Uninstallation offers **Retry / Cancel** for an active data lock or legacy mutex, failed Explorer icon cleanup, and failed removal of owned files or Windows registration. Close SDrive using **Exit safely**, resolve the reported blocker and retry in the same window. Retrying an initial check or icon cleanup repeats the safety checks; retrying removal repeats only the failed operation. Handles opened by the checks are closed before prompting. A mismatched installation directory remains a terminal error. Silent uninstallation (`/S`) returns exit code 1 on these failures without prompting or looping; successful removal returns 0. New messages support English and Brazilian Portuguese, selected by the Windows language with English as the default.
+
+The uninstall entry is removed after owned files have been deleted. User configuration, credentials, cache and shared prerequisites remain untouched; unowned files in the installation root are retained. Cancellation after deletion starts can leave a partially removed installation; there is no rollback. Repair by reinstalling if a later uninstall session cannot continue.
+
+Run `./scripts/test-uninstall.ps1` for focused native NSIS regression checks (requires the existing compiler in `.tools/nsis/nsis-3.12`, or pass `-Compiler`). The harness compiles the production uninstall section with isolated paths, a temporary registry key and a fake icon-cleanup executable. It exercises real file locks, the legacy mutex, repeated retries, cancellation, icon-cleanup failures, directory validation and silent failures in both languages. Only fixture dialogs are automated; the personal installation and shared components are not used.
+
 ## Installer acceptance on a clean machine
 
 Run these scenarios in a disposable Windows 11 x64 VM; do not remove shared components from your workstation to simulate their absence:
@@ -281,6 +287,7 @@ Run these scenarios in a disposable Windows 11 x64 VM; do not remove shared comp
 - Use a standard user and authorize with another administrator; data and credentials must stay in the original user's profile.
 - Cancel authorization, simulate MSI failure and test exit code 3010; no automatic restart or false success.
 - Run the installer again for repair, update while preserving connections/cache, and uninstall while preserving data/shared components.
+- In both languages, start uninstalling with SDrive running, retry while it is still running, exit safely and retry successfully in the same window. Repeat with cancellation and an owned file held open; confirm `/S` fails without a prompt when blocked. These product-level VM checks complement the isolated regression harness.
 - Confirm users do not need to run terminals or commands.
 
 These scenarios require the VM and UAC interaction. Compiling NSIS and running mocked tests do not replace this validation.

@@ -2,6 +2,7 @@ Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "x64.nsh"
+!include "uninstall-retry.nsh"
 Name "SDrive"
 !ifdef OFFLINE
   OutFile "..\bin\SDrive-0.1.0-offline-setup.exe"
@@ -29,6 +30,18 @@ Var WebViewReboot
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
+!insertmacro MUI_LANGUAGE "PortugueseBR"
+
+LangString UninstallRunning ${LANG_ENGLISH} "Close SDrive in all Windows sessions using Exit safely, then choose Retry to continue uninstalling."
+LangString UninstallRunning ${LANG_PORTUGUESEBR} "Feche o SDrive em todas as sessões do Windows usando Sair com segurança e clique em Tentar novamente para continuar a desinstalação."
+LangString UninstallIconsFailed ${LANG_ENGLISH} "Could not remove SDrive's Explorer icons. If needed, open SDrive, turn off service icons and exit safely. Choose Retry to try again."
+LangString UninstallIconsFailed ${LANG_PORTUGUESEBR} "Não foi possível remover os ícones do SDrive no Explorador. Se necessário, abra o SDrive, desative os ícones dos serviços e saia com segurança. Clique em Tentar novamente."
+LangString UninstallRemoveFailed ${LANG_ENGLISH} "Could not remove $3. Close applications using it or resolve the access problem, then choose Retry."
+LangString UninstallRemoveFailed ${LANG_PORTUGUESEBR} "Não foi possível remover $3. Feche os aplicativos que usam esse caminho ou resolva o problema de acesso e clique em Tentar novamente."
+LangString UninstallDirectoryMismatch ${LANG_ENGLISH} "The installation directory does not match SDrive's registry entry."
+LangString UninstallDirectoryMismatch ${LANG_PORTUGUESEBR} "A pasta de instalação não corresponde ao registro do SDrive."
+LangString UninstallRegistryFailed ${LANG_ENGLISH} "Could not remove SDrive's Windows registration. Resolve the registry access problem, then choose Retry."
+LangString UninstallRegistryFailed ${LANG_PORTUGUESEBR} "Não foi possível remover o registro do SDrive no Windows. Resolva o problema de acesso ao registro e clique em Tentar novamente."
 
 Function .onInit
   ${IfNot} ${IsNativeAMD64}
@@ -59,14 +72,19 @@ Function FinishShow
 FunctionEnd
 
 ; Probe the same file handle lock used across Windows sessions by the application.
-!macro CheckDataLock MESSAGE
+!macro CheckDataLock MESSAGE RETRY
   System::Call 'kernel32::CreateFileW(w "$LOCALAPPDATA\SDrive\instance.lock", i 0xC0000000, i 0, p 0, i 3, i 0x80, p 0) p.r0 ?e'
   Pop $1
   ${If} $0 == -1
     ${If} $1 != 2
     ${AndIf} $1 != 3
-      MessageBox MB_OK|MB_ICONEXCLAMATION "${MESSAGE}"
-      Abort
+      !if "${RETRY}" != ""
+        !insertmacro UninstallRetry "${MESSAGE}"
+        Goto ${RETRY}
+      !else
+        MessageBox MB_OK|MB_ICONEXCLAMATION "${MESSAGE}"
+        Abort
+      !endif
     ${EndIf}
   ${Else}
     System::Call 'kernel32::CloseHandle(p r0)'
@@ -74,7 +92,7 @@ FunctionEnd
 !macroend
 
 Function CheckRunning
-  !insertmacro CheckDataLock "Close SDrive in all Windows sessions using Exit safely before installing or updating."
+  !insertmacro CheckDataLock "Close SDrive in all Windows sessions using Exit safely before installing or updating." ""
   ReadEnvStr $1 "USERNAME"
   System::Call 'kernel32::OpenMutexW(i 0x100000, i 0, w "Local\SDrive-$1") p.r0'
   ${If} $0 <> 0
@@ -196,39 +214,59 @@ Section "SDrive"
 SectionEnd
 
 Section "Uninstall"
-  !insertmacro CheckDataLock "Close SDrive in all Windows sessions using Exit safely before uninstalling."
+  retry_uninstall_checks:
   ReadRegStr $2 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "InstallLocation"
   ${If} $2 != $INSTDIR
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The installation directory does not match SDrive's registry entry."
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(UninstallDirectoryMismatch)" /SD IDOK
+    SetErrorLevel 1
     Abort
   ${EndIf}
+  !insertmacro CheckDataLock "$(UninstallRunning)" retry_uninstall_checks
   ReadEnvStr $1 "USERNAME"
   System::Call 'kernel32::OpenMutexW(i 0x100000, i 0, w "Local\SDrive-$1") p.r0'
   ${If} $0 <> 0
     System::Call 'kernel32::CloseHandle(p r0)'
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Close SDrive using Exit safely before uninstalling."
-    Abort
+    !insertmacro UninstallRetry "$(UninstallRunning)"
+    Goto retry_uninstall_checks
   ${EndIf}
   ; Never delete caches or credentials: pending uploads may still need recovery.
-	ClearErrors
-	ExecWait '"$INSTDIR\SDrive.exe" --cleanup-drive-icons' $0
-	${If} ${Errors}
-	${OrIf} $0 != 0
-	  MessageBox MB_OK|MB_ICONEXCLAMATION "Could not remove SDrive's Explorer icons. Run SDrive, turn off service icons, exit safely, and retry uninstalling."
-	  Abort
-	${EndIf}
-  Delete "$SMPROGRAMS\SDrive.lnk"
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "SDrive"
+  ClearErrors
+  ExecWait '"$INSTDIR\SDrive.exe" --cleanup-drive-icons' $0
+  ${If} ${Errors}
+  ${OrIf} $0 != 0
+    !insertmacro UninstallRetry "$(UninstallIconsFailed)"
+    Goto retry_uninstall_checks
+  ${EndIf}
+  !insertmacro RemoveInstalledPath Delete "$SMPROGRAMS\SDrive.lnk"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\rclone.exe"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\LICENSE"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\README.md"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\THIRD_PARTY_NOTICES.md"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\SDrive-source.zip"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\rclone-source.zip"
+  !insertmacro RemoveInstalledPath "RMDir /r" "$INSTDIR\licenses"
+  !insertmacro RemoveInstalledPath "RMDir /r" "$INSTDIR\docs"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\SDrive.exe"
+  !insertmacro RemoveInstalledPath Delete "$INSTDIR\Uninstall.exe"
+  ClearErrors
+  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "SDrive"
+  ${IfNot} ${Errors}
+    retry_remove_startup:
+    ClearErrors
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "SDrive"
+    ${If} ${Errors}
+      !insertmacro UninstallRetry "$(UninstallRegistryFailed)"
+      Goto retry_remove_startup
+    ${EndIf}
+  ${EndIf}
+  retry_remove_registration:
+  ClearErrors
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive"
-  Delete "$INSTDIR\SDrive.exe"
-  Delete "$INSTDIR\rclone.exe"
-  Delete "$INSTDIR\LICENSE"
-  Delete "$INSTDIR\README.md"
-  Delete "$INSTDIR\THIRD_PARTY_NOTICES.md"
-  Delete "$INSTDIR\SDrive-source.zip"
-  Delete "$INSTDIR\rclone-source.zip"
-  RMDir /r "$INSTDIR\licenses"
-  RMDir /r "$INSTDIR\docs"
-  Delete "$INSTDIR\Uninstall.exe"
+  ${If} ${Errors}
+    !insertmacro UninstallRetry "$(UninstallRegistryFailed)"
+    Goto retry_remove_registration
+  ${EndIf}
+  ; Leave any files not owned by the installer in place.
   RMDir "$INSTDIR"
+  SetErrorLevel 0
 SectionEnd

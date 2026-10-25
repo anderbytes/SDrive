@@ -21,6 +21,10 @@ jobs:
         timeout-minutes: 6
         shell: pwsh
         run: node scripts/ui-smoke.mjs
+      - name: Uninstall retry regression checks
+        timeout-minutes: 2
+        shell: pwsh
+        run: ./scripts/test-uninstall.ps1
       - name: Race detector (Windows x64, GCC)
         env:
           SDRIVE_TEST_ENGINE: '1'
