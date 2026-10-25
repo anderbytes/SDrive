@@ -345,6 +345,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		c.TargetHash = ""
 	}
 	delete(s.inspections, c.ID)
+	delete(s.transportInspections, c.ID)
 	if ss.rpc, err = s.prepareConnection(ctx, c, inPlace && !recreate); err != nil {
 		return "", err
 	}
@@ -495,6 +496,7 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 	}
 	ss.Complete = true
 	delete(s.inspections, ss.connection.ID)
+	delete(s.transportInspections, ss.connection.ID)
 
 	if ss.oldRemote != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

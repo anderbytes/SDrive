@@ -471,6 +471,12 @@
         "free": null,
         "checkedAt": null,
         "state": ""
+      },
+      "transportSecurity": {
+        "state": "",
+        "protocol": "",
+        "source": "",
+        "checkedAt": null
       }
     },
     "dynamicFieldError": {
@@ -606,7 +612,8 @@
       "experimental": false,
       "fields": null,
       "oauth": false,
-      "available": false
+      "available": false,
+      "transportEncryption": ""
     },
     "questionEmpty": {
       "Name": "",
@@ -733,7 +740,8 @@
           ],
           "oauth": false,
           "available": true,
-          "notice": "Synthetic provider"
+          "notice": "Synthetic provider",
+          "transportEncryption": ""
         }
       ],
       "connections": [
@@ -793,6 +801,12 @@
             "free": null,
             "checkedAt": null,
             "state": ""
+          },
+          "transportSecurity": {
+            "state": "",
+            "protocol": "",
+            "source": "",
+            "checkedAt": null
           }
         }
       ],

@@ -76,6 +76,7 @@ const connection: ConnectionView = {
   autoMount: false,
   recovery: false,
   targetHash: "",
+  transportSecurity: { state: "disconnected", protocol: "", source: "", checkedAt: null },
   mounted: false,
   busy: false,
   operation: "",
@@ -95,7 +96,7 @@ const snapshot = {
     {
       id: "drive",
       name: "Google Drive",
-      backend: "drive",
+      backend: "drive", transportEncryption: "required",
       experimental: false,
       fields: [],
       oauth: true,
@@ -238,7 +239,7 @@ test("Connect on a session-only drive requests authentication instead of mountin
 });
 
 test("network form converts KiB limits to independent byte rates", async () => {
-  const webdav = { ...snapshot.providers[0], id: "webdav", name: "WebDAV", backend: "webdav", oauth: false };
+  const webdav = { ...snapshot.providers[0], id: "webdav", name: "WebDAV", backend: "webdav", transportEncryption: "optional", oauth: false };
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [webdav], connections: [{ ...connection, provider: "webdav" }] });
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
@@ -661,7 +662,7 @@ test("provider question accepts MFA and does not persist it in browser storage",
 });
 
 const ftpProvider = { oauth: false,
-  id: "ftp", name: "FTP / FTPS", backend: "ftp", experimental: false, available: true,
+  id: "ftp", name: "FTP / FTPS", backend: "ftp", transportEncryption: "optional", experimental: false, available: true,
   fields: [
     { advanced: false, file: false, key: "host", label: "Server", secret: false, required: true, default: "" },
     { advanced: false, file: false, key: "user", label: "Username", secret: false, required: true, default: "" },
@@ -677,7 +678,7 @@ test.each(["en", "pt-BR"])("drive labels and experimental text follow %s without
   });
   render(<App />);
   await screen.findByRole("region", { name: language === "en" ? "Drives" : "Unidades" });
-  expect(screen.getByRole("heading", { name: "Root" })).toBeDefined();
+  expect(await screen.findByRole("heading", { name: "Root" })).toBeDefined();
   expect(screen.getByText("Google Drive · Experimental · My drives")).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "+ New connection" : "+ Nova conexão" }));
   selectAvailableCategory();
@@ -998,7 +999,7 @@ test("GCS service-account access is in Basic without OAuth fields", async () => 
       {
         id: "gcs",
         name: "Google Cloud Storage",
-        backend: "google cloud storage",
+        backend: "google cloud storage", transportEncryption: "required",
         experimental: false,
         oauth: true,
         available: true,
@@ -1319,7 +1320,7 @@ test.each(["en", "pt-BR"])("no letters still allows folder-mount creation (%s)",
   render(<App />);
   const english = language === "en";
   const create = await screen.findByRole("button", { name: english ? "+ New connection" : "+ Nova conexão" });
-  expect((create as HTMLButtonElement).disabled).toBe(false);
+  await waitFor(() => expect((create as HTMLButtonElement).disabled).toBe(false));
   expect((screen.getByRole("button", { name: english ? "Add my first connection" : "Adicionar minha primeira conexão" }) as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(create);
   expect(screen.getByRole("dialog")).toBeDefined();
@@ -1712,7 +1713,7 @@ test.each(["en", "pt-BR"])("URL errors are accessible and preserve the address (
   const message = "url must be an HTTPS URL without embedded credentials";
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot,
     settings: { ...snapshot.settings, language: language as "en" | "pt-BR" },
-    providers: [...snapshot.providers, { oauth: false, available: true, id: "webdav", name: "WebDAV", backend: "webdav", experimental: false,
+    providers: [...snapshot.providers, { oauth: false, available: true, id: "webdav", name: "WebDAV", backend: "webdav", transportEncryption: "optional", experimental: false,
       fields: [{ advanced: false, file: false, key: "url", label: "WebDAV HTTPS URL", secret: false, required: true, default: "" }] }],
     connections: [{ ...connection, provider: "webdav" }],
   });
@@ -1786,7 +1787,7 @@ test("engine restart reports failure, prevents duplicate requests and preserves 
 });
 
 test("SSH identity probing retries and requires fresh trust after changing the server", async () => {
-  const sftp = { ...ftpProvider, id: "sftp", name: "SFTP", backend: "sftp", fields: [
+  const sftp = { ...ftpProvider, id: "sftp", name: "SFTP", backend: "sftp", transportEncryption: "required", fields: [
     ...ftpProvider.fields,
     { advanced: true, file: false, key: "port", label: "Port (optional)", secret: false, required: false, default: "" },
   ] };

@@ -52,6 +52,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 			delete(s.operations, id)
 			s.snapshotID++
 			delete(s.inspections, id)
+			delete(s.transportInspections, id)
 		}
 		if record && resultErr != nil {
 			s.recordConnectionError(id, resultErr)
@@ -128,6 +129,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 	s.operations[id] = "validating"
 	s.snapshotID++
 	delete(s.inspections, id)
+	delete(s.transportInspections, id)
 	s.mu.Unlock()
 	ctxTarget, cancelTarget := context.WithTimeout(context.Background(), 45*time.Second)
 	var config map[string]string
@@ -166,6 +168,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 	s.operations[id] = "mounting"
 	s.snapshotID++
 	delete(s.inspections, id)
+	delete(s.transportInspections, id)
 	options := mountOptions(c, s.store.Settings)
 	if err = s.availableMount(c); err != nil {
 		return err
@@ -190,6 +193,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 	s.mu.Lock()
 	i = s.index(id)
 	delete(s.inspections, id)
+	delete(s.transportInspections, id)
 	if err != nil {
 		checkCtx, done := context.WithTimeout(context.Background(), 3*time.Second)
 		defer done()
@@ -285,6 +289,7 @@ func (s *Service) unmount(id string) (resultErr error) {
 	s.operations[id] = "checkingUploads"
 	s.snapshotID++
 	delete(s.inspections, id)
+	delete(s.transportInspections, id)
 	s.mu.Unlock()
 	unmounted, err := s.drainAndUnmount(c)
 	s.mu.Lock()
@@ -293,6 +298,7 @@ func (s *Service) unmount(id string) (resultErr error) {
 	delete(s.operations, id)
 	s.snapshotID++
 	delete(s.inspections, id)
+	delete(s.transportInspections, id)
 	if unmounted {
 		delete(s.mounted, id)
 	}

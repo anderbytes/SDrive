@@ -37,7 +37,7 @@ for (const binary of ["SDrive.exe", "rclone.exe"]) {
   );
   const info = JSON.parse(stdout);
   for (const module of [info, ...info.Deps]) {
-    const dep = module.Replace || module;
+    const dep = module.Replace?.Version && module.Replace.Version !== "(devel)" ? module.Replace : module;
     const name = dep.Path;
     const version = dep.Version;
     if (name && version && version !== "(devel)")
@@ -125,6 +125,18 @@ await Promise.all(
           module.Zip,
           path.join(root, "bin", "rclone-source.zip"),
         );
+        await mkdir(path.join(destination, "engine-overlay"), { recursive: true });
+        for (const entry of await readdir(path.join(root, "scripts/engine-overlay"))) {
+          await copyWritable(path.join(root, "scripts/engine-overlay", entry), path.join(destination, "engine-overlay", entry));
+        }
+        for (const entry of ["bootstrap.ps1", "engine-overlay.ps1"]) {
+          await copyWritable(path.join(root, "scripts", entry), path.join(destination, "engine-overlay", entry));
+        }
+        await copyWritable(path.join(root, ".tools/rclone/build.json"), path.join(destination, "engine-overlay/build.json"));
+      }
+      if (id === "github.com/cloudsoda/go-smb2@v0.0.0-20260701064823-d8c5600d73b8") {
+        await mkdir(path.join(destination, "engine-overlay"), { recursive: true });
+        await copyWritable(module.Zip, path.join(destination, "engine-overlay", "go-smb2-source.zip"));
       }
       completed++;
       if (completed % 30 === 0)

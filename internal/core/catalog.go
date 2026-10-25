@@ -20,15 +20,16 @@ type Field struct {
 }
 
 type Provider struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	Backend      string            `json:"backend"`
-	Experimental bool              `json:"experimental"`
-	Fields       []Field           `json:"fields"`
-	Defaults     map[string]string `json:"-"`
-	OAuth        bool              `json:"oauth"`
-	Available    bool              `json:"available"`
-	Notice       string            `json:"notice,omitempty"`
+	TransportEncryption string            `json:"transportEncryption"`
+	ID                  string            `json:"id"`
+	Name                string            `json:"name"`
+	Backend             string            `json:"backend"`
+	Experimental        bool              `json:"experimental"`
+	Fields              []Field           `json:"fields"`
+	Defaults            map[string]string `json:"-"`
+	OAuth               bool              `json:"oauth"`
+	Available           bool              `json:"available"`
+	Notice              string            `json:"notice,omitempty"`
 }
 
 func field(key, label string, secret, required bool) Field {
@@ -62,6 +63,11 @@ func Catalog() []Provider {
 	}
 	for i := range providers {
 		p := &providers[i]
+		p.TransportEncryption = "required"
+		switch p.ID {
+		case "nextcloud", "owncloud", "webdav", "ftp", "s3", "azureblob", "mega", "smb":
+			p.TransportEncryption = "optional"
+		}
 		p.Available = true
 		for j := range p.Fields {
 			f := &p.Fields[j]

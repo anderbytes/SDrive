@@ -48,6 +48,7 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
   expectTypeOf<keyof FieldError>().toEqualTypeOf<keyof typeof samples.dynamicFieldError>();
   expectTypeOf<keyof ConnectionView["cache"]>().toEqualTypeOf<keyof typeof connection.cache>();
   expectTypeOf<keyof ConnectionView["capacity"]>().toEqualTypeOf<keyof typeof connection.capacity>();
+  expectTypeOf<keyof ConnectionView["transportSecurity"]>().toEqualTypeOf<keyof typeof connection.transportSecurity>();
   expectTypeOf<keyof MountTarget>().toEqualTypeOf<keyof typeof samples.mountTarget>();
   expectTypeOf<keyof NonNullable<ConnectionView["uploads"]>>().toEqualTypeOf<keyof typeof connection.uploads>();
   expectTypeOf<ConnectionView["pending"]>().toEqualTypeOf<number | null>();

@@ -39,15 +39,16 @@ type View struct {
 }
 type ConnectionView struct {
 	Connection
-	Mounted      bool          `json:"mounted"`
-	Pending      *int          `json:"pending"`
-	Busy         bool          `json:"busy"`
-	Operation    string        `json:"operation"`
-	Error        string        `json:"error"`
-	ErrorMessage *i18n.Message `json:"errorMessage,omitempty"`
-	Uploads      *UploadView   `json:"uploads"`
-	Cache        CacheView     `json:"cache"`
-	Capacity     CapacityView  `json:"capacity"`
+	TransportSecurity TransportSecurityView `json:"transportSecurity"`
+	Mounted           bool                  `json:"mounted"`
+	Pending           *int                  `json:"pending"`
+	Busy              bool                  `json:"busy"`
+	Operation         string                `json:"operation"`
+	Error             string                `json:"error"`
+	ErrorMessage      *i18n.Message         `json:"errorMessage,omitempty"`
+	Uploads           *UploadView           `json:"uploads"`
+	Cache             CacheView             `json:"cache"`
+	Capacity          CapacityView          `json:"capacity"`
 }
 type Service struct {
 	pickAccessFile       func(string) (string, error)
@@ -92,6 +93,7 @@ type Service struct {
 	snapshotID           uint64
 	inspections          map[string]*cacheInspection
 	capacities           map[string]*capacityInspection
+	transportInspections map[string]*transportInspection
 	desktopVisible       func() bool
 	snapshotChanged      func(uint64, View)
 	appVersion           string
@@ -355,10 +357,24 @@ func (s *Service) Snapshot() (v View) {
 			if cv.Mounted {
 				cv.Capacity = s.sampleCapacity(ctx, cv.Connection, connectionRPC)
 			}
+			cv.TransportSecurity = TransportSecurityView{State: "disconnected"}
+			if cv.Mounted {
+				cv.TransportSecurity = s.sampleTransportSecurity(ctx, cv.Connection, connectionRPC)
+			}
 		}(i)
 	}
 	checks.Wait()
 	s.mu.Lock()
+	for i := range v.Connections {
+		cv := &v.Connections[i]
+		inspection := s.transportInspections[cv.ID]
+		current := s.index(cv.ID)
+		if !s.mounted[cv.ID] {
+			cv.TransportSecurity = TransportSecurityView{State: "disconnected"}
+		} else if inspection == nil || current < 0 || s.store.Connections[current] != cv.Connection || inspection.view.CheckedAt != cv.TransportSecurity.CheckedAt || inspection.rpc != s.connectionRPC(cv.Connection) || !inspection.rpc.Alive() || s.busy[cv.ID] {
+			cv.TransportSecurity = TransportSecurityView{State: "unknown"}
+		}
+	}
 	v.Access = s.accessStatus()
 	if s.access.locked {
 		v = s.lockedView()

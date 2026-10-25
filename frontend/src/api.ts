@@ -26,6 +26,7 @@ export interface Field {
   file: boolean;
 }
 export interface Provider {
+	transportEncryption: string;
   id: string;
   name: string;
   backend: string;
@@ -64,6 +65,7 @@ export interface Connection {
   binding?: string;
 }
 export interface ConnectionView extends Connection {
+	transportSecurity: TransportSecurityView;
   mounted: boolean;
   busy: boolean;
   operation: "" | "validating" | "mounting" | "checkingUploads" | "waitingUploads" | "unmounting";
@@ -79,6 +81,7 @@ export interface ConnectionView extends Connection {
   error: string;
   errorMessage?: LocalizedMessage;
 }
+export interface TransportSecurityView { state: string; protocol: string; source: string; checkedAt: string | null }
 export interface Settings {
 	openExplorerAfterConnect: boolean;
 	showServiceIcons: boolean;

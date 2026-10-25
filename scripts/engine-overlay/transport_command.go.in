@@ -1,0 +1,31 @@
+package smb
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/rclone/rclone/fs"
+)
+
+// Command exposes a read-only sample from a negotiated SMB share connection.
+func (f *Fs) Command(ctx context.Context, name string, arg []string, opt map[string]string) (result any, err error) {
+	if name != "transport-security" {
+		return nil, fs.ErrorCommandNotFound
+	}
+	if len(arg) != 0 || len(opt) != 0 {
+		return nil, fmt.Errorf("transport-security accepts no options")
+	}
+	share, _ := f.split("")
+	if share == "" {
+		return nil, fmt.Errorf("transport security requires a specific share")
+	}
+	c, err := f.getConnection(ctx, share)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { f.putConnection(&c, err) }()
+	if err = c.smbSession.WithContext(ctx).Echo(); err != nil {
+		return nil, err
+	}
+	return map[string]bool{"encrypted": c.smbShare.TransportEncrypted()}, nil
+}

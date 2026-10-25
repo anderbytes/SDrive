@@ -1,0 +1,8 @@
+package smb2
+
+import "github.com/cloudsoda/go-smb2/internal/smb2"
+
+// TransportEncrypted reports the negotiated protection used by share requests.
+func (fs *Share) TransportEncrypted() bool {
+	return fs.sessionFlags&smb2.SMB2_SESSION_FLAG_ENCRYPT_DATA != 0 || fs.shareFlags&smb2.SMB2_SHAREFLAG_ENCRYPT_DATA != 0
+}

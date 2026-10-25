@@ -4,7 +4,7 @@ import { translate } from "../i18n";
 import type { Provider } from "../api";
 
 test("setup categories classify authentication methods and reuse the GCS backend", () => {
-  const provider = (id: string, oauth: boolean): Provider => ({ id, name: id, backend: id === "gcs" ? "google cloud storage" : id, oauth, available: true, experimental: false, fields: [] });
+  const provider = (id: string, oauth: boolean): Provider => ({ id, name: id, transportEncryption: "required", backend: id === "gcs" ? "google cloud storage" : id, oauth, available: true, experimental: false, fields: [] });
   const entries = methods([provider("drive", true), provider("ftp", false), provider("s3", false), provider("b2", false), provider("azureblob", false), provider("gcs", true)]);
   expect(entries.filter((m) => !m.advanced).map((m) => m.key)).toEqual(["ftp", "s3", "b2", "azureblob", "gcs:serviceAccount"]);
   expect(entries.filter((m) => m.advanced).map((m) => m.key)).toEqual(["drive", "gcs:oauth"]);

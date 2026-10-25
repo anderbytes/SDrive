@@ -14,6 +14,7 @@ try {
         if ($LASTEXITCODE) { throw 'Interface build failed' }
     } finally { Pop-Location }
     if ($Check) {
+        & "$PSScriptRoot/engine-overlay.ps1" -Test | Out-Host
         node --test scripts/ui-smoke-runtime.test.mjs
         if ($LASTEXITCODE) { throw 'Native smoke harness tests failed' }
         New-Item -ItemType Directory -Force -Path '.tools/check-results' | Out-Null

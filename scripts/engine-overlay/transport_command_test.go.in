@@ -1,0 +1,22 @@
+package smb
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/rclone/rclone/fs"
+)
+
+func TestTransportCommandRejectsUnsupportedRequests(t *testing.T) {
+	f := &Fs{}
+	if _, err := f.Command(context.Background(), "unknown", nil, nil); !errors.Is(err, fs.ErrorCommandNotFound) {
+		t.Fatal(err)
+	}
+	if _, err := f.Command(context.Background(), "transport-security", []string{"unexpected"}, nil); err == nil {
+		t.Fatal("accepted arguments")
+	}
+	if _, err := f.Command(context.Background(), "transport-security", nil, nil); err == nil {
+		t.Fatal("server root must not imply share protection")
+	}
+}

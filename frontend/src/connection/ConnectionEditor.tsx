@@ -1,4 +1,5 @@
 import { MountDestination } from "./MountDestination";
+import { TransportCapability } from "../TransportSecurity";
 import { advancedDisclaimer, methodKey, oauthInstructions } from "./methods";
 import { ConnectionOptions } from "./ConnectionOptions";
 import { api } from "../api";
@@ -80,6 +81,7 @@ export function ConnectionEditor(props: EditorProps) {
               <label>{t("Connection type")}<select value={methodKey(connection, data.providers)} onChange={(e) => wizard.selectMethod(e.target.value)}>
                 {wizard.serviceMethods.filter((m) => m.advanced === (wizard.category === "advanced")).map((m) => <option key={m.key} value={m.key}>{t(m.label)}{m.provider.experimental ? ` (${t("experimental")})` : ""}</option>)}
               </select></label>
+              <TransportCapability provider={p} />
               {!wizard.serviceMethods.some((m) => m.advanced === (wizard.category === "advanced")) && <p>{t("No connection methods in this category.")}</p>}
               {wizard.category === "advanced" && <p>{t(oauthInstructions[p.id] || "")}</p>}
             </div>
@@ -147,6 +149,7 @@ export function ConnectionEditor(props: EditorProps) {
             <fieldset disabled={loading || busy}>
               <legend>{t("Access details")}</legend>
               <AccessFields advanced={false} wizard={wizard} />
+              <TransportCapability provider={p} />
               {p.id === "ftp" && transport === "plain" && <p role="status">{t("This connection uses unencrypted FTP. Confirm permission in Advanced options before continuing.")}</p>}
               {p.id === "sftp" && (
                 <div className="host-key">

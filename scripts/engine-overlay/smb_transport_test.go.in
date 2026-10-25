@@ -1,0 +1,32 @@
+package smb2
+
+import (
+	"testing"
+
+	"github.com/cloudsoda/go-smb2/internal/smb2"
+)
+
+func TestShareTransportEncryption(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		session uint16
+		share   uint32
+		want    bool
+	}{
+		{"unencrypted", 0, 0, false},
+		{"session", smb2.SMB2_SESSION_FLAG_ENCRYPT_DATA, 0, true},
+		{"share", 0, smb2.SMB2_SHAREFLAG_ENCRYPT_DATA, true},
+		{"both", smb2.SMB2_SESSION_FLAG_ENCRYPT_DATA, smb2.SMB2_SHAREFLAG_ENCRYPT_DATA, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			share := &Share{treeConn: &treeConn{session: &session{sessionFlags: tc.session}, shareFlags: tc.share}}
+			if got := share.TransportEncrypted(); got != tc.want {
+				t.Fatalf("encrypted = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	share := &Share{treeConn: &treeConn{session: &session{conn: &conn{requireSigning: true}}}}
+	if share.TransportEncrypted() {
+		t.Fatal("signing alone reported encryption")
+	}
+}

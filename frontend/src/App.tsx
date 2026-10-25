@@ -1,5 +1,6 @@
 import { errorMessage as message, type LocalizedMessage } from "./messages";
 import { FileAccessDialog } from "./FileAccessDialog";
+import { TransportStatus } from "./TransportSecurity";
 import { AccessBoundary, AccessSettings } from "./AccessProtection";
 import { SecretInput } from "./connection/SecretInput";
 import { ConfigurationPortability } from "./ConfigurationPortability";
@@ -620,6 +621,7 @@ function Drive({
                   ? t("Recovery required")
                   : t("Disconnected")}
         </div>
+        <TransportStatus connection={c} />
         {c.uploads && (
           <p>{t("{active} uploading · {queued} queued · {errors} cache errors", {
             active: c.uploads.active, queued: c.uploads.queued, errors: c.uploads.cacheErrors,

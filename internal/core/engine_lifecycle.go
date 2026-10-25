@@ -50,6 +50,7 @@ func (s *Service) RestartEngine() (resultErr error) {
 	s.engineError = ""
 	s.mounted = map[string]bool{}
 	s.inspections = nil
+	s.transportInspections = nil
 	s.errors = map[string]string{}
 	s.localizedErrors = nil
 	_ = s.cleanup()
