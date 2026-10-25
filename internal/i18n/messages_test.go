@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -27,18 +28,23 @@ func TestStructuredMessages(t *testing.T) {
 		}
 	}
 	for code, entry := range messages {
-		left, right := namedToken.FindAllString(entry["en"], -1), namedToken.FindAllString(entry["pt-BR"], -1)
-		sort.Strings(left)
-		sort.Strings(right)
-		if entry["en"] == "" || entry["pt-BR"] == "" || !reflect.DeepEqual(left, right) {
-			t.Fatalf("invalid catalog entry %s", code)
-		}
-		params := map[string]string{}
-		for _, token := range left {
-			params[token[1:len(token)-1]] = "synthetic"
-		}
-		if Format("pt-BR", NewMessage(code, params)) == "" {
-			t.Fatalf("empty message %s", code)
+		for _, language := range []string{"en", "pt-BR", "es", "fr", "de", "it", "zh-CN"} {
+			left, right := namedToken.FindAllString(entry["en"], -1), namedToken.FindAllString(entry[language], -1)
+			sort.Strings(left)
+			sort.Strings(right)
+			if entry["en"] == "" || entry[language] == "" || !reflect.DeepEqual(left, right) {
+				t.Fatalf("invalid catalog entry %s", code)
+			}
+			params := map[string]string{}
+			for _, token := range left {
+				params[token[1:len(token)-1]] = "Café {letter} %s 😀"
+			}
+			if Format(language, NewMessage(code, params)) == "" {
+				t.Fatalf("empty message %s", code)
+			}
+			if !strings.Contains(Format(language, NewMessage(code, params)), "Café {letter} %s 😀") {
+				t.Fatal("parameter was interpreted as a template")
+			}
 		}
 	}
 }

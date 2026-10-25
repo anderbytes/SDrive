@@ -1,9 +1,65 @@
 {
-  "validation.field_invalid": { "en": "invalid field: {label}", "pt-BR": "campo inválido: {label}" },
-  "validation.field_too_long": { "en": "field too long: {label}", "pt-BR": "campo muito longo: {label}" },
-  "validation.required": { "en": "fill in {label}", "pt-BR": "preencha {label}" },
-  "validation.option_invalid": { "en": "invalid option: {label}", "pt-BR": "opção inválida: {label}" },
-  "validation.https_required": { "en": "{field} must be an HTTPS URL without embedded credentials", "pt-BR": "{field} deve ser uma URL HTTPS sem credenciais embutidas" },
-  "drive.letter_in_use": { "en": "letter {letter}: is already in use", "pt-BR": "letra {letter}: já está em uso" },
-  "recovery.required_before_exit": { "en": "recover connection {name} before exiting safely", "pt-BR": "recupere a conexão {name} antes de sair com segurança" }
+  "validation.field_invalid": {
+    "en": "invalid field: {label}",
+    "pt-BR": "campo inválido: {label}",
+    "es": "campo no válido: {label}",
+    "fr": "champ invalide : {label}",
+    "de": "ungültiges Feld: {label}",
+    "it": "campo non valido: {label}",
+    "zh-CN": "无效字段：{label}"
+  },
+  "validation.field_too_long": {
+    "en": "field too long: {label}",
+    "pt-BR": "campo muito longo: {label}",
+    "es": "campo demasiado largo: {label}",
+    "fr": "champ trop long : {label}",
+    "de": "Feld zu lang: {label}",
+    "it": "campo troppo lungo: {label}",
+    "zh-CN": "字段太长：{label}"
+  },
+  "validation.required": {
+    "en": "fill in {label}",
+    "pt-BR": "preencha {label}",
+    "es": "rellenar {label}",
+    "fr": "remplir {label}",
+    "de": "Füllen Sie {label} aus",
+    "it": "compilare {label}",
+    "zh-CN": "填写{label}"
+  },
+  "validation.option_invalid": {
+    "en": "invalid option: {label}",
+    "pt-BR": "opção inválida: {label}",
+    "es": "opción no válida: {label}",
+    "fr": "option invalide : {label}",
+    "de": "ungültige Option: {label}",
+    "it": "opzione non valida: {label}",
+    "zh-CN": "无效选项：{label}"
+  },
+  "validation.https_required": {
+    "en": "{field} must be an HTTPS URL without embedded credentials",
+    "pt-BR": "{field} deve ser uma URL HTTPS sem credenciais embutidas",
+    "es": "{field} debe ser una URL de HTTPS sin credenciales integradas.",
+    "fr": "{field} doit être une URL HTTPS sans informations d'identification intégrées",
+    "de": "{field} muss eine HTTPS-URL ohne eingebettete Anmeldeinformationen sein",
+    "it": "{field} deve essere un URL HTTPS senza credenziali incorporate",
+    "zh-CN": "{field} 必须是没有嵌入凭据的 HTTPS URL"
+  },
+  "drive.letter_in_use": {
+    "en": "letter {letter}: is already in use",
+    "pt-BR": "letra {letter}: já está em uso",
+    "es": "letra {letter}: ya está en uso",
+    "fr": "lettre {letter} : est déjà utilisée",
+    "de": "Buchstabe {letter}: wird bereits verwendet",
+    "it": "lettera {letter}: è già in uso",
+    "zh-CN": "盘符 {letter}: 已被占用"
+  },
+  "recovery.required_before_exit": {
+    "en": "recover connection {name} before exiting safely",
+    "pt-BR": "recupere a conexão {name} antes de sair com segurança",
+    "es": "recuperar la conexión {name} antes de salir de forma segura",
+    "fr": "récupérer la connexion {name} avant de quitter en toute sécurité",
+    "de": "Stellen Sie vor dem sicheren Beenden die Verbindung {name} wieder her",
+    "it": "ripristinare la connessione {name} prima di uscire in sicurezza",
+    "zh-CN": "安全退出前恢复连接 {name}"
+  }
 }

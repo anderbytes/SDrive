@@ -6,10 +6,10 @@ Unicode true
 Name "SDrive"
 !ifdef OFFLINE
   OutFile "..\bin\SDrive-0.1.0-offline-setup.exe"
-  !define MUI_WELCOMEPAGE_TEXT "This installer includes every component required by SDrive and works without internet access.$\r$\n$\r$\nYou do not need to download tools or run commands. Windows may request permission to prepare virtual drives.$\r$\n$\r$\nWinFsp and Microsoft WebView2 retain their own licenses; see THIRD_PARTY_NOTICES.md in the application folder."
+  !define MUI_WELCOMEPAGE_TEXT "$(WelcomeOffline)"
 !else
   OutFile "..\bin\SDrive-0.1.0-setup.exe"
-  !define MUI_WELCOMEPAGE_TEXT "This installer automatically downloads missing Windows components. Stay connected to the internet during installation.$\r$\n$\r$\nYou do not need to download tools manually or run commands. Windows may request permission to prepare virtual drives.$\r$\n$\r$\nWinFsp and Microsoft WebView2 retain their own licenses; see THIRD_PARTY_NOTICES.md in the application folder."
+  !define MUI_WELCOMEPAGE_TEXT "$(WelcomeOnline)"
 !endif
 InstallDir "$LOCALAPPDATA\Programs\SDrive"
 RequestExecutionLevel user
@@ -21,7 +21,7 @@ Var WebViewReboot
 !define MUI_FINISHPAGE_NOREBOOTSUPPORT
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchSDrive
-!define MUI_FINISHPAGE_RUN_TEXT "Open SDrive"
+!define MUI_FINISHPAGE_RUN_TEXT "$(OpenApplication)"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "..\LICENSE"
 !insertmacro MUI_PAGE_INSTFILES
@@ -31,28 +31,24 @@ Var WebViewReboot
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "PortugueseBR"
+!insertmacro MUI_LANGUAGE "Spanish"
+!insertmacro MUI_LANGUAGE "French"
+!insertmacro MUI_LANGUAGE "German"
+!insertmacro MUI_LANGUAGE "Italian"
+!insertmacro MUI_LANGUAGE "SimpChinese"
+!include "languages.nsh"
 
-LangString UninstallRunning ${LANG_ENGLISH} "Close SDrive in all Windows sessions using Exit safely, then choose Retry to continue uninstalling."
-LangString UninstallRunning ${LANG_PORTUGUESEBR} "Feche o SDrive em todas as sessões do Windows usando Sair com segurança e clique em Tentar novamente para continuar a desinstalação."
-LangString UninstallIconsFailed ${LANG_ENGLISH} "Could not remove SDrive's Explorer icons. If needed, open SDrive, turn off service icons and exit safely. Choose Retry to try again."
-LangString UninstallIconsFailed ${LANG_PORTUGUESEBR} "Não foi possível remover os ícones do SDrive no Explorador. Se necessário, abra o SDrive, desative os ícones dos serviços e saia com segurança. Clique em Tentar novamente."
-LangString UninstallRemoveFailed ${LANG_ENGLISH} "Could not remove $3. Close applications using it or resolve the access problem, then choose Retry."
-LangString UninstallRemoveFailed ${LANG_PORTUGUESEBR} "Não foi possível remover $3. Feche os aplicativos que usam esse caminho ou resolva o problema de acesso e clique em Tentar novamente."
-LangString UninstallDirectoryMismatch ${LANG_ENGLISH} "The installation directory does not match SDrive's registry entry."
-LangString UninstallDirectoryMismatch ${LANG_PORTUGUESEBR} "A pasta de instalação não corresponde ao registro do SDrive."
-LangString UninstallRegistryFailed ${LANG_ENGLISH} "Could not remove SDrive's Windows registration. Resolve the registry access problem, then choose Retry."
-LangString UninstallRegistryFailed ${LANG_PORTUGUESEBR} "Não foi possível remover o registro do SDrive no Windows. Resolva o problema de acesso ao registro e clique em Tentar novamente."
 
 Function .onInit
   ${IfNot} ${IsNativeAMD64}
-    MessageBox MB_OK|MB_ICONSTOP "This version of SDrive requires Windows 11 x64 (Intel or AMD)."
+    MessageBox MB_OK|MB_ICONSTOP "$(RequireX64)"
     Abort
   ${EndIf}
   SetRegView 64
   ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
   SetRegView 32
   ${If} $0 < 22000
-    MessageBox MB_OK|MB_ICONSTOP "This version of SDrive requires Windows 11 or later."
+    MessageBox MB_OK|MB_ICONSTOP "$(RequireWindows)"
     Abort
   ${EndIf}
 FunctionEnd
@@ -65,7 +61,7 @@ FunctionEnd
 
 Function FinishShow
   ${If} ${RebootFlag}
-    SendMessage $mui.FinishPage.Text ${WM_SETTEXT} 0 "STR:Installation is complete. Restart Windows before opening SDrive to activate installed components. Your files and settings have been preserved."
+    SendMessage $mui.FinishPage.Text ${WM_SETTEXT} 0 "STR:$(RestartRequired)"
     SendMessage $mui.FinishPage.Run ${BM_SETCHECK} ${BST_UNCHECKED} 0
     EnableWindow $mui.FinishPage.Run 0
   ${EndIf}
@@ -92,12 +88,12 @@ FunctionEnd
 !macroend
 
 Function CheckRunning
-  !insertmacro CheckDataLock "Close SDrive in all Windows sessions using Exit safely before installing or updating." ""
+  !insertmacro CheckDataLock "$(InstallRunningSessions)" ""
   ReadEnvStr $1 "USERNAME"
   System::Call 'kernel32::OpenMutexW(i 0x100000, i 0, w "Local\SDrive-$1") p.r0'
   ${If} $0 <> 0
     System::Call 'kernel32::CloseHandle(p r0)'
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Close SDrive using Exit safely before installing or updating."
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(InstallRunning)"
     Abort
   ${EndIf}
 FunctionEnd
@@ -110,7 +106,8 @@ FunctionEnd
     nsExec::ExecToLog /TIMEOUT=120000 '"$PLUGINSDIR\prerequisites.exe" --download-prerequisite "${ID}" "$PLUGINSDIR"'
     Pop $0
     ${If} $0 != 0
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Could not download or verify ${FILE}. Check your internet connection and try again. See this window's details for the reason. You can also cancel and use the offline installer." IDRETRY retry_${ID}
+      StrCpy $3 "${FILE}"
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(DownloadFailed)" IDRETRY retry_${ID}
       Abort
     ${EndIf}
   !endif
@@ -124,75 +121,75 @@ Section "SDrive"
   ClearErrors
   ExecWait '"$PLUGINSDIR\prerequisites.exe" --check-prerequisites' $0
   ${If} ${Errors}
-    MessageBox MB_OK|MB_ICONSTOP "Could not check Windows components. Run the installer again."
+    MessageBox MB_OK|MB_ICONSTOP "$(CheckComponentsFailed)"
     Abort
   ${EndIf}
   StrCpy $1 $0
   ${If} $1 == 10
   ${OrIf} $1 == 30
-    DetailPrint "Preparing virtual drives (WinFsp)…"
+    DetailPrint "$(PrepareDrives)"
     !insertmacro PrepareComponent winfsp winfsp.msi
     ClearErrors
     ExecWait '"$PLUGINSDIR\prerequisites.exe" --install-prerequisite winfsp "$PLUGINSDIR"' $0
     ${If} ${Errors}
-      MessageBox MB_OK|MB_ICONSTOP "Could not start virtual drive installation. Run the installer again."
+      MessageBox MB_OK|MB_ICONSTOP "$(StartDriveInstallFailed)"
       Abort
     ${EndIf}
     ${If} $0 == 3010
       StrCpy $WinFspReboot 1
       SetRebootFlag true
-      DetailPrint "Virtual drives will be activated after restarting Windows."
+      DetailPrint "$(DrivesRestartRequired)"
     ${ElseIf} $0 != 0
-      MessageBox MB_OK|MB_ICONSTOP "Could not prepare virtual drives (code $0). If Windows authorization was cancelled, run the installer again and allow installation."
+      MessageBox MB_OK|MB_ICONSTOP "$(PrepareDrivesFailed)"
       Abort
     ${EndIf}
   ${EndIf}
   ${If} $1 == 20
   ${OrIf} $1 == 30
-    DetailPrint "Preparing the application interface (Microsoft WebView2)…"
+    DetailPrint "$(PrepareInterface)"
     !insertmacro PrepareComponent webview2 webview2.exe
     ClearErrors
     ExecWait '"$PLUGINSDIR\prerequisites.exe" --install-prerequisite webview2 "$PLUGINSDIR"' $0
     ${If} ${Errors}
-      MessageBox MB_OK|MB_ICONSTOP "Could not start interface installation. Run the installer again."
+      MessageBox MB_OK|MB_ICONSTOP "$(StartInterfaceInstallFailed)"
       Abort
     ${EndIf}
     ${If} $0 == 3010
       StrCpy $WebViewReboot 1
       SetRebootFlag true
     ${ElseIf} $0 != 0
-      MessageBox MB_OK|MB_ICONSTOP "Could not prepare the application interface (code $0). Run the installer again."
+      MessageBox MB_OK|MB_ICONSTOP "$(PrepareInterfaceFailed)"
       Abort
     ${EndIf}
   ${EndIf}
   ClearErrors
   ExecWait '"$PLUGINSDIR\prerequisites.exe" --check-prerequisites' $0
   ${If} ${Errors}
-    MessageBox MB_OK|MB_ICONSTOP "Could not verify installation. Run the installer again."
+    MessageBox MB_OK|MB_ICONSTOP "$(VerifyInstallFailed)"
     Abort
   ${EndIf}
   ${If} $0 != 0
   ${AndIf} $0 != 10
   ${AndIf} $0 != 20
   ${AndIf} $0 != 30
-    MessageBox MB_OK|MB_ICONSTOP "Could not verify installed components (code $0). Run the installer again."
+    MessageBox MB_OK|MB_ICONSTOP "$(VerifyComponentsFailed)"
     Abort
   ${EndIf}
   ${If} $0 == 10
   ${OrIf} $0 == 30
     ${If} $WinFspReboot != 1
-      MessageBox MB_OK|MB_ICONSTOP "Virtual drives are still unavailable. Run the installer again or contact SDrive support."
+      MessageBox MB_OK|MB_ICONSTOP "$(DrivesUnavailable)"
       Abort
     ${EndIf}
   ${EndIf}
   ${If} $0 == 20
   ${OrIf} $0 == 30
     ${If} $WebViewReboot != 1
-      MessageBox MB_OK|MB_ICONSTOP "The application interface is still unavailable. Run the installer again or contact SDrive support."
+      MessageBox MB_OK|MB_ICONSTOP "$(InterfaceUnavailable)"
       Abort
     ${EndIf}
   ${EndIf}
-  DetailPrint "Installing SDrive for your user…"
+  DetailPrint "$(InstallApplication)"
   SetOutPath "$INSTDIR"
   File "..\bin\SDrive.exe"
   File "..\bin\rclone.exe"

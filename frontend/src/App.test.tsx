@@ -13,7 +13,7 @@ import { App } from "./App";
 import { ImportConfigurationDialog } from "./ConfigurationPortability";
 import { api, type ConnectionView, type Snapshot } from "./api";
 import bridgeFixtures from "./bridge-fixtures.json";
-import { translate } from "./i18n";
+import { languages, translate, type Language } from "./i18n";
 
 // JSDOM has no modal top layer; native focus and isolation are checked in WebView2.
 Object.defineProperties(HTMLDialogElement.prototype, {
@@ -1309,8 +1309,8 @@ test("failed disconnect keeps the drive visible and allows retry", async () => {
   expect(screen.queryByRole("alert")).toBeNull();
 });
 
-test("language changes are saved, applied and restored on reopening", async () => {
-  let saved: import("./api").Settings = { ...snapshot.settings, language: "en" as "en" | "pt-BR" };
+test.each(Object.keys(languages) as Language[])("language %s is saved, applied and restored on reopening", async (language) => {
+  let saved: import("./api").Settings = { ...snapshot.settings, language: "en" };
   vi.mocked(api.snapshot).mockImplementation(async () => ({
     ...snapshot,
     settings: saved,
@@ -1322,29 +1322,28 @@ test("language changes are saved, applied and restored on reopening", async () =
   await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
   fireEvent.change(screen.getByLabelText("Language"), {
-    target: { value: "pt-BR" },
+    target: { value: language },
   });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await screen.findByRole("heading", { name: "Minhas unidades" });
+  await screen.findByRole("heading", { name: translate(language, "My drives") });
   expect(api.settings).toHaveBeenCalledWith({
     autoStart: false,
     theme: "system",
     cacheGiB: 2,
-    language: "pt-BR",
+    language,
     openExplorerAfterConnect: false,
     showServiceIcons: false,
   });
-  await waitFor(() => expect(document.documentElement.lang).toBe("pt-BR"));
+  await waitFor(() => expect(document.documentElement.lang).toBe(language));
   view.unmount();
   render(<App />);
-  fireEvent.click(await screen.findByRole("button", { name: /Preferências/ }));
-  expect((screen.getByLabelText("Idioma") as HTMLSelectElement).value).toBe(
-    "pt-BR",
-  );
-  fireEvent.change(screen.getByLabelText("Idioma"), {
+  fireEvent.click(await screen.findByRole("button", { name: new RegExp(translate(language, "Preferences")) }));
+  expect((screen.getByLabelText(translate(language, "Language")) as HTMLSelectElement).value).toBe(language);
+  expect(screen.getAllByRole("option")).toHaveLength(Object.keys(languages).length);
+  fireEvent.change(screen.getByLabelText(translate(language, "Language")), {
     target: { value: "en" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  fireEvent.click(screen.getByRole("button", { name: translate(language, "Save") }));
   await screen.findByRole("heading", { name: "My drives" });
   await waitFor(() => expect(document.documentElement.lang).toBe("en"));
 });

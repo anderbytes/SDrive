@@ -37,7 +37,7 @@ func TestLanguageSettingsPersistenceAndCompatibility(t *testing.T) {
 	if err != nil || store.Settings.Language != "en" {
 		t.Fatalf("new settings must default to English: %v", err)
 	}
-	for _, language := range []string{"en", "pt-BR", "", "unsupported"} {
+	for _, language := range []string{"en", "pt-BR", "es", "fr", "de", "it", "zh-CN", "", "unsupported"} {
 		store.Settings.Language = language
 		if err := saveStore(dir, store); err != nil {
 			t.Fatal(err)
@@ -61,5 +61,23 @@ func TestLanguageSettingsPersistenceAndCompatibility(t *testing.T) {
 	service := &Service{}
 	if err := service.SaveSettings(Settings{CacheGiB: 2, Language: "unsupported"}); err == nil {
 		t.Fatal("unsupported language accepted")
+	}
+}
+
+func TestPortablePreferencesPreserveSupportedLanguages(t *testing.T) {
+	for _, language := range []string{"en", "pt-BR", "es", "fr", "de", "it", "zh-CN"} {
+		t.Run(language, func(t *testing.T) {
+			s := testService(t, &fakeRPC{})
+			d := portableFixture()
+			d.Preferences.Language = language
+			preview := previewFixture(t, s, d)
+			if err := s.CommitImport(preview.ID, preview.Document, true); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := loadStore(s.dir)
+			if err != nil || loaded.Settings.Language != language || portablePreferences(loaded.Settings).Language != language {
+				t.Fatalf("language was lost importing or exporting preferences: %+v, %v", loaded.Settings, err)
+			}
+		})
 	}
 }

@@ -8,6 +8,7 @@ $mutexName = 'Local\SDrive-Uninstall-Test-' + [Guid]::NewGuid().ToString('N')
 $process = $null
 $lock = $null
 $mutex = $null
+$languageIDs = [ordered]@{ 'en' = 'ENGLISH'; 'pt-BR' = 'PORTUGUESEBR'; 'es' = 'SPANISH'; 'fr' = 'FRENCH'; 'de' = 'GERMAN'; 'it' = 'ITALIAN'; 'zh-CN' = 'SIMPCHINESE' }
 
 # Target only dialogs belonging to the fixture process, never the user's application.
 if (-not ('UninstallTestDialog' -as [type])) {
@@ -74,7 +75,7 @@ function Wait-Exit([int]$Code) {
     while (-not $process.HasExited -and [DateTime]::UtcNow -lt $deadline) {
         foreach ($button in @(1, 2)) {
             $window = [UninstallTestDialog]::Find($process.Id, $button)
-            $pattern = if ($Code -eq 1) { 'Close|Fechar|Cancel' } else { 'Close|Fechar' }
+            $pattern = if ($Code -eq 1) { 'Close|Fechar|Cerrar|Fermer|Beenden|Fine|关闭|Cancel|Annuler|Abbrechen|Annulla|取消' } else { 'Close|Fechar|Cerrar|Fermer|Beenden|Fine|关闭' }
             if ($window -ne [IntPtr]::Zero -and [UninstallTestDialog]::Text($window, $button) -match $pattern) {
                 [UninstallTestDialog]::Click($window, $button)
             }
@@ -88,6 +89,7 @@ function Wait-Exit([int]$Code) {
 try {
     New-Item -ItemType Directory -Path $workspace | Out-Null
     $source = Get-Content -LiteralPath "$projectRoot/installer/sdrive.nsi" -Raw -Encoding utf8
+    $source = $source.Replace('!include "languages.nsh"', (Get-Content -LiteralPath "$projectRoot/installer/languages.nsh" -Raw -Encoding utf8))
     $languages = [regex]::Match($source, '(?s)!insertmacro MUI_LANGUAGE "English".*?(?=Function \.onInit)').Value
     $probe = [regex]::Match($source, '(?s)!macro CheckDataLock .*?!macroend').Value
     $section = [regex]::Match($source, '(?s)Section "Uninstall".*?SectionEnd').Value
@@ -112,15 +114,15 @@ SetCompress off
 Function un.onInit
   StrCpy $LANGUAGE ${LANG_ENGLISH}
   ReadEnvStr $R0 "SDRIVE_UNINSTALL_TEST_LANGUAGE"
-  StrCmp $R0 "pt-BR" 0 +2
-    StrCpy $LANGUAGE ${LANG_PORTUGUESEBR}
+@LANGUAGE_SELECTION@
 FunctionEnd
 Section
   WriteUninstaller "@WORKSPACE@\uninstaller.exe"
 SectionEnd
 @SECTION@
 '@
-    $fixture = $fixture.Replace('@INCLUDE@', $include).Replace('@WORKSPACE@', $workspace).Replace('@LANGUAGES@', $languages).Replace('@PROBE@', $probe).Replace('@SECTION@', $section)
+    $selection = foreach ($language in $languageIDs.Keys) { '  StrCmp $R0 "' + $language + '" 0 +2' + "`n" + '    StrCpy $LANGUAGE ${LANG_' + $languageIDs[$language] + '}' }
+    $fixture = $fixture.Replace('@LANGUAGE_SELECTION@', ($selection -join "`n")).Replace('@INCLUDE@', $include).Replace('@WORKSPACE@', $workspace).Replace('@LANGUAGES@', $languages).Replace('@PROBE@', $probe).Replace('@SECTION@', $section)
     Compile 'fixture' $fixture
     $creator = Start-Process -FilePath "$workspace/creator.exe" -ArgumentList '/S' -PassThru -WindowStyle Hidden
     Assert ($creator.WaitForExit(15000) -and $creator.ExitCode -eq 0) 'Could not create fixture uninstaller'
@@ -143,7 +145,7 @@ SectionEnd
 '@.Replace('@WORKSPACE@', $workspace)
 
     foreach ($scenario in @('lock-retry', 'lock-cancel', 'mutex-retry', 'mutex-cancel', 'cleanup-retry', 'cleanup-cancel', 'helper-retry', 'file-retry', 'directory-retry', 'file-cancel', 'silent-lock', 'silent-mutex', 'silent-cleanup', 'silent-file', 'directory-mismatch', 'silent-directory-mismatch')) {
-        foreach ($language in @('en', 'pt-BR')) {
+        foreach ($language in $languageIDs.Keys) {
             $install = Join-Path $workspace "$scenario-$language"
             New-Item -ItemType Directory -Path "$install/docs" -Force | Out-Null
             Copy-Item -LiteralPath "$workspace/helper.exe" -Destination "$install/SDrive.exe"
@@ -175,7 +177,9 @@ SectionEnd
             if (-not $silent) {
                 $dialog = Wait-Dialog $(if ($mismatch) { 2 } else { 4 })
                 $text = [UninstallTestDialog]::Text($dialog)
-                Assert ($text -match $(if ($language -eq 'pt-BR') { 'Feche|Não foi possível|não corresponde' } else { 'Close|Could not|does not match' })) "Wrong dialog language: $text"
+                $pattern = '(?m)^LangString Uninstall\w+ \$\{LANG_' + $languageIDs[$language] + '\} "(.*)"\r?$'
+                $expected = @([regex]::Matches($source, $pattern) | ForEach-Object { '^' + [regex]::Escape($_.Groups[1].Value.Replace('$\"', '"')).Replace('\$3', '.+?') + '$' })
+                Assert (@($expected | Where-Object { $text -cmatch $_ }).Count -gt 0) "Wrong dialog language: $text"
                 Assert (Test-Path -LiteralPath "$install/SDrive.exe") 'Executable removed before blocker resolved'
                 $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($registryPath)
                 Assert ($null -ne $key) 'Uninstall entry removed before blocker resolved'

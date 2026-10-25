@@ -1,7 +1,7 @@
 import { useTheme, type Theme } from "./theme";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type AccessPolicy, type AccessStatus } from "./api";
-import { useLanguage } from "./i18n";
+import { isLanguage, useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
 import { SecretInput } from "./connection/SecretInput";
 import { useDialog } from "./useDialog";
@@ -23,7 +23,7 @@ export function AccessBoundary({ children }: { children: (showLocked: () => void
       if (request !== generation.current) return;
       setStatus(next);
       setTheme((next.theme || "system") as Theme);
-      setLanguage(next.language === "pt-BR" ? "pt-BR" : "en");
+      setLanguage(isLanguage(next.language) ? next.language : "en");
       setFailure("");
     } catch (e) { if (request === generation.current) setFailure(t(errorMessage(e))); }
   };

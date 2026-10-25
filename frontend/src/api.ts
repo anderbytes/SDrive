@@ -1,3 +1,4 @@
+import { type Language } from "./i18n";
 import { type Theme } from "./theme";
 import { localizedMessage, type LocalizedMessage } from "./messages";
 import { Call, Clipboard, Events } from "@wailsio/runtime";
@@ -87,7 +88,7 @@ export interface Settings {
   theme: Theme;
 	openExplorerAfterConnect: boolean;
 	showServiceIcons: boolean;
-  language: "en" | "pt-BR";
+  language: Language;
   autoStart: boolean;
   cacheGiB: number;
   cacheMaxAgeHours?: number;

@@ -797,5 +797,8 @@
   "Dark": "Escuro",
   "unsupported theme": "tema não suportado",
   "System follows your Windows theme. Save to keep the preview; Cancel restores the saved theme.": "Sistema acompanha o tema do Windows. Salve para manter a prévia; Cancelar restaura o tema salvo.",
-  "Apply imported theme, language, cache timing and desktop preferences": "Aplicar tema, idioma, temporização do cache e preferências de desktop importados"
+  "Apply imported theme, language, cache timing and desktop preferences": "Aplicar tema, idioma, temporização do cache e preferências de desktop importados",
+  "Try again": "Tentar novamente",
+  "Local folder": "Pasta local",
+  "Refresh": "Atualizar"
 }

@@ -1,6 +1,12 @@
 package i18n
 
-import "testing"
+import (
+	"reflect"
+	"regexp"
+	"sort"
+	"strings"
+	"testing"
+)
 
 func TestLanguageAndFallback(t *testing.T) {
 	if !Valid("en") || !Valid("pt-BR") || Valid("unknown") {
@@ -17,6 +23,38 @@ func TestLanguageAndFallback(t *testing.T) {
 	} {
 		if got := Text(test.language, test.source); got != test.want {
 			t.Fatalf("Text(%q, %q) = %q; want %q", test.language, test.source, got, test.want)
+		}
+	}
+}
+
+func TestLocaleCatalogsAreCompleteAndPreserveParameters(t *testing.T) {
+	named := regexp.MustCompile(`\{\w+\}`)
+	for language, catalog := range translations {
+		if !Valid(language) || len(catalog) != len(translations["pt-BR"]) {
+			t.Fatalf("invalid catalog: %s", language)
+		}
+		for source := range translations["pt-BR"] {
+			translated := catalog[source]
+			if strings.TrimSpace(translated) == "" || Text(language, source) != translated {
+				t.Fatalf("%s: missing or incorrect translation for %q", language, source)
+			}
+			if !reflect.DeepEqual(formatToken.FindAllString(source, -1), formatToken.FindAllString(translated, -1)) {
+				t.Fatalf("%s: reordered format parameters for %q", language, source)
+			}
+			left, right := named.FindAllString(source, -1), named.FindAllString(translated, -1)
+			sort.Strings(left)
+			sort.Strings(right)
+			if !reflect.DeepEqual(left, right) {
+				t.Fatalf("%s: changed named parameters for %q", language, source)
+			}
+		}
+		source := "Engine stopped (exit code %d; last signal: %s). Restart SDrive to recover your drives."
+		fill := strings.NewReplacer("%d", "17", "%s", "network")
+		if got := Text(language, fill.Replace(source)); got != fill.Replace(catalog[source]) {
+			t.Fatalf("%s: dynamic translation mismatch: %s", language, got)
+		}
+		if Text(language, "Unknown message") != "Unknown message" {
+			t.Fatal("missing English fallback")
 		}
 	}
 }

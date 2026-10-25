@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { flushSync } from "react-dom";
 import { api, type Snapshot, type ProxyConfig } from "./api";
-import { useLanguage, type Language } from "./i18n";
+import { languages, useLanguage, type Language } from "./i18n";
 import { errorMessage as message, type LocalizedMessage } from "./messages";
 import { SecretInput } from "./connection/SecretInput";
 import { ConfigurationPortability } from "./ConfigurationPortability";
@@ -97,8 +97,7 @@ export function Preferences({
                   }))
                 }
               >
-                <option value="en">English</option>
-                <option value="pt-BR">Português (Brasil)</option>
+                {Object.entries(languages).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
               </select>
             </label>
             <label className="check"><input type="checkbox" checked={settings.openExplorerAfterConnect || false} onChange={(e) => setSettings({ ...settings, openExplorerAfterConnect: e.target.checked })} />{t("Open Explorer after connecting")}</label>

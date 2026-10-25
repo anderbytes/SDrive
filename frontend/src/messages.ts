@@ -18,7 +18,7 @@ export function localizedMessage(value: unknown): LocalizedMessage | undefined {
 export function formatMessage(language: string, message: LocalizedMessage): string {
   if (!localizedMessage(message) || !Object.hasOwn(catalog, message.code)) return message.message;
   const entry = catalog[message.code as keyof typeof catalog];
-  const template = language === "pt-BR" ? entry["pt-BR"] : entry.en;
+  const template = Object.hasOwn(entry, language) ? entry[language as keyof typeof entry] : entry.en;
   const tokens = Array.from(template.matchAll(/\{(\w+)\}/g));
   if (tokens.some(([, key]) => !Object.hasOwn(message.params, key))) return message.message;
   return template.replace(/\{(\w+)\}/g, (_, key: string) => message.params[key]);

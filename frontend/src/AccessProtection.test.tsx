@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { AccessBoundary, AccessSettings } from "./AccessProtection";
 import { FileAccessDialog } from "./FileAccessDialog";
 import { api, type AccessStatus } from "./api";
-import { LanguageProvider } from "./i18n";
+import { LanguageProvider, languages, translate, type Language } from "./i18n";
 
 vi.mock("./api", () => ({ api: {
   end: vi.fn(), accessStatus: vi.fn(), onAccessChanged: vi.fn(), configureAccess: vi.fn(), disableAccess: vi.fn(), unlockAccess: vi.fn(), recoverAccess: vi.fn(), exit: vi.fn(), inspectFileAccess: vi.fn(),
@@ -20,6 +20,15 @@ beforeEach(() => {
   vi.mocked(api.onAccessChanged).mockReturnValue(() => {});
 });
 afterEach(cleanup);
+
+test.each(Object.keys(languages) as Language[])("locked startup retains the saved %s language", async (language) => {
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...status, locked: true, language });
+  render(<LanguageProvider><AccessBoundary>{() => <p>private management</p>}</AccessBoundary></LanguageProvider>);
+  await screen.findByRole("heading", { name: translate(language, "SDrive is locked") });
+  expect(screen.getByLabelText(translate(language, "Application PIN"))).toBeDefined();
+  await waitFor(() => expect(document.documentElement.lang).toBe(language));
+  expect(screen.queryByText("private management")).toBeNull();
+});
 
 test("lock event immediately removes management controls and discards an older status response", async () => {
   let changed!: (locked:boolean) => void;

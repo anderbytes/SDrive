@@ -39,7 +39,7 @@ Minimal technical events are collected automatically and kept only in your local
 
 ## Language
 
-English is the application's default and the language of the repository, source messages and documentation. The interface supports **English** and **Português (Brasil)**. Choose **Preferences → General → Language** and save. The choice is stored in your settings and applies to the interface, connection wizard and tray menu. Missing translations fall back to English. Account names, remote paths and file contents are preserved.
+English is the application's default and the language of the repository, source messages and documentation. The interface supports **English**, **Português (Brasil)**, **Español**, **Français**, **Deutsch**, **Italiano** and **简体中文** (Simplified Chinese). Choose **Preferences → General → Language** and save. The choice is stored in your settings and applies to the interface, connection wizard and tray menu. Missing translations fall back to English. Account names, remote paths and file contents are preserved. Both installers and the uninstaller use the Windows language when supported, with English as the fallback; this is independent of the application preference. Technical helper logs and third-party components retain their own language.
 
 ## Development
 

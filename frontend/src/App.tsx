@@ -7,7 +7,7 @@ import { formatBytes as bytes } from "./formatBytes";
 import { AccessBoundary, AccessSettings } from "./AccessProtection";
 import { ConnectionEditor } from "./connection/ConnectionEditor";
 import { useDialog } from "./useDialog";
-import { LanguageProvider, useLanguage } from "./i18n";
+import { LanguageProvider, isLanguage, useLanguage } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   api,
@@ -91,7 +91,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
       if (snapshot.access.locked) { onLocked(); return; }
       setData(snapshot);
       setTheme(snapshot.settings.theme || "system");
-      setLanguage(snapshot.settings.language === "pt-BR" ? "pt-BR" : "en");
+      setLanguage(isLanguage(snapshot.settings.language) ? snapshot.settings.language : "en");
     } catch (e) {
       if (snapshotActive.current && request === snapshotRequest.current) setError(message(e));
     }

@@ -201,6 +201,33 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .click();
   await page.getByRole("heading", { name: "My drives", exact: true }).waitFor();
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
+  for (const language of ["es", "fr", "de", "it", "zh-CN"]) {
+    const catalog = JSON.parse(await readFile(new URL(`../internal/i18n/${language}.json`, import.meta.url), "utf8"));
+    await page.getByRole("button", { name: /Preferences/ }).click();
+    await page.getByLabel("Language").waitFor();
+    assert.equal(await page.getByLabel("Language").locator("option").count(), 7);
+    await page.getByLabel("Language").selectOption(language);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("heading", { name: catalog["My drives"], exact: true }).waitFor();
+    assert.equal(await page.locator("html").getAttribute("lang"), language);
+    const saved = JSON.parse(await readFile(path.join(profile, "SDrive", "settings.json"), "utf8"));
+    assert.equal(saved.settings.language, language);
+    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    await page.setViewportSize({ width: 850, height: 620 });
+    try {
+      await page.screenshot({ path: path.join(artifacts, `language-${language}.png`) });
+      await page.getByRole("button", { name: new RegExp(catalog["Preferences"]) }).click();
+      assert.equal(await page.getByLabel(catalog["Language"]).inputValue(), language);
+      const dialog = page.getByRole("dialog");
+      assert(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), `${language}: preferences overflow`);
+      await page.screenshot({ path: path.join(artifacts, `preferences-${language}.png`) });
+      await page.getByLabel(catalog["Language"]).selectOption("en");
+      await page.getByRole("button", { name: catalog["Save"], exact: true }).click();
+      await page.getByRole("heading", { name: "My drives", exact: true }).waitFor();
+    } finally {
+      await page.setViewportSize(viewport);
+    }
+  }
   await page.getByRole("button", { name: /Preferences/ }).click();
   assert.equal(await page.getByLabel("Open Explorer after connecting", { exact: true }).isChecked(), false);
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
@@ -288,6 +315,6 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .click();
   assert.equal(await exited, 0);
   console.log(
-    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, preference tabs, live theme previews and cancellation, system/light/dark themes and forced colors, desktop preferences, PIN lock/recovery, second-instance activation while locked, English/Portuguese switching, safe exit — OK",
+    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, preference tabs, live theme previews and cancellation, system/light/dark themes and forced colors, desktop preferences, PIN lock/recovery, second-instance activation while locked, seven-language switching and persistence, safe exit — OK",
   );
 });

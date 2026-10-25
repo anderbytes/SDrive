@@ -56,7 +56,7 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
   expectTypeOf<ConnectionView["cache"]["checkedAt"]>().toEqualTypeOf<string | null>();
   expectTypeOf<ConnectionView["cache"]["pendingBytes"]>().toEqualTypeOf<number | null>();
   expectTypeOf<ConnectionView["cache"]["usedBytes"]>().toEqualTypeOf<number | null>();
-  expectTypeOf<Settings["language"]>().toEqualTypeOf<"en" | "pt-BR">();
+  expectTypeOf<Settings["language"]>().toEqualTypeOf<"en" | "pt-BR" | "es" | "fr" | "de" | "it" | "zh-CN">();
   expectTypeOf<Session["authenticated"]>().toEqualTypeOf<boolean>();
   expectTypeOf<Session["connectionID"]>().toEqualTypeOf<string>();
   expectTypeOf<RequiredKeys<Provider>>().toEqualTypeOf<keyof typeof samples.providerEmpty>();
