@@ -94,6 +94,34 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page
     .getByRole("heading", { name: "Preferences", exact: true })
     .waitFor();
+  assert.equal(await page.getByRole("tab", { name: "General", exact: true }).getAttribute("aria-selected"), "true");
+  await page.getByRole("tab", { name: "General", exact: true }).press("ArrowRight");
+  assert.equal(await page.getByRole("tab", { name: "Appearance", exact: true }).getAttribute("aria-selected"), "true");
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+  const lightBackground = await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+  await page.getByLabel("Theme").selectOption("dark");
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+  assert.notEqual(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor), lightBackground);
+  await page.screenshot({ path: path.join(artifacts, "preferences-dark.png") });
+  await page.getByRole("dialog", { name: "Preferences", exact: true }).press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+  await page.getByRole("button", { name: /Preferences/ }).click();
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  assert.equal(await page.getByLabel("Theme").inputValue(), "system");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+  await page.getByLabel("Theme").selectOption("light");
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).press("ArrowLeft");
+  await page.getByRole("tab", { name: "General", exact: true }).press("ArrowRight");
+  await page.emulateMedia({ forcedColors: "active" });
+  assert.equal(await page.getByRole("tab", { name: "Appearance", exact: true }).evaluate((element) => getComputedStyle(element).outlineStyle), "solid");
+  await page.screenshot({ path: path.join(artifacts, "preferences-high-contrast.png") });
+  await page.emulateMedia({ forcedColors: "none" });
+  await page.screenshot({ path: path.join(artifacts, "preferences-light.png") });
+  await page.getByRole("tab", { name: "Cache", exact: true }).click();
   await page.getByLabel("Cache target per connection (GiB)").fill("3");
   await page.getByLabel("Cache retention after last access (hours)").fill("48");
   await page.getByLabel("Upload delay after last use (seconds)").fill("0");
@@ -110,6 +138,9 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .getByRole("button", { name: /Preferences/ })
     .click();
   await page.getByLabel("Language").selectOption("pt-BR");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  assert.equal(await page.getByLabel("Theme").inputValue(), "light");
+  await page.getByRole("tab", { name: "Cache", exact: true }).click();
   assert.equal(await page.getByLabel("Cache retention after last access (hours)").inputValue(), "48");
   assert.equal(await page.getByLabel("Upload delay after last use (seconds)").inputValue(), "0");
   await page
@@ -124,10 +155,15 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .click();
   assert.equal(await page.getByLabel("Idioma").inputValue(), "pt-BR");
   assert.equal(await page.getByLabel("Abrir o Explorer após conectar", { exact: true }).isChecked(), false);
+  await page.getByRole("tab", { name: "Aparência", exact: true }).click();
+  assert.equal(await page.getByLabel("Tema").inputValue(), "light");
   assert.equal(await page.getByLabel("Mostrar ícones de serviço nas letras de unidade", { exact: true }).isChecked(), false);
+  await page.getByRole("tab", { name: "Configuração", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "Exportar configuração", exact: true }).isVisible(), true);
+  await page.getByRole("tab", { name: "Cache", exact: true }).click();
   assert.equal(await page.getByLabel("Retenção do cache após o último acesso (horas)").inputValue(), "48");
   assert.equal(await page.getByLabel("Atraso do upload após o último uso (segundos)").inputValue(), "0");
+  await page.getByRole("tab", { name: "Geral", exact: true }).click();
   await page.getByLabel("Idioma").selectOption("en");
   await page
     .getByRole("button", { name: "Salvar", exact: true })
@@ -136,7 +172,9 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
   await page.getByRole("button", { name: /Preferences/ }).click();
   assert.equal(await page.getByLabel("Open Explorer after connecting", { exact: true }).isChecked(), false);
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   assert.equal(await page.getByLabel("Show service icons for drive letters", { exact: true }).isChecked(), false);
+  await page.getByRole("tab", { name: "Configuration", exact: true }).click();
   await page.getByRole("button", { name: "Export configuration", exact: true }).click();
   await page.getByRole("button", { name: "Import configuration", exact: true }).click();
   await page.getByRole("heading", { name: "Review imported configuration", exact: true }).waitFor();
@@ -144,13 +182,14 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   const portable = JSON.parse(await readFile(portablePath, "utf8"));
   assert.equal(portable.format, "sdrive-portable");
   assert.equal(portable.version, 1);
+  assert.equal(portable.preferences.theme, "light");
   assert.equal("autoStart" in portable.preferences, false);
   await page.getByRole("dialog", { name: "Review imported configuration" }).getByRole("button", { name: "Cancel", exact: true }).click();
   portable.connections = [{ name: "Portable smoke", provider: "webdav", path: "", letter: "", mountMode: "local", mountFolder: path.join(artifacts, "imported-mount"), readOnly: true, autoMount: false, values: { url: `http://127.0.0.1:${dav.address().port}/dav/` } }];
   await writeFile(portablePath, JSON.stringify(portable));
   await page.getByRole("button", { name: "Import configuration", exact: true }).click();
   await page.getByRole("heading", { name: "Review imported configuration", exact: true }).waitFor();
-  assert.equal(await page.getByLabel("Apply imported language, cache timing and desktop preferences").isChecked(), false);
+  assert.equal(await page.getByLabel("Apply imported theme, language, cache timing and desktop preferences").isChecked(), false);
   await page.getByRole("button", { name: "Save imported drafts", exact: true }).click();
   await page.getByText("Authentication required for imported configuration", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Authenticate", exact: true }).click();
@@ -180,6 +219,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByRole("button", { name: "I saved the recovery code", exact: true }).click();
   await page.getByRole("button", { name: "Lock SDrive", exact: true }).click();
   await page.getByRole("heading", { name: "SDrive is locked", exact: true }).waitFor();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
   assert.equal(await page.getByRole("button", { name: "+ New connection", exact: true }).count(), 0);
   await exec(child.spawnfile, [], { windowsHide: true, timeout: 15000, env: smokeEnvironment(profile) });
   await page.getByRole("heading", { name: "SDrive is locked", exact: true }).waitFor();
@@ -208,6 +248,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByRole("button", { name: "Desativar bloqueio do aplicativo", exact: true }).click();
   await verifyAboutActions(page, "pt-BR");
   await page.getByRole("button", { name: "⚙   Preferências", exact: true }).click();
+  await page.getByRole("tab", { name: "Geral", exact: true }).click();
   await page.getByLabel("Idioma").selectOption("en");
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   assert.deepEqual(errors, []);
@@ -216,6 +257,6 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .click();
   assert.equal(await exited, 0);
   console.log(
-    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, desktop preferences, PIN lock/recovery, second-instance activation while locked, English/Portuguese switching, safe exit — OK",
+    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, preference tabs, live theme previews and cancellation, system/light/dark themes and forced colors, desktop preferences, PIN lock/recovery, second-instance activation while locked, English/Portuguese switching, safe exit — OK",
   );
 });

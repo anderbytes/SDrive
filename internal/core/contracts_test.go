@@ -15,7 +15,7 @@ import (
 func bridgeSamples() map[string]any {
 	connection := Connection{ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S", AuthMethod: "oauth", SessionOnly: true, UploadLimit: 1024, DownloadLimit: 2048, UseProxy: true, Browser: "edge", PrivateBrowser: true, ConnectTimeout: 30, IdleTimeout: 60, AlternateURL: "https://alternate.example.test/dav", ResourceID: "synthetic-resource", PrimaryURL: "https://example.test/dav", Binding: "{}", MountMode: "local", MountFolder: `C:\Synthetic\Mount`, DirectoryCacheSeconds: 300}
 	age, delay := 24, 5
-	settings := Settings{Language: "en", CacheGiB: 2, CacheMaxAgeHours: &age, WriteBackSeconds: &delay}
+	settings := Settings{Theme: "system", Language: "en", CacheGiB: 2, CacheMaxAgeHours: &age, WriteBackSeconds: &delay}
 	field := Field{Key: "host", Label: "Server", Required: true, Choices: []string{"example.test"}, Hint: "Server hostname"}
 	provider := Provider{ID: "sftp", Name: "SFTP", Backend: "sftp", Fields: []Field{field}, Available: true, Notice: "Synthetic provider"}
 	question := Question{Name: "Library", Help: "Choose a library", Examples: []Example{{Value: "library", Help: "User library"}}}
@@ -30,7 +30,7 @@ func bridgeSamples() map[string]any {
 	filled.FreeBytes = &size
 	filled.Connections = []ConnectionView{{Connection: connection, Pending: &count, Operation: "mounting", Error: message.Message, ErrorMessage: message, Uploads: &UploadView{Active: 1, Queued: 1}, Cache: CacheView{CheckedAt: &checked, PendingBytes: &pending, UsedBytes: &size}}}
 	return map[string]any{
-		"accessStatus":  AccessStatus{Enabled: true, Locked: true, Language: "en", Policy: AccessPolicy{IdleMinutes: 15}, RetryAt: checked},
+		"accessStatus":  AccessStatus{Theme: "system", Enabled: true, Locked: true, Language: "en", Policy: AccessPolicy{IdleMinutes: 15}, RetryAt: checked},
 		"fileAccess":    FileAccessView{Path: "document.txt", FileAccess: platform.FileAccess{State: "reported", CheckedAt: checked, Processes: []platform.FileProcess{{PID: 42, Name: "Synthetic editor", StartedAt: checked}}}},
 		"importPreview": ImportPreview{ID: "preview", Document: PortableFile{Format: "sdrive-portable", Version: 1, Connections: []PortableConnection{portableDefinition(connection)}, Preferences: portablePreferences(settings)}},
 		"importDraft":   ImportDraft{ID: "draft", Definition: portableDefinition(connection)},

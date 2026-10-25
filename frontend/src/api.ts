@@ -1,9 +1,10 @@
+import { type Theme } from "./theme";
 import { localizedMessage, type LocalizedMessage } from "./messages";
 import { Call, Clipboard, Events } from "@wailsio/runtime";
 
 export interface FileAccessView { path: string; state: string; checkedAt: string; processes: { pid: number; name: string; startedAt: string }[] }
 export interface AccessPolicy { idleMinutes: number; disconnectIdle: boolean; reconnect: boolean }
-export interface AccessStatus { setupPending: boolean; enabled: boolean; locked: boolean; language: string; policy: AccessPolicy; retryAt: string; error: string; warning: string }
+export interface AccessStatus { theme: string; setupPending: boolean; enabled: boolean; locked: boolean; language: string; policy: AccessPolicy; retryAt: string; error: string; warning: string }
 
 export interface AboutInfo {
   appVersion: string;
@@ -83,6 +84,7 @@ export interface ConnectionView extends Connection {
 }
 export interface TransportSecurityView { state: string; protocol: string; source: string; checkedAt: string | null }
 export interface Settings {
+  theme: Theme;
 	openExplorerAfterConnect: boolean;
 	showServiceIcons: boolean;
   language: "en" | "pt-BR";

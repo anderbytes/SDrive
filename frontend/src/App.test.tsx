@@ -20,6 +20,8 @@ Object.defineProperties(HTMLDialogElement.prototype, {
   showModal: { configurable: true, value() { this.setAttribute("open", ""); } },
   close: { configurable: true, value() { this.removeAttribute("open"); } },
 });
+Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
+
 const selectAvailableCategory = () => {
   const select = screen.queryByLabelText("Connection type") || screen.queryByLabelText("Tipo de conexão");
   if (select instanceof HTMLSelectElement && !select.options.length) fireEvent.click(screen.getByRole("tab", { name: /^(Advanced|Avançados)$/ }));
@@ -86,7 +88,7 @@ const connection: ConnectionView = {
   cache: { checkedAt: null, pendingBytes: 0, usedBytes: 0, error: "" },
   error: "",
 };
-const access = { setupPending: false, enabled: false, locked: false, language: "en", policy: { idleMinutes: 15, disconnectIdle: false, reconnect: false }, retryAt: "0001-01-01T00:00:00Z", error: "", warning: "" };
+const access = { theme: "system", setupPending: false, enabled: false, locked: false, language: "en", policy: { idleMinutes: 15, disconnectIdle: false, reconnect: false }, retryAt: "0001-01-01T00:00:00Z", error: "", warning: "" };
 const snapshot = {
   access,
   importDrafts: [], desktopWarning: "",
@@ -104,7 +106,7 @@ const snapshot = {
     },
   ],
   connections: [] as ConnectionView[],
-  settings: { language: "en" as const, autoStart: false, cacheGiB: 2, openExplorerAfterConnect: false, showServiceIcons: false },
+  settings: { theme: "system" as const, language: "en" as const, autoStart: false, cacheGiB: 2, openExplorerAfterConnect: false, showServiceIcons: false },
   letters: ["S", "T"],
   winFsp: true,
   engineError: "",
@@ -130,6 +132,96 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
+async function openPreferences() {
+  const button = await screen.findByRole("button", { name: /Preferences/ });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(button);
+  await screen.findByRole("dialog", { name: "Preferences" });
+}
+
+test("preference tabs preserve edits, navigate by keyboard and reveal invalid fields", async () => {
+  render(<App />);
+  await screen.findByRole("heading", { name: "My drives" });
+  await openPreferences();
+  expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+  expect(screen.getByRole("tabpanel", { name: "General" })).toBeDefined();
+  fireEvent.keyDown(screen.getByRole("tab", { name: "General" }), { key: "ArrowRight" });
+  expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Appearance" }));
+  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
+  fireEvent.change(screen.getByLabelText("Cache target per connection (GiB)"), { target: { value: "0" } });
+  fireEvent.keyDown(screen.getByRole("tab", { name: "Cache" }), { key: "End" });
+  expect(screen.getByRole("tabpanel", { name: "Configuration" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(screen.getByRole("tabpanel", { name: "Cache" })).toBeDefined();
+  expect(document.activeElement).toBe(screen.getByLabelText("Cache target per connection (GiB)"));
+  expect(api.settings).not.toHaveBeenCalled();
+  fireEvent.keyDown(screen.getByRole("tab", { name: "Cache" }), { key: "Home" });
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  expect((screen.getByLabelText("Theme") as HTMLSelectElement).value).toBe("dark");
+});
+
+test("theme previews survive polling and failed saves, cancel restores and save persists", async () => {
+  let saved: import("./api").Settings = { ...snapshot.settings, theme: "light" };
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, theme: "light" });
+  vi.mocked(api.snapshot).mockImplementation(async () => ({ ...snapshot, settings: saved }));
+  const view = render(<App />);
+  await screen.findByRole("heading", { name: "My drives" });
+  await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  vi.mocked(api.settings).mockRejectedValueOnce(new Error("save denied"));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText("save denied");
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 3100)); });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  cancelDialog();
+  expect(document.documentElement.dataset.theme).toBe("light");
+  await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(document.documentElement.dataset.theme).toBe("light");
+  await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+  vi.mocked(api.settings).mockImplementation(async (settings) => { saved = { ...settings }; });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(saved.theme).toBe("dark");
+  view.unmount();
+  render(<App />);
+  await screen.findByRole("heading", { name: "My drives" });
+  await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  expect((screen.getByLabelText("Theme") as HTMLSelectElement).value).toBe("dark");
+  expect(document.documentElement.dataset.theme).toBe("dark");
+});
+
+test("system theme follows live changes while explicit themes and lock screens stay consistent", async () => {
+  const system = new EventTarget();
+  let dark = false;
+  vi.mocked(window.matchMedia).mockReturnValue({
+    get matches() { return dark; },
+    addEventListener: system.addEventListener.bind(system),
+    removeEventListener: system.removeEventListener.bind(system),
+  } as MediaQueryList);
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, locked: true, theme: "system" });
+  const view = render(<App />);
+  await screen.findByRole("heading", { name: "SDrive is locked" });
+  expect(document.documentElement.dataset.theme).toBe("light");
+  act(() => { dark = true; system.dispatchEvent(new Event("change")); });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  view.unmount();
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, locked: true, theme: "light" });
+  render(<App />);
+  await screen.findByRole("heading", { name: "SDrive is locked" });
+  expect(document.documentElement.dataset.theme).toBe("light");
+  act(() => { dark = false; system.dispatchEvent(new Event("change")); dark = true; system.dispatchEvent(new Event("change")); });
+  expect(document.documentElement.dataset.theme).toBe("light");
+});
+
 test("import preview requires conflict resolution and explicit preference selection", async () => {
   const document = { ...bridgeFixtures.samples.importPreview.document, preferences: { ...snapshot.settings }, connections: [{ ...bridgeFixtures.samples.importDraft.definition, name: "My Drive", provider: "drive", letter: "S", mountFolder: "", mountMode: "network", sessionOnly: false, autoMount: false }] };
   const onSaved = vi.fn().mockResolvedValue(undefined);
@@ -138,7 +230,7 @@ test("import preview requires conflict resolution and explicit preference select
   expect(screen.getByRole("button", { name: "Save imported drafts" }).hasAttribute("disabled")).toBe(true);
   fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "Imported Drive" } });
   fireEvent.change(screen.getByLabelText("Windows drive letter"), { target: { value: "T" } });
-  const preferences = screen.getByRole("checkbox", { name: "Apply imported language, cache timing and desktop preferences" });
+  const preferences = screen.getByRole("checkbox", { name: "Apply imported theme, language, cache timing and desktop preferences" });
   expect((preferences as HTMLInputElement).checked).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "Save imported drafts" }));
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
@@ -1218,7 +1310,7 @@ test("failed disconnect keeps the drive visible and allows retry", async () => {
 });
 
 test("language changes are saved, applied and restored on reopening", async () => {
-  let saved = { ...snapshot.settings, language: "en" as "en" | "pt-BR" };
+  let saved: import("./api").Settings = { ...snapshot.settings, language: "en" as "en" | "pt-BR" };
   vi.mocked(api.snapshot).mockImplementation(async () => ({
     ...snapshot,
     settings: saved,
@@ -1236,6 +1328,7 @@ test("language changes are saved, applied and restored on reopening", async () =
   await screen.findByRole("heading", { name: "Minhas unidades" });
   expect(api.settings).toHaveBeenCalledWith({
     autoStart: false,
+    theme: "system",
     cacheGiB: 2,
     language: "pt-BR",
     openExplorerAfterConnect: false,
@@ -1410,6 +1503,7 @@ test("cache timing preserves an explicit zero upload delay", async () => {
   render(<App />);
   await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
+  fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
   fireEvent.change(screen.getByLabelText("Cache retention after last access (hours)"), { target: { value: "48" } });
   fireEvent.change(screen.getByLabelText("Upload delay after last use (seconds)"), { target: { value: "0" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -1421,6 +1515,7 @@ test("cache location failure keeps the current location visible", async () => {
   render(<App />);
   await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
+  fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
   fireEvent.change(screen.getByLabelText("New empty cache directory"), { target: { value: "D:\\NewCache" } });
   fireEvent.click(screen.getByRole("button", { name: "Change cache location" }));
   await screen.findByRole("alert");

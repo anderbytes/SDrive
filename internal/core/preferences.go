@@ -19,6 +19,8 @@ func SetLanguageChanged(s *Service, changed func(string)) { s.languageChanged = 
 // SetAutoStart installs the desktop callback before publishing the service.
 func SetAutoStart(s *Service, update func(bool) error) { s.autoStart = update }
 
+func validTheme(theme string) bool { return theme == "system" || theme == "light" || theme == "dark" }
+
 func (s *Service) SaveSettings(settings Settings) error {
 	if err := s.accessAllowed(); err != nil {
 		return err
@@ -26,6 +28,12 @@ func (s *Service) SaveSettings(settings Settings) error {
 	defer s.reconcileDesktopAppearance()
 	if err := validateCacheDurations(settings); err != nil {
 		return err
+	}
+	if settings.Theme == "" {
+		settings.Theme = "system"
+	}
+	if !validTheme(settings.Theme) {
+		return fmt.Errorf("unsupported theme")
 	}
 	if settings.Language == "" {
 		settings.Language = "en"

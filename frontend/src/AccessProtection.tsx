@@ -1,3 +1,4 @@
+import { useTheme, type Theme } from "./theme";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type AccessPolicy, type AccessStatus } from "./api";
 import { useLanguage } from "./i18n";
@@ -9,6 +10,7 @@ const lockLimit = "The lock protects SDrive management controls. Drives that rem
 
 export function AccessBoundary({ children }: { children: (showLocked: () => void) => ReactNode }) {
   const { t, setLanguage } = useLanguage();
+  const { setTheme } = useTheme();
   const [status, setStatus] = useState<AccessStatus>();
   const [failure, setFailure] = useState("");
   const generation = useRef(0);
@@ -20,6 +22,7 @@ export function AccessBoundary({ children }: { children: (showLocked: () => void
       const next = await api.accessStatus();
       if (request !== generation.current) return;
       setStatus(next);
+      setTheme((next.theme || "system") as Theme);
       setLanguage(next.language === "pt-BR" ? "pt-BR" : "en");
       setFailure("");
     } catch (e) { if (request === generation.current) setFailure(t(errorMessage(e))); }

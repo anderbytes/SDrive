@@ -2,7 +2,7 @@
 
 ## Export and import
 
-In **Preferences → Portable configuration**, export a local JSON file or review an import. This is a portable definition file, not a restore operation for `settings.backup.json`. It never transfers pending files or their original recovery identity.
+In **Preferences → Configuration → Portable configuration**, export a local JSON file or review an import. This is a portable definition file, not a restore operation for `settings.backup.json`. It never transfers pending files or their original recovery identity.
 
 The `sdrive-portable` format, version 1, contains connection names, providers, relative remote paths, mount options, transferable preferences and an explicit allowlist of non-secret access hints. Names, server addresses, usernames and paths may still be private: store and share the file deliberately.
 
@@ -12,7 +12,7 @@ Import reads at most 4 MiB and accepts at most 1,000 definitions. Unsupported ve
 
 Imports become persistent **drafts**, separate from operational connections. They do not start a worker, reserve drive letters, auto-connect or participate in recovery/cache cleanup. **Authenticate** opens the existing setup wizard with non-secret hints filled in. Supply application credentials, authorize the provider again, review the remote folder and explicitly connect. HTTP/plain FTP consent and SSH host verification must be repeated. Cancelling or failing setup preserves the draft; successful confirmation creates a fresh connection identity and removes that draft atomically. **Remove draft** only removes the definition.
 
-Applying imported preferences is a separate, initially unchecked choice. It covers language, cache size/timing and desktop preferences. Windows startup, proxy settings and authoritative cache location stay local. Existing mounted drives are not remounted for imported cache settings. Preferences and definitions cannot be imported during protected settings recovery or active setup.
+Applying imported preferences is a separate, initially unchecked choice. It covers theme, language, cache size/timing and desktop preferences. Windows startup, proxy settings and authoritative cache location stay local. Existing mounted drives are not remounted for imported cache settings. Preferences and definitions cannot be imported during protected settings recovery or active setup.
 
 Settings writes now use version 5. Unversioned settings and versions 1–4 remain readable. Older applications reject version 5; do not edit version numbers to bypass this protection.
 
@@ -39,3 +39,9 @@ Core tests cover portable round trips, provider-wide credential exclusion, malfo
 `TestNetworkDriveDisplaysOnlyConnectionTitleInExplorer`, also enabled with `SDRIVE_TEST_MOUNT=1`, mounts disposable loopback storage with service icons disabled, reads the actual Explorer display name and checks label cleanup after disconnect. Registry unit tests cover title updates, repeated reconciliation, profile/installation ownership and preservation of user edits.
 
 The Wails smoke test also exercises portable export/import, explicit reauthentication and cancellation, draft removal, desktop preference defaults, English/Portuguese labels. Only its dedicated smoke binary substitutes a deterministic file-picker path inside the disposable test workspace; production builds use native file dialogs.
+
+## Appearance preferences
+
+Preferences separates General, Appearance, Cache, Network and Configuration settings. Appearance offers System, Light and Dark themes. System is the default for new and older profiles and follows Windows theme changes. Selecting a theme previews it immediately; Save persists it, while Cancel or Escape restores the saved choice. Failed saves leave the preview open for correction or cancellation. The saved theme also applies to the application lock screen.
+
+Portable exports include the theme. Importing it requires selecting the imported preferences checkbox; older portable files without a theme use System when those preferences are applied. Cache-directory changes and import/export actions take effect independently of Save and are not undone by Cancel.

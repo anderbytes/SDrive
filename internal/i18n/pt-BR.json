@@ -786,5 +786,16 @@
   "No alerts or recovery required.": "Nenhum alerta ou recuperação necessária.",
   "Drive details": "Detalhes da unidade",
   "Connection needs attention.": "A conexão precisa de atenção.",
-  "Local cache needs attention.": "O cache local precisa de atenção."
+  "Local cache needs attention.": "O cache local precisa de atenção.",
+  "Appearance": "Aparência",
+  "Cache": "Cache",
+  "Configuration": "Configuração",
+  "Preferences categories": "Categorias de preferências",
+  "Theme": "Tema",
+  "System": "Sistema",
+  "Light": "Claro",
+  "Dark": "Escuro",
+  "unsupported theme": "tema não suportado",
+  "System follows your Windows theme. Save to keep the preview; Cancel restores the saved theme.": "Sistema acompanha o tema do Windows. Salve para manter a prévia; Cancelar restaura o tema salvo.",
+  "Apply imported theme, language, cache timing and desktop preferences": "Aplicar tema, idioma, temporização do cache e preferências de desktop importados"
 }

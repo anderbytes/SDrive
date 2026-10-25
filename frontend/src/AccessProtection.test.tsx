@@ -13,7 +13,7 @@ Object.defineProperties(HTMLDialogElement.prototype, {
   showModal: { configurable: true, value() { this.setAttribute("open", ""); } },
   close: { configurable: true, value() { this.removeAttribute("open"); } },
 });
-const status: AccessStatus = { setupPending: false, enabled:true, locked:false,language:"en", policy:{idleMinutes:15,disconnectIdle:false,reconnect:false},retryAt:"0001-01-01T00:00:00Z",error:"",warning:"" };
+const status: AccessStatus = { theme: "system", setupPending: false, enabled:true, locked:false,language:"en", policy:{idleMinutes:15,disconnectIdle:false,reconnect:false},retryAt:"0001-01-01T00:00:00Z",error:"",warning:"" };
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(api.accessStatus).mockResolvedValue(status);

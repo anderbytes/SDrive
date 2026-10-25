@@ -25,6 +25,7 @@ type AccessPolicy struct {
 }
 
 type AccessStatus struct {
+	Theme        string       `json:"theme"`
 	SetupPending bool         `json:"setupPending"`
 	Language     string       `json:"language"`
 	Enabled      bool         `json:"enabled"`
@@ -143,7 +144,7 @@ func (s *Service) AccessStatus() AccessStatus {
 }
 
 func (s *Service) accessStatus() AccessStatus {
-	status := AccessStatus{SetupPending: !s.access.locked && s.session != nil, Language: s.store.Settings.Language, Enabled: s.access.record != nil || s.store.AccessProtected || s.access.error != "", Locked: s.access.locked, Error: s.access.error, Warning: s.access.warning, Policy: AccessPolicy{IdleMinutes: 15}}
+	status := AccessStatus{Theme: s.store.Settings.Theme, SetupPending: !s.access.locked && s.session != nil, Language: s.store.Settings.Language, Enabled: s.access.record != nil || s.store.AccessProtected || s.access.error != "", Locked: s.access.locked, Error: s.access.error, Warning: s.access.warning, Policy: AccessPolicy{IdleMinutes: 15}}
 	if r := s.access.record; r != nil {
 		status.Policy, status.RetryAt = r.Policy, r.RetryAt
 	}
@@ -151,7 +152,7 @@ func (s *Service) accessStatus() AccessStatus {
 }
 
 func (s *Service) lockedView() View {
-	return View{Access: s.accessStatus(), Settings: Settings{Language: s.store.Settings.Language}, Providers: []Provider{}, Connections: []ConnectionView{}, ImportDrafts: []ImportDraft{}, Letters: []string{}}
+	return View{Access: s.accessStatus(), Settings: Settings{Language: s.store.Settings.Language, Theme: s.store.Settings.Theme}, Providers: []Provider{}, Connections: []ConnectionView{}, ImportDrafts: []ImportDraft{}, Letters: []string{}}
 }
 
 func (s *Service) lockManagement() {

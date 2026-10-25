@@ -15,7 +15,7 @@ The online installer includes SDrive and rclone. Compatible WinFsp and WebView2 
 
 For installation without internet access or on networks that restrict downloads, use **SDrive-0.1.0-offline-setup.exe**, which includes all components. Signing in and accessing remote files requires connectivity with either version. Run either installer again to repair missing components. The application runs without administrator privileges.
 
-Before disconnecting or exiting, close files and wait for uploads. Closing the window keeps drives active in the tray. **Preferences** lets you start SDrive with Windows; automatic mounting is optional per connection. Both are disabled initially.
+Before disconnecting or exiting, close files and wait for uploads. Closing the window keeps drives active in the tray. **Preferences** lets you start SDrive with Windows; automatic mounting is optional per connection. Both are disabled initially. Preferences groups settings into General, Appearance, Cache, Network and Configuration tabs. Under Appearance, choose System (the default), Light or Dark. Theme changes preview immediately; Save keeps the choice, while Cancel or Escape restores the saved theme. System follows Windows theme changes, including on the lock screen.
 
 Choose network-drive or local-disk presentation, or mount into a new local subfolder. Preferences includes safe cache-directory changes and retention/upload timing. Drive options include metadata lifetime, explicit Explorer refresh and provider-reported capacity. See [cache, mounting and browsing](docs/mount-runtime.md) for defaults and limits.
 
@@ -23,7 +23,7 @@ The tray shows connected-drive counts and distinguishes uploads, recovery, unkno
 
 Window position, size and maximization are remembered and adjusted to available monitors. **About SDrive** lists application, running rclone, Windows and installed WinFsp/WebView2 versions; unavailable components are shown explicitly.
 
-**Preferences → Portable configuration** exports credential-free connection definitions and reviews imports as drafts requiring authentication. Optional Explorer opening and per-user service icons default off. Connection cards show configured options alongside upload/recovery status. See [configuration portability and desktop preferences](docs/portability-and-desktop.md).
+**Preferences → Configuration → Portable configuration** exports credential-free connection definitions and reviews imports as drafts requiring authentication. Optional Explorer opening and per-user service icons default off. Connection cards show configured options alongside upload/recovery status. See [configuration portability and desktop preferences](docs/portability-and-desktop.md).
 
 ## Update, repair and collect diagnostics
 
@@ -39,7 +39,7 @@ Minimal technical events are collected automatically and kept only in your local
 
 ## Language
 
-English is the application's default and the language of the repository, source messages and documentation. The interface supports **English** and **Português (Brasil)**. Choose **Preferences → Language** and save. The choice is stored in your settings and applies to the interface, connection wizard and tray menu. Missing translations fall back to English. Account names, remote paths and file contents are preserved.
+English is the application's default and the language of the repository, source messages and documentation. The interface supports **English** and **Português (Brasil)**. Choose **Preferences → General → Language** and save. The choice is stored in your settings and applies to the interface, connection wizard and tray menu. Missing translations fall back to English. Account names, remote paths and file contents are preserved.
 
 ## Development
 

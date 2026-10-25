@@ -43,6 +43,7 @@ type Connection struct {
 	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
+	Theme                    string `json:"theme"`
 	OpenExplorerAfterConnect bool   `json:"openExplorerAfterConnect"`
 	ShowServiceIcons         bool   `json:"showServiceIcons"`
 	Language                 string `json:"language"`
@@ -61,7 +62,7 @@ type Store struct {
 var errSettingsVersion = errors.New("unsupported settings format; preserve the data directory and use a compatible SDrive version")
 
 func defaultStore() Store {
-	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en"}}
+	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en", Theme: "system"}}
 }
 
 func loadStore(dir string) (Store, error) {
@@ -103,6 +104,9 @@ func decodeStore(b []byte) (Store, error) {
 		return s, invalid
 	}
 	var err error
+	if !validTheme(s.Settings.Theme) {
+		s.Settings.Theme = "system"
+	}
 	if !i18n.Valid(s.Settings.Language) {
 		s.Settings.Language = "en"
 	}

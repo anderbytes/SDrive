@@ -11,7 +11,7 @@ import (
 
 func TestStoreRoundTripPreservesRecovery(t *testing.T) {
 	dir := t.TempDir()
-	want := Store{Settings: Settings{CacheGiB: 8, Language: "pt-BR"}, Connections: []Connection{testConnection()}}
+	want := Store{Settings: Settings{Theme: "system", CacheGiB: 8, Language: "pt-BR"}, Connections: []Connection{testConnection()}}
 	want.Connections[0].TargetHash = strings.Repeat("a", 64)
 	if err := saveStore(dir, want); err != nil {
 		t.Fatal(err)

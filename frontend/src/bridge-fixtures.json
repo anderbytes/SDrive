@@ -401,7 +401,8 @@
       },
       "retryAt": "2026-01-01T00:00:00Z",
       "error": "",
-      "warning": ""
+      "warning": "",
+      "theme": "system"
     },
     "configInput": {
       "importDraftID": "draft",
@@ -589,7 +590,8 @@
           "cacheMaxAgeHours": 24,
           "writeBackSeconds": 5,
           "openExplorerAfterConnect": false,
-          "showServiceIcons": false
+          "showServiceIcons": false,
+          "theme": "system"
         }
       }
     },
@@ -674,7 +676,8 @@
         },
         "retryAt": "0001-01-01T00:00:00Z",
         "error": "",
-        "warning": ""
+        "warning": "",
+        "theme": ""
       },
       "desktopWarning": "",
       "importDrafts": [],
@@ -687,7 +690,8 @@
         "autoStart": false,
         "cacheGiB": 2,
         "cacheMaxAgeHours": 24,
-        "writeBackSeconds": 5
+        "writeBackSeconds": 5,
+        "theme": "system"
       },
       "letters": [],
       "winFsp": false,
@@ -713,7 +717,8 @@
         },
         "retryAt": "0001-01-01T00:00:00Z",
         "error": "",
-        "warning": ""
+        "warning": "",
+        "theme": ""
       },
       "desktopWarning": "",
       "importDrafts": [],
@@ -817,7 +822,8 @@
         "autoStart": false,
         "cacheGiB": 2,
         "cacheMaxAgeHours": 24,
-        "writeBackSeconds": 5
+        "writeBackSeconds": 5,
+        "theme": "system"
       },
       "letters": [
         "T"

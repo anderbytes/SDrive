@@ -43,6 +43,7 @@ type PortableConnection struct {
 }
 
 type PortablePreferences struct {
+	Theme                    string `json:"theme"`
 	Language                 string `json:"language"`
 	CacheGiB                 int    `json:"cacheGiB"`
 	CacheMaxAgeHours         *int   `json:"cacheMaxAgeHours,omitempty"`
@@ -77,10 +78,14 @@ func portableDefinition(c Connection) PortableConnection {
 }
 
 func portablePreferences(settings Settings) PortablePreferences {
-	return PortablePreferences{settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.OpenExplorerAfterConnect, settings.ShowServiceIcons}
+	return PortablePreferences{settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.OpenExplorerAfterConnect, settings.ShowServiceIcons}
 }
 
 func (p PortablePreferences) settings(local Settings) Settings {
+	local.Theme = p.Theme
+	if local.Theme == "" {
+		local.Theme = "system"
+	}
 	local.Language, local.CacheGiB = p.Language, p.CacheGiB
 	local.CacheMaxAgeHours, local.WriteBackSeconds = p.CacheMaxAgeHours, p.WriteBackSeconds
 	local.OpenExplorerAfterConnect, local.ShowServiceIcons = p.OpenExplorerAfterConnect, p.ShowServiceIcons
@@ -153,7 +158,7 @@ func validatePortableDocument(d PortableFile) error {
 		return fmt.Errorf("Unsupported or invalid portable configuration.")
 	}
 	s := d.Preferences.settings(defaultStore().Settings)
-	if !i18n.Valid(s.Language) || s.CacheGiB < 1 || s.CacheGiB > 1024 {
+	if !validTheme(s.Theme) || !i18n.Valid(s.Language) || s.CacheGiB < 1 || s.CacheGiB > 1024 {
 		return fmt.Errorf("Invalid portable preferences.")
 	}
 	if err := validateCacheDurations(s); err != nil {
@@ -168,6 +173,9 @@ func validatePortableDocument(d PortableFile) error {
 }
 
 func normalizePortableDocument(d *PortableFile) {
+	if d.Preferences.Theme == "" {
+		d.Preferences.Theme = "system"
+	}
 	for i := range d.Connections {
 		entry := &d.Connections[i]
 		entry.Name = strings.TrimSpace(entry.Name)
