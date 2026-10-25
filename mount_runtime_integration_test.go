@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -226,6 +227,9 @@ func TestWindowsMountRuntimeModes(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if err := os.Mkdir(filepath.Join(f.destination, "library", "empty-folder"), 0700); err != nil {
+				t.Fatal(err)
+			}
 			c.ReadOnly = true
 			if err := reopened.UpdateConnection(c); err != nil {
 				t.Fatal(err)
@@ -233,12 +237,85 @@ func TestWindowsMountRuntimeModes(t *testing.T) {
 			if err := reopened.Mount(c.ID); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(point, "forbidden.txt"), []byte("must not upload"), 0600); err == nil {
-				t.Fatal("read-only mount accepted a write")
+			uploads, moves, deletes := f.uploads.Load(), f.moves.Load(), f.deletes.Load()
+			file := filepath.Join(point, "remote.txt")
+			for _, operation := range []struct {
+				name string
+				run  func() error
+			}{
+				{"delete file", func() error { return os.Remove(file) }},
+				{"delete directory", func() error { return os.Remove(filepath.Join(point, "empty-folder")) }},
+				{"rename", func() error { return os.Rename(file, filepath.Join(point, "forbidden-rename.txt")) }},
+				{"overwrite", func() error { return os.WriteFile(file, []byte("must not upload"), 0600) }},
+				{"create file", func() error {
+					return os.WriteFile(filepath.Join(point, "forbidden.txt"), []byte("must not upload"), 0600)
+				}},
+				{"create directory", func() error { return os.Mkdir(filepath.Join(point, "forbidden-folder"), 0700) }},
+			} {
+				if err := operation.run(); !errors.Is(err, os.ErrPermission) {
+					t.Fatalf("read-only %s must return permission denied immediately, got %v", operation.name, err)
+				}
+			}
+			for _, refresh := range []bool{false, true} {
+				if refresh {
+					if err := reopened.RefreshDirectoryCache(c.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if b, err := os.ReadFile(file); err != nil || string(b) != "remote data" {
+					t.Fatalf("read-only operations changed mounted content (refresh=%t): %v", refresh, err)
+				}
+				if entries, err := os.ReadDir(filepath.Join(point, "empty-folder")); err != nil || len(entries) != 0 {
+					t.Fatalf("read-only directory was removed or is inaccessible (refresh=%t): %v", refresh, err)
+				}
+				for _, name := range []string{"forbidden.txt", "forbidden-rename.txt", "forbidden-folder"} {
+					if _, err := os.Stat(filepath.Join(point, name)); !os.IsNotExist(err) {
+						t.Fatalf("read-only operation left %s: %v", name, err)
+					}
+				}
 			}
 			assertIntegrationAbsent(t, filepath.Join(f.destination, "library", "forbidden.txt"))
 			if err := reopened.Unmount(c.ID); err != nil {
 				t.Fatal(err)
+			}
+			if b, err := os.ReadFile(filepath.Join(f.destination, "library", "remote.txt")); err != nil || string(b) != "remote data" {
+				t.Fatal("read-only operations changed remote content")
+			}
+			if entries, err := os.ReadDir(filepath.Join(f.destination, "library", "empty-folder")); err != nil || len(entries) != 0 {
+				t.Fatal("read-only operations changed remote directory")
+			}
+			if f.uploads.Load() != uploads || f.moves.Load() != moves || f.deletes.Load() != deletes {
+				t.Fatal("read-only operations reached the remote as mutations")
+			}
+			c.ReadOnly = false
+			if err := reopened.UpdateConnection(c); err != nil {
+				t.Fatal(err)
+			}
+			if err := reopened.Mount(c.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(file, []byte("updated data"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			waitIntegration(t, "writable replacement uploaded", 15*time.Second, func() bool {
+				b, err := os.ReadFile(filepath.Join(f.destination, "library", "remote.txt"))
+				return err == nil && string(b) == "updated data"
+			})
+			renamed := filepath.Join(point, "writable-renamed.txt")
+			if err := os.Rename(file, renamed); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(renamed); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(filepath.Join(point, "empty-folder")); err != nil {
+				t.Fatal(err)
+			}
+			if err := reopened.Unmount(c.ID); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{"remote.txt", "writable-renamed.txt", "empty-folder"} {
+				assertIntegrationAbsent(t, filepath.Join(f.destination, "library", name))
 			}
 			t.Logf("synthetic browsing observations: %d HTTP requests, %d content reads", f.requests.Load(), f.downloads.Load())
 		})

@@ -118,7 +118,11 @@ func mountOptions(c Connection, settings Settings) map[string]any {
 		vfs["FilePerms"], vfs["DirPerms"] = uint32(0600), uint32(0700)
 	}
 	mount := map[string]any{"NetworkMode": c.MountMode != "local", "VolumeName": c.Name}
-	if c.MountMode == "local" {
+	if c.ReadOnly {
+		// Deny delete access before WinFsp's cleanup phase can hide a VFS rejection.
+		vfs["FilePerms"], vfs["DirPerms"] = uint32(0400), uint32(0500)
+		mount["ExtraOptions"] = []string{"FileSecurity=D:P(A;;FRFX;;;OW)"}
+	} else if c.MountMode == "local" {
 		mount["ExtraOptions"] = []string{"FileSecurity=D:P(A;;FA;;;OW)"}
 	}
 	return map[string]any{"fs": remote(c), "mountPoint": mountPoint(c), "mountOpt": mount, "vfsOpt": vfs}

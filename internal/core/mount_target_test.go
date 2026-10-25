@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -86,6 +87,33 @@ func TestMountRuntimeOptionsUseTimingAndPrivateLocalPermissions(t *testing.T) {
 	vfs = options["vfsOpt"].(map[string]any)
 	if vfs["FilePerms"] != uint32(0600) || vfs["DirPerms"] != uint32(0700) || vfs["PollInterval"] != int64(0) || vfs["WriteBack"] != int64(0) || vfs["CacheMaxAge"] != int64(48*time.Hour) || options["mountOpt"].(map[string]any)["NetworkMode"] != false {
 		t.Fatal("local runtime options differ")
+	}
+}
+
+func TestMountPermissionsMatchAccessMode(t *testing.T) {
+	for _, mode := range []string{"", "network", "local", "folder"} {
+		for _, readOnly := range []bool{false, true} {
+			c := testConnection()
+			c.MountMode, c.ReadOnly = mode, readOnly
+			if mode == "folder" {
+				c.MountMode, c.Letter, c.MountFolder = "local", "", filepath.Join(t.TempDir(), "mount")
+			}
+			options := mountOptions(c, defaultStore().Settings)
+			vfs, mount := options["vfsOpt"].(map[string]any), options["mountOpt"].(map[string]any)
+			var extraOptions []string
+			var filePerms, dirPerms any
+			if readOnly {
+				extraOptions = []string{"FileSecurity=D:P(A;;FRFX;;;OW)"}
+				filePerms, dirPerms = uint32(0400), uint32(0500)
+			} else if c.MountMode == "local" {
+				extraOptions = []string{"FileSecurity=D:P(A;;FA;;;OW)"}
+				filePerms, dirPerms = uint32(0600), uint32(0700)
+			}
+			actual, _ := mount["ExtraOptions"].([]string)
+			if vfs["ReadOnly"] != readOnly || vfs["FilePerms"] != filePerms || vfs["DirPerms"] != dirPerms || !reflect.DeepEqual(actual, extraOptions) {
+				t.Fatalf("mode=%q readOnly=%t: mount permissions differ: %v, %v", mode, readOnly, mount, vfs)
+			}
+		}
 	}
 }
 

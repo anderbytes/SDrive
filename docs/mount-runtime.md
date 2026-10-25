@@ -44,7 +44,9 @@ Folder mounting requires local-disk mode and a new, nonexistent subfolder of an 
 
 Validation rejects device/network paths, ambiguous names, linked ancestors and overlap with the profile, cache or another saved mount. It runs again before mounting. Destination changes remain blocked during mounting, operations or pending recovery. Folder connections do not reserve letters.
 
-Local mounts use the fixed WinFsp `FileSecurity=D:P(A;;FA;;;OW)` owner ACL and restrictive VFS permissions. POSIX permissions alone would retain some metadata permissions for other users. This does not protect against administrators or programs running as your user. Read-only connections still reject writes through the VFS.
+Writable local mounts use the fixed WinFsp `FileSecurity=D:P(A;;FA;;;OW)` owner ACL and restrictive VFS permissions. POSIX permissions alone would retain some metadata permissions for other users. This does not protect against administrators or programs running as your user.
+
+Read-only connections use `FileSecurity=D:P(A;;FRFX;;;OW)` for all mount destinations, allowing the owner to read and traverse without write or delete access, with VFS permissions `0400` for files and `0500` for directories. The VFS read-only guard remains enabled. Windows rejects deletion, renaming and writes immediately, so Explorer does not appear to delete a file that returns after refresh. Rejecting deletion only in the VFS is too late: WinFsp can call unlink during cleanup, where the error does not reach the caller. These permissions apply on the next mount; disconnect and reconnect an existing mount to apply an updated access mode or this fix.
 
 Explorer, tray actions, reconciliation and safe disconnect use the saved destination. The engine removes its virtual folder mountpoint on disconnect; SDrive does not delete an independently created replacement directory.
 

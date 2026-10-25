@@ -111,7 +111,7 @@ Fixtures use unique, ACL-protected `.tools/integration/run-*` directories. Clean
 
 ### Cache and mount runtime checks
 
-`TestWindowsMountRuntimeModes` checks network/local drive types, owner ACLs, directory expiry/manual refresh with pending writes, property requests versus content reads, waiting for open files, folder collisions, read-only rejection and reopening. `TestConnectionWorkerUsesSelectedCache` verifies the real worker cache path without a mount. See [runtime behavior](mount-runtime.md).
+`TestWindowsMountRuntimeModes` checks network/local drive types, owner ACLs, directory expiry/manual refresh with pending writes, property requests versus content reads, waiting for open files, folder collisions and reopening. For all three mount destinations it requires immediate permission errors when a read-only connection deletes files or empty directories, renames, overwrites or creates files/directories. It checks reading/traversal and intact content before and after refresh, no remote upload/move/delete requests, and successful overwriting, renaming and deletion after reconnecting with write access. `TestConnectionWorkerUsesSelectedCache` verifies the real worker cache path without a mount. See [runtime behavior](mount-runtime.md).
 
 ```powershell
 $previousMountTest = $env:SDRIVE_TEST_MOUNT
