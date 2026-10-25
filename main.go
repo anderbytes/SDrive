@@ -62,7 +62,7 @@ func (w installerLog) Write(data []byte) (int, error) {
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--cleanup-drive-icons" {
-		if err := platform.CleanupDriveIcons(); err != nil {
+		if err := errors.Join(platform.CleanupDriveIcons(), platform.CleanupDriveLabels()); err != nil {
 			os.Exit(1)
 		}
 		return
@@ -170,6 +170,15 @@ func main() {
 		core.SetAutoStart(service, func(bool) error { return nil })
 	}
 	core.SetDiagnostics(service, diagnosticLog)
+	core.SetDriveLabels(service, func(connections []core.Connection) error {
+		drives := []platform.DriveLabel{}
+		for _, c := range connections {
+			if c.MountMode != "local" {
+				drives = append(drives, platform.DriveLabel{Letter: c.Letter, Name: c.Name})
+			}
+		}
+		return platform.SyncDriveLabels(dir, drives)
+	})
 	core.SetDriveIcons(service, func(connections []core.Connection) error {
 		drives := []platform.DriveIcon{}
 		for _, c := range connections {

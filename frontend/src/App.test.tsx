@@ -202,9 +202,9 @@ test("connection option indicators preserve recovery and upload messages", async
 });
 
 test("independent desktop failure messages remain localized together", async () => {
-  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, desktopWarning: "Explorer service icons could not be updated. Existing customization may take precedence.\nThe drive connected, but Explorer could not be opened. Use Open in Explorer to retry." });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, desktopWarning: "Explorer drive names or service icons could not be updated. Existing customization may take precedence.\nThe drive connected, but Explorer could not be opened. Use Open in Explorer to retry." });
   render(<App />);
-  await screen.findByText("Não foi possível atualizar os ícones de serviço do Explorer. Personalizações existentes podem ter prioridade. A unidade conectou, mas não foi possível abrir o Explorer. Use Abrir no Explorer para tentar novamente.");
+  await screen.findByText("Não foi possível atualizar os nomes das unidades ou os ícones de serviço do Explorer. Personalizações existentes podem ter prioridade. A unidade conectou, mas não foi possível abrir o Explorer. Use Abrir no Explorer para tentar novamente.");
 });
 
 test("Basic is initially selected and category tabs support keyboard navigation", async () => {

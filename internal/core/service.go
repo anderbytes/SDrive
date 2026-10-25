@@ -56,6 +56,7 @@ type Service struct {
 	access               accessProtection
 	desktopMu            sync.Mutex
 	syncDriveIcons       func([]Connection) error
+	syncDriveLabels      func([]Connection) error
 	desktopWarning       string
 	explorerWarning      string
 	pickPortable         func(bool) (string, error)
@@ -219,7 +220,7 @@ func (s *Service) Snapshot() (v View) {
 			v = s.lockedView()
 		}
 	}()
-	defer s.reconcileDesktopIcons()
+	defer s.reconcileDesktopAppearance()
 	s.mu.Lock()
 	s.snapshotID++
 	snapshotID := s.snapshotID

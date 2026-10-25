@@ -23,7 +23,7 @@ func (s *Service) SaveSettings(settings Settings) error {
 	if err := s.accessAllowed(); err != nil {
 		return err
 	}
-	defer s.reconcileDesktopIcons()
+	defer s.reconcileDesktopAppearance()
 	if err := validateCacheDurations(settings); err != nil {
 		return err
 	}

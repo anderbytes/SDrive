@@ -167,7 +167,7 @@ func reconcileDriveIcons(hive registry.Key, root, profile, executable string, wa
 						key.Close()
 						return err
 					}
-					notifyDriveIcon(string(letter))
+					notifyDriveChange(string(letter))
 				}
 				for _, name := range []string{"SDriveOwner", "SDriveInstall", "SDriveIcon"} {
 					if err := key.DeleteValue(name); err != nil && err != registry.ErrNotExist {
@@ -217,12 +217,12 @@ func reconcileDriveIcons(hive registry.Key, root, profile, executable string, wa
 			}
 		}
 		key.Close()
-		notifyDriveIcon(string(letter))
+		notifyDriveChange(string(letter))
 	}
 	return nil
 }
 
-func notifyDriveIcon(letter string) {
+func notifyDriveChange(letter string) {
 	path, _ := windows.UTF16PtrFromString(letter + `:\`)
 	// SHCNE_UPDATEITEM, SHCNF_PATHW: refresh this drive without restarting Explorer.
 	shellNotify.Call(0x2000, 0x5, uintptr(unsafe.Pointer(path)), 0)

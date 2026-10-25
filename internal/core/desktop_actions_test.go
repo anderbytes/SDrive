@@ -90,7 +90,7 @@ func TestDesktopFailuresDoNotChangeMountedRecovery(t *testing.T) {
 		return nil
 	})
 	s.store.Settings.ShowServiceIcons = false
-	s.reconcileDesktopIcons()
+	s.reconcileDesktopAppearance()
 	if s.desktopWarning != "" {
 		t.Fatal("icon warning not cleared")
 	}
@@ -115,5 +115,33 @@ func TestDesktopPreferencesPersistWithoutOpeningExistingMounts(t *testing.T) {
 	loaded, err := loadStore(s.dir)
 	if err != nil || !loaded.Settings.OpenExplorerAfterConnect || !loaded.Settings.ShowServiceIcons || opens != 0 || icons != 1 {
 		t.Fatal("desktop preferences were not preserved independently of mount actions", err, opens, icons)
+	}
+}
+
+func TestDriveLabelsRemainEnabledWithoutServiceIconsAndClearOnDisconnect(t *testing.T) {
+	s := testService(t, &fakeRPC{})
+	c := testConnection()
+	folder := c
+	folder.ID, folder.MountFolder = "folder", `C:\Mounts\Library`
+	s.store.Connections = []Connection{c, folder}
+	s.mounted[c.ID], s.mounted[folder.ID] = true, true
+	s.store.Settings.ShowServiceIcons = false
+	calls := 0
+	SetDriveLabels(s, func(drives []Connection) error {
+		_ = Language(s)
+		calls++
+		if calls == 1 && (len(drives) != 1 || drives[0] != c) {
+			t.Error("mounted drive label missing or folder mount included")
+		}
+		if calls > 1 && len(drives) != 0 {
+			t.Error("disconnected label retained")
+		}
+		return nil
+	})
+	s.reconcileDesktopAppearance()
+	s.mounted[c.ID] = false
+	s.reconcileDesktopAppearance()
+	if calls != 2 || s.desktopWarning != "" {
+		t.Fatal("labels were not reconciled independently of icons", calls, s.desktopWarning)
 	}
 }

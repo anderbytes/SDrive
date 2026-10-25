@@ -268,7 +268,7 @@ func (s *Service) Unmount(id string) error {
 }
 
 func (s *Service) unmount(id string) (resultErr error) {
-	defer s.reconcileDesktopIcons()
+	defer s.reconcileDesktopAppearance()
 	defer func() { s.diagnostics.Operation("unmount", resultErr) }()
 	s.mu.Lock()
 	i := s.index(id)
