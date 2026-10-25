@@ -61,6 +61,12 @@ func (w installerLog) Write(data []byte) (int, error) {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--cleanup-drive-icons" {
+		if err := platform.CleanupDriveIcons(); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 4 && (os.Args[1] == "--download-prerequisite" || os.Args[1] == "--install-prerequisite") {
 		component, err := platform.PrerequisiteFromManifest(prerequisiteManifest, os.Args[2])
 		if err != nil {
@@ -164,6 +170,13 @@ func main() {
 		core.SetAutoStart(service, func(bool) error { return nil })
 	}
 	core.SetDiagnostics(service, diagnosticLog)
+	core.SetDriveIcons(service, func(connections []core.Connection) error {
+		drives := []platform.DriveIcon{}
+		for _, c := range connections {
+			drives = append(drives, platform.DriveIcon{Letter: c.Letter, Provider: c.Provider})
+		}
+		return platform.SyncDriveIcons(dir, drives)
+	})
 	app.RegisterService(application.NewService(service))
 	core.SetDesktop(service, func(target string) error {
 		if filepath.IsAbs(target) {
@@ -213,6 +226,15 @@ func main() {
 	})
 	core.SetDirectoryPicker(service, func() (string, error) {
 		return app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Select local directory")).CanChooseDirectories(true).CanChooseFiles(false).PromptForSingleSelection()
+	})
+	core.SetPortableFilePicker(service, func(save bool) (string, error) {
+		if uiSmoke == "true" {
+			return filepath.Join(filepath.Dir(dir), "portable.json"), nil
+		}
+		if save {
+			return app.Dialog.SaveFile().AttachToWindow(window).SetMessage(i18n.Text(core.Language(service), "Export portable configuration")).SetFilename("SDrive-configuration.json").AddFilter("JSON", "*.json").PromptForSingleSelection()
+		}
+		return app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Import portable configuration")).AddFilter("JSON", "*.json").PromptForSingleSelection()
 	})
 	var metadata struct {
 		Version string `json:"version"`

@@ -210,6 +210,13 @@ Section "Uninstall"
     Abort
   ${EndIf}
   ; Never delete caches or credentials: pending uploads may still need recovery.
+	ClearErrors
+	ExecWait '"$INSTDIR\SDrive.exe" --cleanup-drive-icons' $0
+	${If} ${Errors}
+	${OrIf} $0 != 0
+	  MessageBox MB_OK|MB_ICONEXCLAMATION "Could not remove SDrive's Explorer icons. Run SDrive, turn off service icons, exit safely, and retry uninstalling."
+	  Abort
+	${EndIf}
   Delete "$SMPROGRAMS\SDrive.lnk"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "SDrive"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive"

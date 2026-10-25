@@ -20,6 +20,8 @@ type RPC interface {
 	Alive() bool
 }
 type View struct {
+	DesktopWarning   string           `json:"desktopWarning"`
+	ImportDrafts     []ImportDraft    `json:"importDrafts"`
 	Providers        []Provider       `json:"providers"`
 	Connections      []ConnectionView `json:"connections"`
 	Settings         Settings         `json:"settings"`
@@ -47,6 +49,12 @@ type ConnectionView struct {
 	Capacity     CapacityView  `json:"capacity"`
 }
 type Service struct {
+	desktopMu            sync.Mutex
+	syncDriveIcons       func([]Connection) error
+	desktopWarning       string
+	explorerWarning      string
+	pickPortable         func(bool) (string, error)
+	importPreview        *ImportPreview
 	mu                   sync.Mutex
 	dir                  string
 	cacheRoot            string
@@ -196,6 +204,7 @@ func newID() string {
 func remote(c Connection) string { return "sd_" + c.Remote + ":" + c.Path }
 
 func (s *Service) Snapshot() View {
+	defer s.reconcileDesktopIcons()
 	s.mu.Lock()
 	s.snapshotID++
 	snapshotID := s.snapshotID
@@ -203,6 +212,8 @@ func (s *Service) Snapshot() View {
 	_, backupErr := s.backupStore()
 	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.winFsp(), EngineError: s.engineError}
 	v.CacheLocation = s.dataPath()
+	v.ImportDrafts = append([]ImportDraft{}, s.store.ImportDrafts...)
+	v.DesktopWarning = s.desktopWarnings()
 	if s.rpc != nil && !s.rpc.Alive() {
 		v.EngineError = "Engine stopped. Restart SDrive to recover your drives."
 		if stopped, ok := s.rpc.(interface{ EngineExitSummary() string }); ok {
@@ -529,7 +540,13 @@ func (s *Service) OpenExplorer(id string) error {
 	if s.open == nil {
 		return fmt.Errorf("desktop interface unavailable")
 	}
-	return s.open(target)
+	err := s.open(target)
+	if err == nil {
+		s.mu.Lock()
+		s.explorerWarning = ""
+		s.mu.Unlock()
+	}
+	return err
 }
 func (s *Service) Prerequisite(which string) error {
 	urls := map[string]string{"winfsp": "https://winfsp.dev/rel/", "webview2": "https://developer.microsoft.com/microsoft-edge/webview2/", "oauth-drive": "https://rclone.org/drive/#making-your-own-client-id", "oauth-onedrive": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-sharepoint": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-dropbox": "https://rclone.org/dropbox/#get-your-own-dropbox-app-id", "oauth-box": "https://rclone.org/box/#get-your-own-box-app-id", "oauth-pcloud": "https://rclone.org/pcloud/", "oauth-gcs": "https://rclone.org/googlecloudstorage/"}

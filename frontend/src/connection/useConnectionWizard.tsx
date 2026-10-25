@@ -1,13 +1,14 @@
 import { errorMessage as message, localizedMessage, type LocalizedMessage } from "../messages";
 import { driveNameError, trimDriveName } from "./name";
 import { useEffect, useId, useState, useReducer } from "react";
-import { api, mountTarget, validationError, type Browser, type Connection, type FieldError, type Snapshot } from "../api";
+import { api, mountTarget, validationError, type Browser, type Connection, type FieldError, type Snapshot, type ImportDraft } from "../api";
 import { methods, methodKey } from "./methods";
 import { useLanguage } from "../i18n";
 import { useDialog } from "../useDialog";
 import { initialWizardState, wizardReducer } from "./state";
 
 export interface EditorProps {
+	importDraft?: ImportDraft;
   initial: Connection;
   auth: boolean;
   data: Snapshot;
@@ -16,6 +17,7 @@ export interface EditorProps {
 }
 
 export function useConnectionWizard({
+	importDraft,
   initial,
   auth,
   data,
@@ -25,11 +27,11 @@ export function useConnectionWizard({
   const { t } = useLanguage();
   const serviceMethods = methods(data.providers);
   const firstBasic = serviceMethods.find((m) => !m.advanced);
-  const [connection, setConnection] = useState(initial.id ? initial : { ...initial, provider: firstBasic?.provider.id || data.providers[0].id, authMethod: firstBasic?.authMethod || "oauth" });
-  const [category, setCategory] = useState(initial.id && data.providers.find((p) => p.id === initial.provider)?.oauth && initial.authMethod !== "serviceAccount" ? "advanced" : "basic");
+  const [connection, setConnection] = useState(initial.id || importDraft ? initial : { ...initial, provider: firstBasic?.provider.id || data.providers[0].id, authMethod: firstBasic?.authMethod || "oauth" });
+  const [category, setCategory] = useState((initial.id || importDraft) && data.providers.find((p) => p.id === initial.provider)?.oauth && initial.authMethod !== "serviceAccount" ? "advanced" : "basic");
   const [browsers, setBrowsers] = useState<Browser[]>([{ id: "", name: "Default browser" }]);
   const [forgetCredentials, setForgetCredentials] = useState(false);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>({ ...importDraft?.definition.values });
   useEffect(() => { let active = true; void api.browsers().then((value) => { if (active) setBrowsers(value); }).catch(() => {}); return () => { active = false; }; }, []);
   const [state, dispatch] = useReducer(wizardReducer, initialWizardState(initial, auth));
   const { step } = state;
@@ -38,7 +40,7 @@ export function useConnectionWizard({
   const saved = "saved" in state ? state.saved : undefined;
   const savedID = saved?.id || "";
   const savedTarget = saved?.target;
-  const [transport, setTransport] = useState("explicit");
+  const [transport, setTransport] = useState(importDraft?.definition.transport || "explicit");
   const [insecure, setInsecure] = useState(false);
   const [identity, setIdentity] = useState<{
     key: string;
@@ -259,6 +261,7 @@ export function useConnectionWizard({
         if (populated[f.key] === undefined && f.default)
           populated[f.key] = f.default;
       const id = await api.begin({
+		...(importDraft ? { importDraftID: importDraft.id } : {}),
         connection: { ...connection, name: trimDriveName(connection.name) || p.name },
         values: populated,
         transport,

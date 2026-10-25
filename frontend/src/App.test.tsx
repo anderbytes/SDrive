@@ -7,10 +7,13 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { App } from "./App";
+import { ImportConfigurationDialog } from "./ConfigurationPortability";
 import { api, type ConnectionView, type Snapshot } from "./api";
 import bridgeFixtures from "./bridge-fixtures.json";
+import { translate } from "./i18n";
 
 // JSDOM has no modal top layer; native focus and isolation are checked in WebView2.
 Object.defineProperties(HTMLDialogElement.prototype, {
@@ -28,6 +31,7 @@ vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
 vi.mock("./api", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api")>(),
   api: {
+    exportConfiguration: vi.fn(), previewImport: vi.fn(), commitImport: vi.fn(), removeImportDraft: vi.fn(),
     selectDirectory: vi.fn(), changeCacheLocation: vi.fn(), refreshDirectoryCache: vi.fn(),
     browsers: vi.fn(), proxy: vi.fn(), saveProxy: vi.fn(),
     about: vi.fn(),
@@ -81,6 +85,7 @@ const connection: ConnectionView = {
   error: "",
 };
 const snapshot = {
+  importDrafts: [], desktopWarning: "",
   cacheLocation: "C:\\Synthetic\\Cache",
   freeBytes: null,
   providers: [
@@ -95,7 +100,7 @@ const snapshot = {
     },
   ],
   connections: [] as ConnectionView[],
-  settings: { language: "en" as const, autoStart: false, cacheGiB: 2 },
+  settings: { language: "en" as const, autoStart: false, cacheGiB: 2, openExplorerAfterConnect: false, showServiceIcons: false },
   letters: ["S", "T"],
   winFsp: true,
   engineError: "",
@@ -118,6 +123,83 @@ beforeEach(() => {
   vi.mocked(api.mount).mockResolvedValue();
 });
 afterEach(() => cleanup());
+
+test("import preview requires conflict resolution and explicit preference selection", async () => {
+  const document = { ...bridgeFixtures.samples.importPreview.document, preferences: { ...snapshot.settings }, connections: [{ ...bridgeFixtures.samples.importDraft.definition, name: "My Drive", provider: "drive", letter: "S", mountFolder: "", mountMode: "network", sessionOnly: false, autoMount: false }] };
+  const onSaved = vi.fn().mockResolvedValue(undefined);
+  vi.mocked(api.commitImport).mockResolvedValue();
+  render(<ImportConfigurationDialog preview={{ id: "preview", document }} data={{ ...snapshot, connections: [connection] }} onClose={vi.fn()} onSaved={onSaved} />);
+  expect(screen.getByRole("button", { name: "Save imported drafts" }).hasAttribute("disabled")).toBe(true);
+  fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "Imported Drive" } });
+  fireEvent.change(screen.getByLabelText("Windows drive letter"), { target: { value: "T" } });
+  const preferences = screen.getByRole("checkbox", { name: "Apply imported language, cache timing and desktop preferences" });
+  expect((preferences as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Save imported drafts" }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+  expect(api.commitImport).toHaveBeenCalledWith("preview", expect.objectContaining({ connections: [expect.objectContaining({ name: "Imported Drive", letter: "T" })] }), false);
+  expect(api.mount).not.toHaveBeenCalled();
+});
+
+test("failed import remains reviewable and cancellation never saves", async () => {
+  const document = { ...bridgeFixtures.samples.importPreview.document, preferences: { ...snapshot.settings }, connections: [{ ...bridgeFixtures.samples.importDraft.definition, name: "Imported", provider: "drive", letter: "T", mountFolder: "", mountMode: "network", sessionOnly: false, autoMount: false }] };
+  const onClose = vi.fn();
+  vi.mocked(api.commitImport).mockRejectedValue(new Error("Disk write failed"));
+  render(<ImportConfigurationDialog preview={{ id: "preview", document }} data={snapshot} onClose={onClose} onSaved={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Save imported drafts" }));
+  await screen.findByText("Disk write failed");
+  expect(screen.getByLabelText("Drive name")).toHaveProperty("value", "Imported");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(onClose).toHaveBeenCalledOnce();
+  expect(api.commitImport).toHaveBeenCalledOnce();
+});
+
+test("imported drafts preserve the selected method and require the existing authentication wizard", async () => {
+  const draft = { id: "draft", definition: { ...bridgeFixtures.samples.importDraft.definition, provider: "drive", name: "Imported Drive", letter: "T", mountFolder: "", authMethod: "oauth", sessionOnly: false, autoMount: false, values: { root_folder_id: "shared-root" } } };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, importDrafts: [draft] });
+  vi.mocked(api.begin).mockResolvedValue("session");
+  vi.mocked(api.status).mockResolvedValue({ id: "session", busy: true, complete: false, authenticated: false, connectionID: "", question: null, error: "" });
+  render(<App />);
+  await screen.findByText("Authentication required for imported configuration");
+  expect(api.mount).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Authenticate" }));
+  expect(screen.getByRole("tab", { name: "Advanced" }).getAttribute("aria-selected")).toBe("true");
+  expect(screen.getByLabelText("Drive name")).toHaveProperty("value", "Imported Drive");
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ importDraftID: "draft", values: { root_folder_id: "shared-root" }, connection: expect.objectContaining({ id: "", provider: "drive" }) })));
+  expect(api.fields).not.toHaveBeenCalled();
+});
+
+test.each(["en", "pt-BR"] as const)("About shows component versions and local diagnostics in %s", async (language) => {
+  const t = (source: string) => translate(language, source);
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language } });
+  vi.mocked(api.about).mockResolvedValue(bridgeFixtures.samples.about);
+  vi.mocked(api.diagnostics).mockResolvedValue("Synthetic diagnostic report");
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: t("About SDrive") }));
+  const dialog = await screen.findByRole("dialog", { name: t("About SDrive") });
+  await within(dialog).findByText(bridgeFixtures.samples.about.appVersion);
+  const actions = within(dialog).getAllByRole("button").map((button) => button.getAttribute("aria-label") || button.textContent);
+  expect(actions.every((name) => [t("Close"), t("Close dialog"), t("View diagnostics")].includes(name || ""))).toBe(true);
+  fireEvent.click(within(dialog).getByRole("button", { name: t("View diagnostics") }));
+  await within(dialog).findByDisplayValue("Synthetic diagnostic report");
+  expect(within(dialog).getByRole("button", { name: t("Copy report") })).toBeDefined();
+});
+
+test("connection option indicators preserve recovery and upload messages", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, autoMount: true, readOnly: true, recovery: true, pending: 2, uploadLimit: 1024 }] });
+  render(<App />);
+  await screen.findByText("Automatic mounting enabled");
+  expect(screen.getByRole("list", { name: "Connection options" }).textContent).toContain("Upload limit: 1.0 KiB/s");
+  expect(screen.getAllByText(/Recovery required/).length).toBeGreaterThan(0);
+  expect(screen.getByText(/Recover using the original account and destination/)).toBeTruthy();
+});
+
+test("independent desktop failure messages remain localized together", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, desktopWarning: "Explorer service icons could not be updated. Existing customization may take precedence.\nThe drive connected, but Explorer could not be opened. Use Open in Explorer to retry." });
+  render(<App />);
+  await screen.findByText("Não foi possível atualizar os ícones de serviço do Explorer. Personalizações existentes podem ter prioridade. A unidade conectou, mas não foi possível abrir o Explorer. Use Abrir no Explorer para tentar novamente.");
+});
 
 test("Basic is initially selected and category tabs support keyboard navigation", async () => {
   const gcs = { ...snapshot.providers[0], id: "gcs", name: "Google Cloud Storage", backend: "google cloud storage" };
@@ -1105,6 +1187,8 @@ test("language changes are saved, applied and restored on reopening", async () =
     autoStart: false,
     cacheGiB: 2,
     language: "pt-BR",
+    openExplorerAfterConnect: false,
+    showServiceIcons: false,
   });
   await waitFor(() => expect(document.documentElement.lang).toBe("pt-BR"));
   view.unmount();

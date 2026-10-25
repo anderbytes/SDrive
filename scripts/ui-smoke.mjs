@@ -1,9 +1,23 @@
 import { runSmoke } from "./ui-smoke-runtime.mjs";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-await runSmoke(async ({ page, dav, exited, artifacts }) => {
+async function verifyAboutActions(page, language) {
+  const catalog = language === "en" ? {} : JSON.parse(await readFile(path.join(process.cwd(), "internal/i18n", `${language}.json`), "utf8"));
+  const t = (source) => catalog[source] || source;
+  await page.getByRole("button", { name: t("About SDrive"), exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: t("About SDrive"), exact: true });
+  await dialog.getByText("SDrive", { exact: true }).waitFor();
+  const actions = await dialog.getByRole("button").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label") || button.textContent));
+  assert(actions.every((name) => [t("Close"), t("Close dialog"), t("View diagnostics")].includes(name)));
+  await dialog.getByRole("button", { name: t("View diagnostics"), exact: true }).click();
+  assert((await dialog.getByRole("textbox").inputValue()).length > 0);
+  await dialog.getByRole("button", { name: t("Copy report"), exact: true }).waitFor();
+  await dialog.getByRole("button", { name: t("Close"), exact: true }).click();
+}
+
+await runSmoke(async ({ page, dav, exited, artifacts, profile }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.getByRole("heading", { name: "My drives", exact: true }).waitFor();
@@ -106,6 +120,9 @@ await runSmoke(async ({ page, dav, exited, artifacts }) => {
     .getByRole("button", { name: /Preferências/ })
     .click();
   assert.equal(await page.getByLabel("Idioma").inputValue(), "pt-BR");
+  assert.equal(await page.getByLabel("Abrir o Explorer após conectar", { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel("Mostrar ícones de serviço nas letras de unidade", { exact: true }).isChecked(), false);
+  assert.equal(await page.getByRole("button", { name: "Exportar configuração", exact: true }).isVisible(), true);
   assert.equal(await page.getByLabel("Retenção do cache após o último acesso (horas)").inputValue(), "48");
   assert.equal(await page.getByLabel("Atraso do upload após o último uso (segundos)").inputValue(), "0");
   await page.getByLabel("Idioma").selectOption("en");
@@ -114,12 +131,45 @@ await runSmoke(async ({ page, dav, exited, artifacts }) => {
     .click();
   await page.getByRole("heading", { name: "My drives", exact: true }).waitFor();
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
+  await page.getByRole("button", { name: /Preferences/ }).click();
+  assert.equal(await page.getByLabel("Open Explorer after connecting", { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel("Show service icons for drive letters", { exact: true }).isChecked(), false);
+  await page.getByRole("button", { name: "Export configuration", exact: true }).click();
+  await page.getByRole("button", { name: "Import configuration", exact: true }).click();
+  await page.getByRole("heading", { name: "Review imported configuration", exact: true }).waitFor();
+  const portablePath = path.join(profile, "portable.json");
+  const portable = JSON.parse(await readFile(portablePath, "utf8"));
+  assert.equal(portable.format, "sdrive-portable");
+  assert.equal(portable.version, 1);
+  assert.equal("autoStart" in portable.preferences, false);
+  await page.getByRole("dialog", { name: "Review imported configuration" }).getByRole("button", { name: "Cancel", exact: true }).click();
+  portable.connections = [{ name: "Portable smoke", provider: "webdav", path: "", letter: "", mountMode: "local", mountFolder: path.join(artifacts, "imported-mount"), readOnly: true, autoMount: false, values: { url: `http://127.0.0.1:${dav.address().port}/dav/` } }];
+  await writeFile(portablePath, JSON.stringify(portable));
+  await page.getByRole("button", { name: "Import configuration", exact: true }).click();
+  await page.getByRole("heading", { name: "Review imported configuration", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Apply imported language, cache timing and desktop preferences").isChecked(), false);
+  await page.getByRole("button", { name: "Save imported drafts", exact: true }).click();
+  await page.getByText("Authentication required for imported configuration", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Authenticate", exact: true }).click();
+  assert.equal(await page.getByLabel("Connection type").inputValue(), "webdav");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  assert.equal(await page.getByLabel("WebDAV HTTPS URL").inputValue(), portable.connections[0].values.url);
+  await page.getByText("Advanced options", { exact: true }).click();
+  assert.equal(await page.getByLabel("Allow unencrypted connection (HTTP / FTP)").isChecked(), false);
+  await page.getByLabel("Allow unencrypted connection (HTTP / FTP)").check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "▱ Documents", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByText("Authentication required for imported configuration", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Remove draft", exact: true }).click();
+  await page.getByRole("button", { name: "Authenticate", exact: true }).waitFor({ state: "hidden" });
+  await verifyAboutActions(page, "en");
   assert.deepEqual(errors, []);
   await page
     .getByRole("button", { name: "Exit safely", exact: true })
     .click();
   assert.equal(await exited, 0);
   console.log(
-    "Native Wails/WebView2 smoke: setup tabs, local folder destination, real WebDAV browsing, cancellation, cache location and timing, English/Portuguese switching, safe exit — OK",
+    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, desktop preferences, English/Portuguese switching, safe exit — OK",
   );
 });

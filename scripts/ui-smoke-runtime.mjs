@@ -132,7 +132,7 @@ export async function runSmoke(exercise, { buildBinary = build, workspace = root
     const context = browser.contexts()[0];
     context.setDefaultTimeout(15000);
     page = context.pages()[0] ?? await context.waitForEvent("page", { timeout: 15000 });
-    await bounded(exercise({ page, dav, child, exited, artifacts }), 120000, "Native UI scenario exceeded 120s", controller.signal);
+    await bounded(exercise({ page, dav, child, exited, artifacts, profile }), 120000, "Native UI scenario exceeded 120s", controller.signal);
     assert.equal(await bounded(exited, 10000, "Application did not exit safely"), 0, "Application exited unsuccessfully");
     result.status = "passed";
     result.reason = "Native WebView2 scenario and safe exit completed";

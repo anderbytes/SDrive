@@ -22,7 +22,7 @@ try {
     if ($LASTEXITCODE) { throw 'License collection failed' }
     Copy-Item -LiteralPath '.tools/prerequisites/WinFsp-LICENSE.txt' -Destination 'bin/licenses/WinFsp-LICENSE.txt' -Force
     Copy-Item -LiteralPath 'installer/prerequisites.json' -Destination 'bin/licenses/prerequisites.json' -Force
-    $sourceFiles = @('main.go','main_test.go','mount_integration_test.go','go.mod','go.sum','internal','frontend/src','frontend/index.html','frontend/package.json','frontend/package-lock.json','frontend/tsconfig.json','frontend/vitest.config.ts','scripts','docs','installer','LICENSE','README.md','THIRD_PARTY_NOTICES.md','.github','.gitignore')
+    $sourceFiles = @(Get-ChildItem -LiteralPath $projectRoot -Filter '*.go' -File | ForEach-Object { $_.Name }) + @('go.mod','go.sum','internal','frontend/src','frontend/index.html','frontend/package.json','frontend/package-lock.json','frontend/tsconfig.json','frontend/vitest.config.ts','scripts','docs','installer','LICENSE','README.md','THIRD_PARTY_NOTICES.md','.github','.gitignore')
     $sourceStage = Join-Path $toolsDir ('sdrive-source-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $sourceStage | Out-Null
     foreach ($sourceFile in $sourceFiles) {

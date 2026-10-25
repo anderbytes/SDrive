@@ -577,3 +577,5 @@ header, .summary, .actions, .modal-actions, .alert { flex-wrap: wrap; }
   [aria-invalid="true"] { border: 2px solid LinkText; }
   .modal, .dropdown { box-shadow: none; }
 }
+.connection-options { display: flex; flex-wrap: wrap; gap: .35rem; padding: 0; margin: .5rem 0; list-style: none; }
+.connection-options li { border: 1px solid currentColor; border-radius: .35rem; padding: .15rem .4rem; font-size: .8rem; }

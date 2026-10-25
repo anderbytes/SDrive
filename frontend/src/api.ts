@@ -76,6 +76,8 @@ export interface ConnectionView extends Connection {
   errorMessage?: LocalizedMessage;
 }
 export interface Settings {
+	openExplorerAfterConnect: boolean;
+	showServiceIcons: boolean;
   language: "en" | "pt-BR";
   autoStart: boolean;
   cacheGiB: number;
@@ -85,6 +87,8 @@ export interface Settings {
 export interface MountTarget { letter: string; folder: string; mode: string }
 export const mountTarget = (c: Connection): MountTarget => ({ letter: c.letter, folder: c.mountFolder || "", mode: c.mountMode || "" });
 export interface Snapshot {
+	importDrafts: ImportDraft[];
+	desktopWarning: string;
   cacheLocation: string;
   freeBytes: number | null;
   providers: Provider[];
@@ -121,6 +125,7 @@ export interface Session {
   connectionID: string;
 }
 export interface ConfigInput {
+	importDraftID?: string;
   connection: Connection;
   values: Record<string, string>;
   allowInsecure: boolean;
@@ -132,6 +137,12 @@ export interface ConfigInput {
 
 export interface Browser { id: string; name: string }
 export interface ProxyConfig { address: string; username: string; password: string; hasPassword: boolean }
+
+export type PortableConnection = Omit<Connection, "id" | "remote" | "recovery" | "targetHash" | "resourceID" | "primaryURL" | "binding"> & { values: Record<string, string>; transport: string };
+export type PortablePreferences = Omit<Settings, "autoStart">;
+export interface PortableFile { format: string; version: number; connections: PortableConnection[]; preferences: PortablePreferences }
+export interface ImportDraft { id: string; definition: PortableConnection }
+export interface ImportPreview { id: string; document: PortableFile }
 
 export interface FieldError {
   field: string;
@@ -153,6 +164,10 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }
 export const api = {
+	exportConfiguration: () => invoke<void>("ExportConfiguration"),
+	previewImport: () => invoke<ImportPreview | null>("PreviewImport"),
+	commitImport: (id: string, document: PortableFile, applyPreferences: boolean) => invoke<void>("CommitImport", id, document, applyPreferences),
+	removeImportDraft: (id: string) => invoke<void>("RemoveImportDraft", id),
   selectDirectory: () => invoke<string>("SelectDirectory"),
   changeCacheLocation: (path: string) => invoke<void>("ChangeCacheLocation", path),
   refreshDirectoryCache: (id: string) => invoke<void>("RefreshDirectoryCache", id),

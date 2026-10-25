@@ -23,6 +23,8 @@ The tray shows connected-drive counts and distinguishes uploads, recovery, unkno
 
 Window position, size and maximization are remembered and adjusted to available monitors. **About SDrive** lists application, running rclone, Windows and installed WinFsp/WebView2 versions; unavailable components are shown explicitly.
 
+**Preferences → Portable configuration** exports credential-free connection definitions and reviews imports as drafts requiring authentication. Optional Explorer opening and per-user service icons default off. Connection cards show configured options alongside upload/recovery status. See [configuration portability and desktop preferences](docs/portability-and-desktop.md).
+
 ## Update, repair and collect diagnostics
 
 1. Before updating, close files in other applications, let uploads finish and choose **Exit safely**. If exit is blocked, complete recovery at the original destination first. Closing the window only hides SDrive in the tray.

@@ -43,6 +43,17 @@
         "error"
       ]
     },
+    "commitImport": {
+      "args": [
+        "string",
+        "core.PortableFile",
+        "bool"
+      ],
+      "name": "CommitImport",
+      "returns": [
+        "error"
+      ]
+    },
     "confirm": {
       "args": [
         "string",
@@ -81,6 +92,13 @@
     "exit": {
       "args": [],
       "name": "Exit",
+      "returns": [
+        "error"
+      ]
+    },
+    "exportConfiguration": {
+      "args": [],
+      "name": "ExportConfiguration",
       "returns": [
         "error"
       ]
@@ -133,6 +151,14 @@
         "error"
       ]
     },
+    "previewImport": {
+      "args": [],
+      "name": "PreviewImport",
+      "returns": [
+        "*core.ImportPreview",
+        "error"
+      ]
+    },
     "probe": {
       "args": [
         "string",
@@ -166,6 +192,15 @@
         "string"
       ],
       "name": "Remove",
+      "returns": [
+        "error"
+      ]
+    },
+    "removeImportDraft": {
+      "args": [
+        "string"
+      ],
+      "name": "RemoveImportDraft",
       "returns": [
         "error"
       ]
@@ -289,6 +324,7 @@
       "architecture": ""
     },
     "configInput": {
+      "importDraftID": "draft",
       "connection": {
         "id": "connection",
         "remote": "remote",
@@ -393,6 +429,72 @@
       "key": "synthetic-key",
       "fingerprint": "synthetic-fingerprint"
     },
+    "importDraft": {
+      "id": "draft",
+      "definition": {
+        "name": "Café 😀",
+        "provider": "sftp",
+        "path": "folder",
+        "letter": "S",
+        "mountMode": "local",
+        "mountFolder": "C:\\Synthetic\\Mount",
+        "directoryCacheSeconds": 300,
+        "readOnly": false,
+        "autoMount": false,
+        "authMethod": "oauth",
+        "sessionOnly": true,
+        "uploadLimit": 1024,
+        "downloadLimit": 2048,
+        "useProxy": true,
+        "browser": "edge",
+        "privateBrowser": true,
+        "connectTimeout": 30,
+        "idleTimeout": 60,
+        "alternateURL": "https://alternate.example.test/dav",
+        "transport": "",
+        "values": {}
+      }
+    },
+    "importPreview": {
+      "id": "preview",
+      "document": {
+        "format": "sdrive-portable",
+        "version": 1,
+        "connections": [
+          {
+            "name": "Café 😀",
+            "provider": "sftp",
+            "path": "folder",
+            "letter": "S",
+            "mountMode": "local",
+            "mountFolder": "C:\\Synthetic\\Mount",
+            "directoryCacheSeconds": 300,
+            "readOnly": false,
+            "autoMount": false,
+            "authMethod": "oauth",
+            "sessionOnly": true,
+            "uploadLimit": 1024,
+            "downloadLimit": 2048,
+            "useProxy": true,
+            "browser": "edge",
+            "privateBrowser": true,
+            "connectTimeout": 30,
+            "idleTimeout": 60,
+            "alternateURL": "https://alternate.example.test/dav",
+            "transport": "",
+            "values": {}
+          }
+        ],
+        "preferences": {
+          "language": "en",
+          "cacheGiB": 2,
+          "cacheMaxAgeHours": 24,
+          "writeBackSeconds": 5,
+          "openExplorerAfterConnect": false,
+          "showServiceIcons": false
+        }
+      }
+    },
     "message": {
       "code": "drive.letter_in_use",
       "params": {
@@ -461,9 +563,13 @@
       "connectionID": ""
     },
     "snapshotEmpty": {
+      "desktopWarning": "",
+      "importDrafts": [],
       "providers": [],
       "connections": [],
       "settings": {
+        "openExplorerAfterConnect": false,
+        "showServiceIcons": false,
         "language": "en",
         "autoStart": false,
         "cacheGiB": 2,
@@ -482,6 +588,8 @@
       "cacheLocation": ""
     },
     "snapshotFilled": {
+      "desktopWarning": "",
+      "importDrafts": [],
       "providers": [
         {
           "id": "sftp",
@@ -569,6 +677,8 @@
         }
       ],
       "settings": {
+        "openExplorerAfterConnect": false,
+        "showServiceIcons": false,
         "language": "en",
         "autoStart": false,
         "cacheGiB": 2,

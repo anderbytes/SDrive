@@ -58,6 +58,7 @@ func (r *ConfigResult) UnmarshalJSON(data []byte) error {
 }
 
 type ConfigInput struct {
+	ImportDraftID     string            `json:"importDraftID,omitempty"`
 	Connection        Connection        `json:"connection"`
 	Values            map[string]string `json:"values"`
 	AllowInsecure     bool              `json:"allowInsecure"`
@@ -67,6 +68,7 @@ type ConfigInput struct {
 	ForgetCredentials bool              `json:"forgetCredentials,omitempty"`
 }
 type ConfigSession struct {
+	importDraftID string
 	ID            string    `json:"id"`
 	Busy          bool      `json:"busy"`
 	Complete      bool      `json:"complete"`
@@ -106,6 +108,17 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		return "", fmt.Errorf("complete or cancel the open setup")
 	}
 	c := input.Connection
+	if input.ImportDraftID != "" {
+		found := false
+		for _, draft := range s.store.ImportDrafts {
+			if draft.ID == input.ImportDraftID {
+				found = true
+			}
+		}
+		if !found || c.ID != "" || !input.Guided {
+			return "", fmt.Errorf("Imported definition not found.")
+		}
+	}
 	if err := validateConnection(&c); err != nil {
 		return "", err
 	}
@@ -201,6 +214,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 	ctx, cancel := context.WithTimeout(sessionCtx, 10*time.Minute)
 	ss := &ConfigSession{ID: newID(), Busy: true, connection: c, ConnectionID: c.ID, cancel: cancel, ctx: sessionCtx, stop: stop, rpc: s.connectionRPC(c), done: make(chan struct{}), inPlace: inPlace, guided: input.Guided}
 	s.session = ss
+	ss.importDraftID = input.ImportDraftID
 	done := ss.done
 	started := false
 	defer func() {
@@ -437,6 +451,13 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 
 // Caller holds s.mu; cancellation must never remove a committed remote.
 func (s *Service) commitConfig(ss *ConfigSession) string {
+	if ss.importDraftID != "" {
+		for _, other := range s.store.Connections {
+			if other.ID != ss.connection.ID && strings.EqualFold(strings.TrimSpace(other.Name), strings.TrimSpace(ss.connection.Name)) {
+				return "Resolve duplicate names before importing."
+			}
+		}
+	}
 	if i := s.index(ss.connection.ID); i >= 0 && !s.store.Connections[i].SessionOnly && ss.connection.SessionOnly && ss.oldRemote != "" {
 		if err := s.forgetRemote(ss.oldRemote); err != nil {
 			return "Could not remove saved credentials. Session-only mode was not enabled."
@@ -449,6 +470,15 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 		}
 	}
 	previous := append([]Connection{}, s.store.Connections...)
+	previousDrafts := s.store.ImportDrafts
+	if ss.importDraftID != "" {
+		s.store.ImportDrafts = []ImportDraft{}
+		for _, draft := range previousDrafts {
+			if draft.ID != ss.importDraftID {
+				s.store.ImportDrafts = append(s.store.ImportDrafts, draft)
+			}
+		}
+	}
 	if i := s.index(ss.connection.ID); i >= 0 {
 		s.store.Connections[i] = ss.connection
 	} else {
@@ -456,6 +486,7 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 	}
 	if err := saveStore(s.dir, s.store); err != nil {
 		s.store.Connections = previous
+		s.store.ImportDrafts = previousDrafts
 		return "Could not save preferences; cancel and try again"
 	}
 	ss.Complete = true

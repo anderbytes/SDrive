@@ -1,5 +1,6 @@
 import { errorMessage as message, type LocalizedMessage } from "./messages";
 import { SecretInput } from "./connection/SecretInput";
+import { ConfigurationPortability } from "./ConfigurationPortability";
 import { ConnectionEditor } from "./connection/ConnectionEditor";
 import { useDialog } from "./useDialog";
 import { LanguageProvider, useLanguage, type Language } from "./i18n";
@@ -12,6 +13,7 @@ import {
   type Provider,
   type ProxyConfig,
   type Snapshot,
+  type ImportDraft,
 } from "./api";
 
 const bytes = (value: number | null) => {
@@ -57,6 +59,7 @@ function AppContent() {
   const [editor, setEditor] = useState<{
     connection: Connection;
     auth: boolean;
+    importDraft?: ImportDraft;
   }>();
   const [working, setWorking] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState(false);
@@ -277,6 +280,7 @@ function AppContent() {
             </button>
           </div>
         )}
+        {data?.desktopWarning && <p role="status" className="alert warning">{data.desktopWarning.split("\n").map((warning) => t(warning)).join(" ")}</p>}
         {data?.startupWarning && !data.settingsError && (
           <p className="alert warning" role="alert">{t(data.startupWarning)}</p>
         )}
@@ -341,6 +345,17 @@ function AppContent() {
         )}
         <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
         <section aria-label={t("Drives")} className="drives">
+          {data?.importDrafts?.map((draft) => <article className="drive" key={draft.id}>
+            <div className="drive-info"><h2>{draft.definition.name}</h2>
+              <p>{data.providers.find((p) => p.id === draft.definition.provider)?.name} · {draft.definition.mountFolder || `${draft.definition.letter}:`}</p>
+              <p role="status">{t("Authentication required for imported configuration")}</p>
+              <p>{t("Supply application credentials and authenticate again. No credentials or pending files were imported.")}</p>
+            </div>
+            <div className="actions">
+              <button disabled={!!data.settingsError || data.recoveryHold || !!data.engineError} onClick={() => setEditor({ connection: { ...blank(draft.definition.letter), ...draft.definition }, auth: true, importDraft: draft })}>{t("Authenticate")}</button>
+              <button disabled={!!data.settingsError || data.recoveryHold || !!working[draft.id]} onClick={() => void run(draft.id, () => api.removeImportDraft(draft.id))}>{t("Remove draft")}</button>
+            </div>
+          </article>)}
           {data?.connections.map((c) => (
             <Drive
               key={c.id}
@@ -353,7 +368,7 @@ function AppContent() {
             />
           ))}
         </section>
-        {data && !data.settingsError && !data.recoveryHold && data.connections.length === 0 && (
+        {data && !data.settingsError && !data.recoveryHold && data.connections.length === 0 && !data.importDrafts?.length && (
           <section className="empty">
             <div className="empty-icon">▱</div>
             <h2>{t("One letter. All your files.")}</h2>
@@ -388,6 +403,7 @@ function AppContent() {
       </main>
       {editor && data && (
         <ConnectionEditor
+          importDraft={editor.importDraft}
           initial={editor.connection}
           auth={editor.auth}
           data={data}
@@ -401,6 +417,7 @@ function AppContent() {
       {settings && data && (
         <Preferences
           data={data}
+          onRefresh={refresh}
           onClose={() => {
             setSettings(false);
             void refresh();
@@ -481,6 +498,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       ["Windows", info.windowsVersion], ["WinFsp (installed)", info.winFspVersion],
       ["WebView2 (installed)", info.webView2Version], ["Architecture", info.architecture],
     ]).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
+    <p>{t("Updates are installed manually. Use Exit safely and wait for uploads before running an installer.")}</p>
     <p>{t("Minimal diagnostics are kept locally with fixed limits. Nothing is sent automatically. Review the report before sharing.")}</p>
     <button disabled={loadingReport || copying} onClick={() => void loadReport()}>{t(loadingReport ? "Loading diagnostic report…" : "View diagnostics")}</button>
     {reportError && <p role="alert" className="alert error">{t(reportError)}</p>}
@@ -569,6 +587,17 @@ function Drive({
           {p.experimental ? ` · ${t("Experimental")}` : ""} · {c.path || t("Root")}
           {c.readOnly ? t(" · Read only") : ""}
         </p>
+        <ul className="connection-options" aria-label={t("Connection options")}>
+          {[
+            c.readOnly && t("Read only"),
+            c.autoMount && t("Automatic mounting enabled"),
+            c.sessionOnly && t("Sign in on every connection"),
+            t(c.mountFolder ? "Local folder" : c.mountMode === "local" ? "Local disk" : "Network drive"),
+            c.useProxy && t("Proxy requested"),
+            !!c.uploadLimit && t("Upload limit: {size}/s", { size: bytes(c.uploadLimit || 0) }),
+            !!c.downloadLimit && t("Download limit: {size}/s", { size: bytes(c.downloadLimit || 0) }),
+          ].filter(Boolean).map((label) => <li key={String(label)} tabIndex={0} title={String(label)}>{label}</li>)}
+        </ul>
         <div className="state">
           {busy
             ? t(operation || "Operation in progress…")
@@ -681,9 +710,11 @@ function Drive({
 
 function Preferences({
   data,
+  onRefresh,
   onClose,
 }: {
   data: Snapshot;
+  onRefresh: () => Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useLanguage();
@@ -746,6 +777,9 @@ function Preferences({
               <option value="pt-BR">Português (Brasil)</option>
             </select>
           </label>
+          <label className="check"><input type="checkbox" checked={settings.openExplorerAfterConnect || false} onChange={(e) => setSettings({ ...settings, openExplorerAfterConnect: e.target.checked })} />{t("Open Explorer after connecting")}</label>
+          <label className="check"><input type="checkbox" checked={settings.showServiceIcons || false} onChange={(e) => setSettings({ ...settings, showServiceIcons: e.target.checked })} />{t("Show service icons for drive letters")}</label>
+          <p>{t("Service icons are local monograms for SDrive drive letters. Existing customization takes precedence; mounted folders keep their icons.")}</p>
           <label className="check">
             <input
               type="checkbox"
@@ -813,6 +847,7 @@ function Preferences({
             </button>
           </div>
         </form>
+        <ConfigurationPortability data={data} onRefresh={async () => { onClose(); await onRefresh(); }} />
     </dialog>
   );
 }

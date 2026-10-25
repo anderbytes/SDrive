@@ -33,6 +33,11 @@ func readMounts(ctx context.Context, rpc RPC) ([]engineMount, error) {
 }
 
 func (s *Service) Mount(id string) (resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			s.mountDesktopActions(id)
+		}
+	}()
 	defer func() { s.diagnostics.Operation("mount", resultErr) }()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -248,6 +253,7 @@ func (s *Service) pendingOn(ctx context.Context, rpc RPC, c Connection) (int, er
 }
 
 func (s *Service) Unmount(id string) (resultErr error) {
+	defer s.reconcileDesktopIcons()
 	defer func() { s.diagnostics.Operation("unmount", resultErr) }()
 	s.mu.Lock()
 	i := s.index(id)

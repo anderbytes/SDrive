@@ -2,6 +2,8 @@
 
 This guide is for developers and maintainers. End users only need the installer. Repository documentation and source messages are written in English; see [localization](localization.md) for interface translations.
 
+Portable configuration and service icons are described in [portability and desktop preferences](portability-and-desktop.md), including focused validation boundaries.
+
 ## Build and verify
 
 Development prerequisite: Node.js 24 LTS or later and npm. In PowerShell, from the repository root:

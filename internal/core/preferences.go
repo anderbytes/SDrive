@@ -20,6 +20,7 @@ func SetLanguageChanged(s *Service, changed func(string)) { s.languageChanged = 
 func SetAutoStart(s *Service, update func(bool) error) { s.autoStart = update }
 
 func (s *Service) SaveSettings(settings Settings) error {
+	defer s.reconcileDesktopIcons()
 	if err := validateCacheDurations(settings); err != nil {
 		return err
 	}

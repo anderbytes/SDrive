@@ -43,15 +43,18 @@ type Connection struct {
 	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
-	Language         string `json:"language"`
-	AutoStart        bool   `json:"autoStart"`
-	CacheGiB         int    `json:"cacheGiB"`
-	CacheMaxAgeHours *int   `json:"cacheMaxAgeHours,omitempty"`
-	WriteBackSeconds *int   `json:"writeBackSeconds,omitempty"`
+	OpenExplorerAfterConnect bool   `json:"openExplorerAfterConnect"`
+	ShowServiceIcons         bool   `json:"showServiceIcons"`
+	Language                 string `json:"language"`
+	AutoStart                bool   `json:"autoStart"`
+	CacheGiB                 int    `json:"cacheGiB"`
+	CacheMaxAgeHours         *int   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds         *int   `json:"writeBackSeconds,omitempty"`
 }
 type Store struct {
-	Connections []Connection `json:"connections"`
-	Settings    Settings     `json:"settings"`
+	ImportDrafts []ImportDraft `json:"importDrafts,omitempty"`
+	Connections  []Connection  `json:"connections"`
+	Settings     Settings      `json:"settings"`
 }
 
 var errSettingsVersion = errors.New("unsupported settings format; preserve the data directory and use a compatible SDrive version")
@@ -87,7 +90,7 @@ func decodeStore(b []byte) (Store, error) {
 	}
 	if shape.Version != nil {
 		var version int
-		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2 && version != 3) {
+		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2 && version != 3 && version != 4) {
 			return s, errSettingsVersion
 		}
 	}
@@ -133,6 +136,18 @@ func decodeStore(b []byte) (Store, error) {
 			}
 		}
 	}
+	for _, draft := range s.ImportDrafts {
+		if len(draft.ID) != 32 || ids[draft.ID] {
+			return s, invalid
+		}
+		if _, err := hex.DecodeString(draft.ID); err != nil {
+			return s, invalid
+		}
+		ids[draft.ID] = true
+		if err := validatePortableConnection(draft.Definition); err != nil {
+			return s, invalid
+		}
+	}
 	return s, nil
 }
 
@@ -143,7 +158,7 @@ func encodeStore(s Store) ([]byte, error) {
 	b, err := json.MarshalIndent(struct {
 		Version int `json:"version"`
 		Store
-	}{Version: 3, Store: s}, "", "  ")
+	}{Version: 4, Store: s}, "", "  ")
 	if err != nil {
 		return nil, err
 	}
