@@ -8,7 +8,12 @@ import (
 	"time"
 )
 
-func (s *Service) Browsers() []platform.Browser { return platform.InstalledBrowsers() }
+func (s *Service) Browsers() []platform.Browser {
+	if s.accessAllowed() != nil {
+		return nil
+	}
+	return platform.InstalledBrowsers()
+}
 
 func validAuthorizationURL(value string) bool {
 	u, err := url.Parse(value)

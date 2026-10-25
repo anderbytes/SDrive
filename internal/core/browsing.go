@@ -80,6 +80,10 @@ func readCapacity(ctx context.Context, rpc RPC, c Connection) CapacityView {
 // Refresh merges remote listings with dirty VFS entries; ForgetAll can retain stale directories with pending writes.
 func (s *Service) RefreshDirectoryCache(id string) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	i := s.index(id)
 	if i < 0 || !s.mounted[id] || s.busy[id] || s.exiting {
 		s.mu.Unlock()

@@ -249,7 +249,12 @@ func (d *desktop) openMenu() {
 	if d.menu != nil {
 		d.menu.Destroy()
 	}
-	view := d.latest()
+	d.menu = d.trayMenu(d.latest(), d.service.AccessStatus())
+	d.tray.SetMenu(d.menu)
+	d.tray.OpenMenu()
+}
+
+func (d *desktop) trayMenu(view core.View, access core.AccessStatus) *application.Menu {
 	language := view.Settings.Language
 	t := func(s string) string { return i18n.Text(language, s) }
 	menu := application.NewMenu()
@@ -258,7 +263,13 @@ func (d *desktop) openMenu() {
 	menu.Add(fmt.Sprintf("%s: %d · %s", t("Connected drives"), status.Connected, t(status.State))).SetEnabled(false)
 	menu.AddSeparator()
 	_, exiting := d.actions.Load("exit")
+	if !access.Locked && access.Enabled {
+		menu.Add(t("Lock SDrive")).OnClick(func(*application.Context) { d.action("lock", d.service.Lock) })
+	}
 	for _, c := range view.Connections {
+		if access.Locked {
+			break
+		}
 		_, working := d.actions.Load(c.ID)
 		busy := c.Busy || working || exiting
 		target := c.Letter + ":"
@@ -282,9 +293,7 @@ func (d *desktop) openMenu() {
 	}
 	menu.AddSeparator()
 	menu.Add(t("Exit safely")).SetEnabled(!exiting).OnClick(func(*application.Context) { d.action("exit", d.service.Exit) })
-	d.menu = menu
-	d.tray.SetMenu(menu)
-	d.tray.OpenMenu()
+	return menu
 }
 
 func (d *desktop) updateTray() {
@@ -310,6 +319,14 @@ func setupDesktop(app *application.App, window *application.WebviewWindow, servi
 	d := &desktop{app: app, window: window, service: service, dir: dir, wake: make(chan struct{}, 1), done: make(chan struct{}), ready: make(chan struct{})}
 	d.visible.Store(!hidden)
 	core.SetDesktopStatus(service, d.visible.Load, d.accept, version)
+	core.SetAccessChanged(service, func(locked bool) {
+		application.InvokeAsync(func() {
+			if !d.stopped.Load() {
+				window.EmitEvent("access:changed", locked)
+				go service.Snapshot()
+			}
+		})
+	})
 	core.SetLanguageChanged(service, func(string) { go service.Snapshot() })
 	d.tray = app.SystemTray.New()
 	d.tray.SetIcon(trayIcon())
@@ -366,6 +383,8 @@ func setupDesktop(app *application.App, window *application.WebviewWindow, servi
 			close(d.ready)
 		})
 		go func() {
+			idleTicker := time.NewTicker(5 * time.Second)
+			defer idleTicker.Stop()
 			ticker := time.NewTicker(15 * time.Second)
 			defer ticker.Stop()
 			d.service.Snapshot()
@@ -375,6 +394,8 @@ func setupDesktop(app *application.App, window *application.WebviewWindow, servi
 					return
 				case <-d.wake:
 					application.InvokeAsync(d.updateTray)
+				case <-idleTicker.C:
+					go core.CheckInactivity(service)
 				case <-ticker.C:
 					if !d.visible.Load() {
 						d.service.Snapshot()

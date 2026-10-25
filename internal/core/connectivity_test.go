@@ -84,7 +84,7 @@ func TestConnectionNetworkValidationAndSettingsCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"version": 4`) {
+	if !strings.Contains(string(raw), `"version": 5`) {
 		t.Fatal("old application could ignore safety fields")
 	}
 	loaded, err := decodeStore(raw)

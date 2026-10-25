@@ -203,6 +203,10 @@ func SetPortableFilePicker(s *Service, pick func(save bool) (string, error)) { s
 
 func (s *Service) ExportConfiguration() error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	if s.settingsError != "" {
 		s.mu.Unlock()
 		return fmt.Errorf("Restore valid settings before exporting configuration.")
@@ -267,10 +271,18 @@ func (s *Service) ExportConfiguration() error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.requireUnlocked(); err != nil {
+		return err
+	}
 	return atomicWrite(path, b)
 }
 
 func (s *Service) PreviewImport() (*ImportPreview, error) {
+	if err := s.accessAllowed(); err != nil {
+		return nil, err
+	}
 	if s.pickPortable == nil {
 		return nil, fmt.Errorf("Desktop interface unavailable.")
 	}
@@ -304,17 +316,28 @@ func (s *Service) PreviewImport() (*ImportPreview, error) {
 	}
 	preview := &ImportPreview{ID: newID(), Document: d}
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
 	s.importPreview = preview
 	s.mu.Unlock()
 	return preview, nil
 }
 
 func (s *Service) CommitImport(id string, document PortableFile, applyPreferences bool) error {
+	if err := s.accessAllowed(); err != nil {
+		return err
+	}
 	normalizePortableDocument(&document)
 	if err := validatePortableDocument(document); err != nil {
 		return err
 	}
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err
@@ -366,6 +389,10 @@ func (s *Service) CommitImport(id string, document PortableFile, applyPreference
 
 func (s *Service) RemoveImportDraft(id string) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err

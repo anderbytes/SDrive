@@ -16,7 +16,7 @@ export function SecretInput({ label, value, required, onChange, validation, desc
     <div className="secret-input">
       <label htmlFor={id}>{label}</label>
       <div className="secret-control">
-        <input id={id} type={revealed ? "text" : "password"} autoComplete="off"
+        <input data-sensitive id={id} type={revealed ? "text" : "password"} autoComplete="off"
           {...validation}
           aria-describedby={[describedBy, validation?.["aria-describedby"]].filter(Boolean).join(" ") || undefined}
           required={required} value={value} onChange={(e) => onChange(e.target.value)} />

@@ -6,7 +6,7 @@ New-drive setup starts in **Basic**. Password/address access, S3, B2, Azure and 
 
 Each connection uses its own supervised rclone process and encrypted configuration under `connections/sd_<remote>/`. It starts on demand; processes remain available after setup and stop after a clean disconnect. The root encrypted configuration remains the legacy source for existing profiles. First use copies and verifies a legacy remote without overwriting that source. Configurations are never written concurrently by multiple processes. Remote names and the common cache location are unchanged.
 
-Settings writes use version 4; the application reads versions 1, 2 and 3 and the unversioned format. Older SDrive versions reject version 4 instead of ignoring new safety fields. The [cache-location binding](mount-runtime.md) is preserved independently of settings restoration. Preserve the complete profile, including root and connection-specific keys/configuration and cache, during recovery. Isolating a legacy remote does not authorize deleting its cache or changing its destination.
+Settings writes use version 5; the application reads versions 1, 2, 3 and 4 and the unversioned format. Older SDrive versions reject version 5 instead of ignoring new safety fields. The [cache-location binding](mount-runtime.md) is preserved independently of settings restoration. Preserve the complete profile, including root and connection-specific keys/configuration and cache, during recovery. Isolating a legacy remote does not authorize deleting its cache or changing its destination.
 
 ## Bandwidth and proxy
 

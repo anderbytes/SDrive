@@ -143,6 +143,10 @@ func CachePath(s *Service) string {
 
 func (s *Service) ChangeCacheLocation(path string) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err
@@ -265,6 +269,9 @@ func (s *Service) ChangeCacheLocation(path string) error {
 
 func SetDirectoryPicker(s *Service, pick func() (string, error)) { s.pickDirectory = pick }
 func (s *Service) SelectDirectory() (string, error) {
+	if err := s.accessAllowed(); err != nil {
+		return "", err
+	}
 	if s.pickDirectory == nil {
 		return "", fmt.Errorf("Directory selection is unavailable.")
 	}

@@ -14,7 +14,7 @@ Imports become persistent **drafts**, separate from operational connections. The
 
 Applying imported preferences is a separate, initially unchecked choice. It covers language, cache size/timing and desktop preferences. Windows startup, proxy settings and authoritative cache location stay local. Existing mounted drives are not remounted for imported cache settings. Preferences and definitions cannot be imported during protected settings recovery or active setup.
 
-Settings writes now use version 4. Unversioned settings and versions 1–3 remain readable. Older applications reject version 4; do not edit version numbers to bypass this protection.
+Settings writes now use version 5. Unversioned settings and versions 1–4 remain readable. Older applications reject version 5; do not edit version numbers to bypass this protection.
 
 ## Explorer and connection options
 

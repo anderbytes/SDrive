@@ -4,6 +4,8 @@ This guide is for developers and maintainers. End users only need the installer.
 
 Portable configuration and service icons are described in [portability and desktop preferences](portability-and-desktop.md), including focused validation boundaries.
 
+Application access, inactivity, process discovery and measured Windows Shell operations are described in [access and file operations](access-and-file-operations.md), including focused native test names and acceptance limits.
+
 ## Build and verify
 
 Development prerequisite: Node.js 24 LTS or later and npm. In PowerShell, from the repository root:

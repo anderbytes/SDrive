@@ -20,8 +20,15 @@ func SetDiagnostics(s *Service, log *diagnostics.Collector) {
 }
 
 func (s *Service) Diagnostics() string {
+	if s.accessAllowed() != nil {
+		return "Unlock SDrive before viewing diagnostics."
+	}
 	info := s.About()
 	s.mu.Lock()
+	if s.access.locked {
+		s.mu.Unlock()
+		return "Unlock SDrive before viewing diagnostics."
+	}
 	log := s.diagnostics
 	engineAlive := s.rpc != nil && s.rpc.Alive()
 	connections, mounted, recovery := len(s.store.Connections), 0, 0

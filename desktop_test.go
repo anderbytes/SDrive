@@ -251,3 +251,23 @@ func TestTrayRepeatedOpenPreservesActiveMenu(t *testing.T) {
 		t.Fatal("repeated notification replaced or destroyed the active menu")
 	}
 }
+
+func TestLockedTrayHidesDriveActionsEvenWithAnOlderSnapshot(t *testing.T) {
+	d := &desktop{service: &core.Service{}}
+	view := core.View{Settings: core.Settings{Language: "en"}, Connections: []core.ConnectionView{{Connection: core.Connection{ID: "synthetic", Name: "Private drive", Letter: "S"}, Mounted: true}}}
+	unlocked := d.trayMenu(view, core.AccessStatus{Enabled: true})
+	defer unlocked.Destroy()
+	if unlocked.FindByLabel("Private drive (S:)") == nil || unlocked.FindByLabel("Disconnect") == nil || unlocked.FindByLabel("Lock SDrive") == nil {
+		t.Fatal("unlocked tray lost drive actions")
+	}
+	locked := d.trayMenu(view, core.AccessStatus{Enabled: true, Locked: true})
+	defer locked.Destroy()
+	for _, name := range []string{"Private drive (S:)", "Disconnect", "Open in Explorer", "Lock SDrive"} {
+		if locked.FindByLabel(name) != nil {
+			t.Fatal("locked tray exposed drive management")
+		}
+	}
+	if locked.FindByLabel("Open SDrive") == nil || locked.FindByLabel("Exit safely") == nil {
+		t.Fatal("locked tray lost unlock entry or safe exit")
+	}
+}

@@ -7,6 +7,13 @@
         "core.AboutInfo"
       ]
     },
+    "accessStatus": {
+      "args": [],
+      "name": "AccessStatus",
+      "returns": [
+        "core.AccessStatus"
+      ]
+    },
     "answer": {
       "args": [
         "string",
@@ -54,6 +61,18 @@
         "error"
       ]
     },
+    "configureAccess": {
+      "args": [
+        "string",
+        "string",
+        "core.AccessPolicy"
+      ],
+      "name": "ConfigureAccess",
+      "returns": [
+        "string",
+        "error"
+      ]
+    },
     "confirm": {
       "args": [
         "string",
@@ -78,6 +97,15 @@
       "name": "Diagnostics",
       "returns": [
         "string"
+      ]
+    },
+    "disableAccess": {
+      "args": [
+        "string"
+      ],
+      "name": "DisableAccess",
+      "returns": [
+        "error"
       ]
     },
     "end": {
@@ -121,6 +149,24 @@
       "name": "ListConfigFolders",
       "returns": [
         "[]core.Folder",
+        "error"
+      ]
+    },
+    "inspectFileAccess": {
+      "args": [
+        "string",
+        "string"
+      ],
+      "name": "InspectFileAccess",
+      "returns": [
+        "core.FileAccessView",
+        "error"
+      ]
+    },
+    "lock": {
+      "args": [],
+      "name": "Lock",
+      "returns": [
         "error"
       ]
     },
@@ -175,6 +221,17 @@
       "name": "ProxySettings",
       "returns": [
         "core.ProxyConfig",
+        "error"
+      ]
+    },
+    "recoverAccess": {
+      "args": [
+        "string",
+        "string"
+      ],
+      "name": "RecoverAccess",
+      "returns": [
+        "string",
         "error"
       ]
     },
@@ -288,6 +345,15 @@
         "error"
       ]
     },
+    "unlockAccess": {
+      "args": [
+        "string"
+      ],
+      "name": "UnlockAccess",
+      "returns": [
+        "error"
+      ]
+    },
     "unmount": {
       "args": [
         "string"
@@ -322,6 +388,20 @@
       "winFspVersion": "",
       "webView2Version": "",
       "architecture": ""
+    },
+    "accessStatus": {
+      "setupPending": false,
+      "language": "en",
+      "enabled": true,
+      "locked": true,
+      "policy": {
+        "idleMinutes": 15,
+        "disconnectIdle": false,
+        "reconnect": false
+      },
+      "retryAt": "2026-01-01T00:00:00Z",
+      "error": "",
+      "warning": ""
     },
     "configInput": {
       "importDraftID": "draft",
@@ -417,6 +497,18 @@
     "fields": {
       "values": {},
       "transport": "explicit"
+    },
+    "fileAccess": {
+      "state": "reported",
+      "processes": [
+        {
+          "pid": 42,
+          "name": "Synthetic editor",
+          "startedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "checkedAt": "2026-01-01T00:00:00Z",
+      "path": "document.txt"
     },
     "folders": [
       {
@@ -563,6 +655,20 @@
       "connectionID": ""
     },
     "snapshotEmpty": {
+      "access": {
+        "setupPending": false,
+        "language": "",
+        "enabled": false,
+        "locked": false,
+        "policy": {
+          "idleMinutes": 0,
+          "disconnectIdle": false,
+          "reconnect": false
+        },
+        "retryAt": "0001-01-01T00:00:00Z",
+        "error": "",
+        "warning": ""
+      },
       "desktopWarning": "",
       "importDrafts": [],
       "providers": [],
@@ -588,6 +694,20 @@
       "cacheLocation": ""
     },
     "snapshotFilled": {
+      "access": {
+        "setupPending": false,
+        "language": "",
+        "enabled": false,
+        "locked": false,
+        "policy": {
+          "idleMinutes": 0,
+          "disconnectIdle": false,
+          "reconnect": false
+        },
+        "retryAt": "0001-01-01T00:00:00Z",
+        "error": "",
+        "warning": ""
+      },
       "desktopWarning": "",
       "importDrafts": [],
       "providers": [

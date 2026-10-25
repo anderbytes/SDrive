@@ -140,7 +140,7 @@ export async function runSmoke(exercise, { buildBinary = build, workspace = root
     failure = error;
     result.reason = error.message.split("\n")[0];
     if (page && !page.isClosed())
-      await cleanup("failure screenshot", () => page.screenshot({ path: path.join(artifacts, "failure.png"), timeout: 5000 }));
+      await cleanup("failure screenshot", () => page.screenshot({ path: path.join(artifacts, "failure.png"), mask: [page.locator("[data-sensitive]")], timeout: 5000 }));
   } finally {
     if (dav) await cleanup("WebDAV shutdown", async () => {
       dav.closeAllConnections();

@@ -94,6 +94,10 @@ type ConfigSession struct {
 func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr error) {
 	defer func() { s.diagnostics.Operation("setup", resultErr) }()
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return "", err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return "", err
@@ -517,6 +521,10 @@ func (s *Service) commitConfig(ss *ConfigSession) string {
 
 func (s *Service) ConfigStatus(id string) (ConfigSession, error) {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return ConfigSession{}, err
+	}
 	defer s.mu.Unlock()
 	if s.session == nil || s.session.ID != id {
 		return ConfigSession{}, fmt.Errorf("setup not found")
@@ -525,6 +533,10 @@ func (s *Service) ConfigStatus(id string) (ConfigSession, error) {
 }
 func (s *Service) AnswerConfig(id, answer string) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	ss := s.session
 	if ss == nil || ss.ID != id || ss.closing || ss.Busy || ss.Complete || ss.Question == nil {
@@ -543,7 +555,30 @@ func (s *Service) AnswerConfig(id, answer string) error {
 	go func() { defer cancel(); defer close(done); s.configure(ctx, id, ss.rpc, "config/update", input) }()
 	return nil
 }
-func (s *Service) EndConfig(id string) (resultErr error) {
+func (s *Service) EndConfig(id string) error {
+	if err := s.accessAllowed(); err != nil {
+		return err
+	}
+	if id == "" {
+		s.mu.Lock()
+		if s.session != nil {
+			id = s.session.ID
+		}
+		s.mu.Unlock()
+	}
+	err := s.endConfig(id)
+	if err == nil {
+		s.mu.Lock()
+		if strings.HasPrefix(s.access.warning, "Setup cancellation") {
+			s.access.warning = ""
+			s.accessChanged()
+		}
+		s.mu.Unlock()
+	}
+	return err
+}
+
+func (s *Service) endConfig(id string) (resultErr error) {
 	defer func() { s.diagnostics.Operation("setup", resultErr) }()
 	s.mu.Lock()
 	ss := s.session
@@ -616,6 +651,9 @@ type HostIdentity struct {
 }
 
 func (s *Service) ProbeSSH(host, port string) (HostIdentity, error) {
+	if err := s.accessAllowed(); err != nil {
+		return HostIdentity{}, err
+	}
 	if err := validateServer(host, port); err != nil {
 		return HostIdentity{}, err
 	}
@@ -648,11 +686,16 @@ type ConnectionFieldsView struct {
 
 func (s *Service) ConnectionFields(id string) (ConnectionFieldsView, error) {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return ConnectionFieldsView{}, err
+	}
 	i := s.index(id)
 	if i < 0 {
 		s.mu.Unlock()
 		return ConnectionFieldsView{}, fmt.Errorf("connection not found")
 	}
+	epoch := s.access.epoch
 	c := s.store.Connections[i]
 	if !c.SessionOnly {
 		if err := s.loadConnectionRPC(c); err != nil {
@@ -680,7 +723,7 @@ func (s *Service) ConnectionFields(id string) (ConnectionFieldsView, error) {
 	}
 	s.mu.Lock()
 	current := s.index(id)
-	valid := s.connectionRPC(c) == rpc && current >= 0 && s.store.Connections[current] == c
+	valid := !s.access.locked && s.access.epoch == epoch && s.connectionRPC(c) == rpc && current >= 0 && s.store.Connections[current] == c
 	s.mu.Unlock()
 	if !valid {
 		return ConnectionFieldsView{}, fmt.Errorf("connection changed; try again")

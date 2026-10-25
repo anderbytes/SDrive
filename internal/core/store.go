@@ -52,9 +52,10 @@ type Settings struct {
 	WriteBackSeconds         *int   `json:"writeBackSeconds,omitempty"`
 }
 type Store struct {
-	ImportDrafts []ImportDraft `json:"importDrafts,omitempty"`
-	Connections  []Connection  `json:"connections"`
-	Settings     Settings      `json:"settings"`
+	AccessProtected bool          `json:"accessProtected,omitempty"`
+	ImportDrafts    []ImportDraft `json:"importDrafts,omitempty"`
+	Connections     []Connection  `json:"connections"`
+	Settings        Settings      `json:"settings"`
 }
 
 var errSettingsVersion = errors.New("unsupported settings format; preserve the data directory and use a compatible SDrive version")
@@ -90,7 +91,7 @@ func decodeStore(b []byte) (Store, error) {
 	}
 	if shape.Version != nil {
 		var version int
-		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2 && version != 3 && version != 4) {
+		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2 && version != 3 && version != 4 && version != 5) {
 			return s, errSettingsVersion
 		}
 	}
@@ -158,7 +159,7 @@ func encodeStore(s Store) ([]byte, error) {
 	b, err := json.MarshalIndent(struct {
 		Version int `json:"version"`
 		Store
-	}{Version: 4, Store: s}, "", "  ")
+	}{Version: 5, Store: s}, "", "  ")
 	if err != nil {
 		return nil, err
 	}

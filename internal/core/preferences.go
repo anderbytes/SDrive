@@ -20,6 +20,9 @@ func SetLanguageChanged(s *Service, changed func(string)) { s.languageChanged = 
 func SetAutoStart(s *Service, update func(bool) error) { s.autoStart = update }
 
 func (s *Service) SaveSettings(settings Settings) error {
+	if err := s.accessAllowed(); err != nil {
+		return err
+	}
 	defer s.reconcileDesktopIcons()
 	if err := validateCacheDurations(settings); err != nil {
 		return err
@@ -34,6 +37,10 @@ func (s *Service) SaveSettings(settings Settings) error {
 		return fmt.Errorf("cache must be between 1 and 1024 GiB per connection")
 	}
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err

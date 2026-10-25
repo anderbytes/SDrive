@@ -65,6 +65,10 @@ func listFolders(ctx context.Context, rpc RPC, c Connection, path string) ([]Fol
 
 func (s *Service) ListConfigFolders(id, path string) ([]Folder, error) {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
 	defer s.mu.Unlock()
 	ss := s.session
 	if ss == nil || ss.ID != id || ss.closing || ss.Busy || !ss.Authenticated || ss.Complete {
@@ -77,7 +81,7 @@ func (s *Service) ListConfigFolders(id, path string) ([]Folder, error) {
 	s.mu.Unlock()
 	folders, err := listFolders(ss.ctx, rpc, c, path)
 	s.mu.Lock()
-	if s.session != ss || ss.closing || ss.Complete || ss.connection != c {
+	if s.access.locked || s.session != ss || ss.closing || ss.Complete || ss.connection != c {
 		return nil, fmt.Errorf("setup changed; choose the folder again")
 	}
 	return folders, err
@@ -85,6 +89,10 @@ func (s *Service) ListConfigFolders(id, path string) ([]Folder, error) {
 
 func (s *Service) ConfirmConfig(id, path string, target MountTarget) (string, error) {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return "", err
+	}
 	defer s.mu.Unlock()
 	ss := s.session
 	if ss == nil || ss.ID != id || ss.closing || ss.Busy || !ss.Authenticated {
@@ -162,6 +170,9 @@ func (s *Service) ConfirmConfig(id, path string, target MountTarget) (string, er
 func SetFilePicker(s *Service, picker func(string) (string, error)) { s.pickFile = picker }
 
 func (s *Service) SelectCredentialFile(kind string) (string, error) {
+	if err := s.accessAllowed(); err != nil {
+		return "", err
+	}
 	if kind != "key_file" && kind != "service_account_file" {
 		return "", fmt.Errorf("invalid file type")
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"sdrive/internal/i18n"
+	"sdrive/internal/platform"
 )
 
 // Samples are synthetic; no service operation, profile or credential is used.
@@ -29,6 +30,8 @@ func bridgeSamples() map[string]any {
 	filled.FreeBytes = &size
 	filled.Connections = []ConnectionView{{Connection: connection, Pending: &count, Operation: "mounting", Error: message.Message, ErrorMessage: message, Uploads: &UploadView{Active: 1, Queued: 1}, Cache: CacheView{CheckedAt: &checked, PendingBytes: &pending, UsedBytes: &size}}}
 	return map[string]any{
+		"accessStatus":  AccessStatus{Enabled: true, Locked: true, Language: "en", Policy: AccessPolicy{IdleMinutes: 15}, RetryAt: checked},
+		"fileAccess":    FileAccessView{Path: "document.txt", FileAccess: platform.FileAccess{State: "reported", CheckedAt: checked, Processes: []platform.FileProcess{{PID: 42, Name: "Synthetic editor", StartedAt: checked}}}},
 		"importPreview": ImportPreview{ID: "preview", Document: PortableFile{Format: "sdrive-portable", Version: 1, Connections: []PortableConnection{portableDefinition(connection)}, Preferences: portablePreferences(settings)}},
 		"importDraft":   ImportDraft{ID: "draft", Definition: portableDefinition(connection)},
 		"mountTarget":   mountTarget(connection),
@@ -49,6 +52,7 @@ func bridgeSamples() map[string]any {
 
 func bridgeMethods() map[string]any {
 	names := map[string]string{
+		"inspectFileAccess": "InspectFileAccess", "accessStatus": "AccessStatus", "configureAccess": "ConfigureAccess", "disableAccess": "DisableAccess", "lock": "Lock", "unlockAccess": "UnlockAccess", "recoverAccess": "RecoverAccess",
 		"exportConfiguration": "ExportConfiguration", "previewImport": "PreviewImport", "commitImport": "CommitImport", "removeImportDraft": "RemoveImportDraft",
 		"selectDirectory": "SelectDirectory", "changeCacheLocation": "ChangeCacheLocation", "refreshDirectoryCache": "RefreshDirectoryCache",
 		"browsers": "Browsers", "proxy": "ProxySettings", "saveProxy": "SaveProxy",

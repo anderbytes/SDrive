@@ -60,3 +60,5 @@ Never delete the cache while recovery is pending. After an interruption, use **R
 Uninstalling preserves data, credentials and cache to prevent loss of pending uploads. After resolving all pending files, you can remove that directory manually. The DPAPI key depends on your Windows user; copying files to another account is not a portable credential backup.
 
 Read the [security model and limitations](docs/security.md) before using sensitive data. Do not publish configurations, tokens, keys, dumps or cache files in issues.
+
+Application PIN protection, safe idle disconnect and Windows file-access queries: [access and file operations](docs/access-and-file-operations.md). The lock protects management controls; connected drives remain accessible in Explorer.

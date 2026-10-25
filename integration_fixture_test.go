@@ -25,7 +25,9 @@ import (
 type integrationFixture struct {
 	root, profile, destination, url, letter string
 	blocked                                 atomic.Bool
+	failMoves                               atomic.Bool
 	requests, downloads                     atomic.Int64
+	uploads, moves, copies, deletes         atomic.Int64
 	upload                                  chan struct{}
 	rpc                                     *engine.Engine
 	service                                 *core.Service
@@ -144,6 +146,20 @@ func newIntegrationFixture(t *testing.T, mount bool) *integrationFixture {
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, _ error) { w.WriteHeader(http.StatusBadGateway) }
 	gate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.requests.Add(1)
+		switch r.Method {
+		case "PUT":
+			f.uploads.Add(1)
+		case "MOVE":
+			f.moves.Add(1)
+		case "COPY":
+			f.copies.Add(1)
+		case "DELETE":
+			f.deletes.Add(1)
+		}
+		if r.Method == "MOVE" && f.failMoves.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		if r.Method == http.MethodGet {
 			f.downloads.Add(1)
 		}

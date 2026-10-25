@@ -579,3 +579,6 @@ header, .summary, .actions, .modal-actions, .alert { flex-wrap: wrap; }
 }
 .connection-options { display: flex; flex-wrap: wrap; gap: .35rem; padding: 0; margin: .5rem 0; list-style: none; }
 .connection-options li { border: 1px solid currentColor; border-radius: .35rem; padding: .15rem .4rem; font-size: .8rem; }
+
+.access-screen { max-width: 42rem; margin: 4vh auto; padding: 24px; }
+.access-screen pre, .modal pre { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }

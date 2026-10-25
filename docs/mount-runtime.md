@@ -10,7 +10,7 @@ The transition activates a new empty cache without moving or deleting the previo
 
 The profile's `cache-location.json` binds the path, an ownership token and the directory's Windows identity. The cache contains `.sdrive-cache-owner`. Keep these files with the profile and cache. Settings restoration preserves this binding. An unavailable disk, missing metadata, replaced directory or ownership mismatch blocks mounting and cleanup instead of silently starting an empty cache elsewhere. Restore the original disk/directory and restart SDrive; do not move the cache manually.
 
-Settings writes use version 4; unversioned, version 1, version 2 and version 3 settings remain readable with their original defaults. Both settings generations are upgraded before activating an external cache, preventing older applications from ignoring its binding. Do not edit version numbers to bypass compatibility protection.
+Settings writes use version 5; unversioned, version 1, version 2, version 3 and version 4 settings remain readable with their original defaults. Both settings generations are upgraded before activating an external cache, preventing older applications from ignoring its binding. Do not edit version numbers to bypass compatibility protection.
 
 | Preference | Default | Meaning |
 | --- | --- | --- |

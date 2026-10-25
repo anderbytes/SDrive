@@ -1,6 +1,6 @@
 import { beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 import { Call } from "@wailsio/runtime";
-import { api, type PortableConnection, type PortablePreferences, type PortableFile, type ImportDraft, type ImportPreview, type MountTarget, type Browser, type ProxyConfig, type AboutInfo, type ConfigInput, type Connection, type ConnectionView, type Field, type FieldError, type Provider, type Question, type Session, type Settings, type Snapshot } from "./api";
+import { api, type AccessStatus, type FileAccessView, type PortableConnection, type PortablePreferences, type PortableFile, type ImportDraft, type ImportPreview, type MountTarget, type Browser, type ProxyConfig, type AboutInfo, type ConfigInput, type Connection, type ConnectionView, type Field, type FieldError, type Provider, type Question, type Session, type Settings, type Snapshot } from "./api";
 import fixtures from "./bridge-fixtures.json";
 
 vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
@@ -12,6 +12,8 @@ const question = samples.sessionFilled.question;
 type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T];
 
 test("portable definitions and update status preserve the Go wire shape", () => {
+  expectTypeOf<keyof AccessStatus>().toEqualTypeOf<keyof typeof samples.accessStatus>();
+  expectTypeOf<keyof FileAccessView>().toEqualTypeOf<keyof typeof samples.fileAccess>();
   expectTypeOf<keyof PortableConnection>().toEqualTypeOf<keyof typeof samples.importDraft.definition>();
   expectTypeOf<keyof PortablePreferences>().toEqualTypeOf<keyof typeof samples.importPreview.document.preferences>();
   expectTypeOf<keyof PortableFile>().toEqualTypeOf<keyof typeof samples.importPreview.document>();
@@ -66,9 +68,10 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
   expect(empty.connections).toEqual([]);
 });
 
-type BridgeKey = Exclude<keyof typeof api, "copyDiagnostics" | "onDesktopVisibility">;
+type BridgeKey = Exclude<keyof typeof api, "copyDiagnostics" | "onDesktopVisibility" | "onAccessChanged">;
 type Calls = { [K in BridgeKey]: Parameters<(typeof api)[K]> };
 type Results = {
+  inspectFileAccess: FileAccessView; accessStatus: AccessStatus; configureAccess: string; disableAccess: void; lock: void; unlockAccess: void; recoverAccess: string;
   exportConfiguration: void; previewImport: ImportPreview | null; commitImport: void; removeImportDraft: void;
   selectDirectory: string; changeCacheLocation: void; refreshDirectoryCache: void;
   browsers: Browser[]; proxy: ProxyConfig; saveProxy: void;
@@ -80,6 +83,7 @@ type Results = {
   restoreSettings: void; verifyRecovery: void; retryCleanup: void;
 };
 const calls = {
+  inspectFileAccess: ["connection", "file.txt"], accessStatus: [], configureAccess: ["", "123456", { idleMinutes: 15, disconnectIdle: false, reconnect: false }], disableAccess: ["123456"], lock: [], unlockAccess: ["123456"], recoverAccess: ["synthetic", "123456"],
   exportConfiguration: [], previewImport: [], commitImport: ["preview", { ...samples.importPreview.document, preferences: { ...samples.importPreview.document.preferences, language: "en" } }, false], removeImportDraft: ["draft"],
   selectDirectory: [], changeCacheLocation: ["C:\\Synthetic\\Cache"], refreshDirectoryCache: ["connection"],
   browsers: [], proxy: [], saveProxy: [{ address: "", username: "", password: "", hasPassword: false }],

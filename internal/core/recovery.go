@@ -144,6 +144,10 @@ func StartEngine(s *Service) {
 
 func (s *Service) RetryCleanup() error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err
@@ -166,6 +170,10 @@ func (s *Service) cleanup() error {
 func (s *Service) RestoreSettings() (resultErr error) {
 	defer func() { s.diagnostics.Operation("recovery", resultErr) }()
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if s.settingsError == "" || s.incompatibleSettings || s.session != nil || s.exiting {
 		return fmt.Errorf("settings restoration is not available")
@@ -183,6 +191,7 @@ func (s *Service) RestoreSettings() (resultErr error) {
 			backup.Connections[i].Recovery = true
 		}
 	}
+	backup.AccessProtected = s.store.AccessProtected || s.access.record != nil
 	data, err := encodeStore(backup)
 	if err != nil {
 		return err
@@ -218,6 +227,7 @@ func (s *Service) RestoreSettings() (resultErr error) {
 	if err = atomicWrite(path, data); err != nil {
 		return fmt.Errorf("could not restore settings; original data and backup are preserved")
 	}
+	backup.AccessProtected = s.store.AccessProtected || s.access.record != nil
 	s.store = backup
 	s.inspections = nil
 	s.settingsError = ""
@@ -235,6 +245,10 @@ func (s *Service) RestoreSettings() (resultErr error) {
 func (s *Service) VerifyRecovery() (resultErr error) {
 	defer func() { s.diagnostics.Operation("recovery", resultErr) }()
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err

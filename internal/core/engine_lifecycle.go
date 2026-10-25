@@ -7,6 +7,10 @@ import (
 func (s *Service) RestartEngine() (resultErr error) {
 	defer func() { s.diagnostics.Operation("engine_start", resultErr) }()
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err
@@ -54,7 +58,7 @@ func (s *Service) RestartEngine() (resultErr error) {
 
 func AutoMount(s *Service) {
 	s.mu.Lock()
-	if s.settingsError != "" || s.recoveryHold {
+	if s.settingsError != "" || s.recoveryHold || s.access.locked {
 		s.mu.Unlock()
 		return
 	}

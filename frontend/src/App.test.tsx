@@ -31,6 +31,7 @@ vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
 vi.mock("./api", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api")>(),
   api: {
+    inspectFileAccess: vi.fn(), accessStatus: vi.fn(), configureAccess: vi.fn(), disableAccess: vi.fn(), lock: vi.fn(), unlockAccess: vi.fn(), recoverAccess: vi.fn(), onAccessChanged: vi.fn(),
     exportConfiguration: vi.fn(), previewImport: vi.fn(), commitImport: vi.fn(), removeImportDraft: vi.fn(),
     selectDirectory: vi.fn(), changeCacheLocation: vi.fn(), refreshDirectoryCache: vi.fn(),
     browsers: vi.fn(), proxy: vi.fn(), saveProxy: vi.fn(),
@@ -84,7 +85,9 @@ const connection: ConnectionView = {
   cache: { checkedAt: null, pendingBytes: 0, usedBytes: 0, error: "" },
   error: "",
 };
+const access = { setupPending: false, enabled: false, locked: false, language: "en", policy: { idleMinutes: 15, disconnectIdle: false, reconnect: false }, retryAt: "0001-01-01T00:00:00Z", error: "", warning: "" };
 const snapshot = {
+  access,
   importDrafts: [], desktopWarning: "",
   cacheLocation: "C:\\Synthetic\\Cache",
   freeBytes: null,
@@ -112,6 +115,8 @@ const snapshot = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(api.accessStatus).mockResolvedValue(access);
+  vi.mocked(api.onAccessChanged).mockReturnValue(() => {});
   vi.mocked(api.browsers).mockResolvedValue([{ id: "", name: "Default browser" }]);
   vi.mocked(api.proxy).mockResolvedValue({ address: "", username: "", password: "", hasPassword: false });
   vi.mocked(api.desktopVisible).mockResolvedValue(true);
@@ -325,7 +330,7 @@ test("structured field errors keep their field association and translate by code
 test("About shows actual versions and unavailable components, and returns focus on close", async () => {
   vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "v-running", windowsVersion: "10.0.26100", winFspVersion: "", webView2Version: "123.4", architecture: "amd64" });
   render(<App />);
-  const button = screen.getByRole("button", { name: "About SDrive" });
+  const button = await screen.findByRole("button", { name: "About SDrive" });
   button.focus();
   fireEvent.click(button);
   await screen.findByText("v-running");
@@ -352,7 +357,7 @@ test("diagnostics previews and copies exactly the reviewed report during setting
   vi.mocked(api.diagnostics).mockResolvedValue(report);
   vi.mocked(api.copyDiagnostics).mockResolvedValue();
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "About SDrive" }));
+  fireEvent.click(await screen.findByRole("button", { name: "About SDrive" }));
   expect(api.diagnostics).not.toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: "Copy report" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
@@ -370,7 +375,7 @@ test("diagnostics offers retry and manual selection when loading or copying fail
   vi.mocked(api.diagnostics).mockRejectedValueOnce(new Error("private backend error")).mockResolvedValue("safe report");
   vi.mocked(api.copyDiagnostics).mockRejectedValue(new Error("private clipboard error"));
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "About SDrive" }));
+  fireEvent.click(await screen.findByRole("button", { name: "About SDrive" }));
   fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
   await screen.findByText("Could not load the diagnostic report. Try again.");
   fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
@@ -401,7 +406,7 @@ test("closing About ignores a late diagnostic response", async () => {
   let resolve!: (report: string) => void;
   vi.mocked(api.diagnostics).mockImplementation(() => new Promise((done) => { resolve = done; }));
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "About SDrive" }));
+  fireEvent.click(await screen.findByRole("button", { name: "About SDrive" }));
   fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
   expect((screen.getByRole("button", { name: "Loading diagnostic report…" }) as HTMLButtonElement).disabled).toBe(true);
   cancelDialog();
@@ -776,7 +781,8 @@ test("native dialog cancellation keeps a busy preference save open", async () =>
   let finish!: () => void;
   vi.mocked(api.settings).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
   render(<App />);
-  fireEvent.click(await screen.findByRole("button", { name: /Preferences/ }));
+  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
   const cache = screen.getByLabelText("Cache target per connection (GiB)");
   expect(document.getElementById(cache.getAttribute("aria-describedby")!)?.textContent).toContain("Applied on the next mount");
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -1177,7 +1183,8 @@ test("language changes are saved, applied and restored on reopening", async () =
     saved = { ...settings, language: settings.language || "en" };
   });
   const view = render(<App />);
-  fireEvent.click(await screen.findByRole("button", { name: /Preferences/ }));
+  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
   fireEvent.change(screen.getByLabelText("Language"), {
     target: { value: "pt-BR" },
   });
@@ -1284,7 +1291,7 @@ test.each([false, true])("obsolete snapshot data and errors are ignored (reject=
   const old = new Promise<typeof snapshot>((resolve, fail) => { resolveOld = resolve; reject = fail; });
   vi.mocked(api.snapshot).mockReturnValueOnce(old).mockResolvedValue({ ...snapshot, maintenanceError: "Current maintenance warning" });
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Exit safely" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Exit safely" }));
   await screen.findByText("Current maintenance warning");
   await act(async () => {
     if (rejectOld) reject(new Error("Obsolete failure"));
@@ -1357,7 +1364,8 @@ test("folder mount confirmation keeps the selected local destination", async () 
 test("cache timing preserves an explicit zero upload delay", async () => {
   vi.mocked(api.settings).mockResolvedValue();
   render(<App />);
-  fireEvent.click(await screen.findByText(/Preferences/));
+  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
   fireEvent.change(screen.getByLabelText("Cache retention after last access (hours)"), { target: { value: "48" } });
   fireEvent.change(screen.getByLabelText("Upload delay after last use (seconds)"), { target: { value: "0" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -1367,7 +1375,8 @@ test("cache timing preserves an explicit zero upload delay", async () => {
 test("cache location failure keeps the current location visible", async () => {
   vi.mocked(api.changeCacheLocation).mockRejectedValue(new Error("Disconnect all drives and resolve pending files before changing the cache."));
   render(<App />);
-  fireEvent.click(await screen.findByText(/Preferences/));
+  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
   fireEvent.change(screen.getByLabelText("New empty cache directory"), { target: { value: "D:\\NewCache" } });
   fireEvent.click(screen.getByRole("button", { name: "Change cache location" }));
   await screen.findByRole("alert");
@@ -1842,4 +1851,17 @@ test.each([
   await screen.findByText(text);
   expect(screen.queryByText("Connected", { exact: true })).toBeNull();
   expect((screen.getByRole("button", { name: "Connect" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+test("a locked snapshot removes management even if the native lock event was missed", async () => {
+  let visibility!: (visible:boolean) => void;
+  vi.mocked(api.onDesktopVisibility).mockImplementation((callback) => {visibility = callback;return () => {};});
+  render(<App />);
+  await screen.findByText("One letter. All your files.");
+  vi.mocked(api.accessStatus).mockResolvedValue({...access,enabled:true,locked:true});
+  vi.mocked(api.snapshot).mockResolvedValue({...snapshot,access:{...access,enabled:true,locked:true}});
+  act(() => {visibility(false);visibility(true);});
+  await screen.findByRole("heading",{name:"SDrive is locked"});
+  expect(screen.queryByRole("button",{name:"+ New connection"})).toBeNull();
 });

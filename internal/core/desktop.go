@@ -30,6 +30,9 @@ func (s *Service) DesktopVisible() bool {
 }
 
 func (s *Service) About() AboutInfo {
+	if s.accessAllowed() != nil {
+		return AboutInfo{}
+	}
 	s.mu.Lock()
 	rpc, version := s.rpc, s.appVersion
 	s.mu.Unlock()

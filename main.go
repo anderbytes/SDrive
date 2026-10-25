@@ -224,6 +224,9 @@ func main() {
 		}
 		return dialog.PromptForSingleSelection()
 	})
+	core.SetFileAccessPicker(service, func(root string) (string, error) {
+		return app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Select mounted file")).SetDirectory(root).CanChooseDirectories(false).CanChooseFiles(true).PromptForSingleSelection()
+	})
 	core.SetDirectoryPicker(service, func() (string, error) {
 		return app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Select local directory")).CanChooseDirectories(true).CanChooseFiles(false).PromptForSingleSelection()
 	})

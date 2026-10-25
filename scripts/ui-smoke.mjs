@@ -1,5 +1,8 @@
-import { runSmoke } from "./ui-smoke-runtime.mjs";
+import { runSmoke, smokeEnvironment } from "./ui-smoke-runtime.mjs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+const exec = promisify(execFile);
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
@@ -17,7 +20,7 @@ async function verifyAboutActions(page, language) {
   await dialog.getByRole("button", { name: t("Close"), exact: true }).click();
 }
 
-await runSmoke(async ({ page, dav, exited, artifacts, profile }) => {
+await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.getByRole("heading", { name: "My drives", exact: true }).waitFor();
@@ -164,12 +167,55 @@ await runSmoke(async ({ page, dav, exited, artifacts, profile }) => {
   await page.getByRole("button", { name: "Remove draft", exact: true }).click();
   await page.getByRole("button", { name: "Authenticate", exact: true }).waitFor({ state: "hidden" });
   await verifyAboutActions(page, "en");
+  await page.getByRole("button", { name: "Application lock", exact: true }).click();
+  await page.getByLabel("New PIN", { exact: true }).fill("123456");
+  await page.getByLabel("Confirm new PIN", { exact: true }).fill("123456");
+  assert.equal(await page.getByLabel("Lock after computer inactivity (minutes; 0 disables)").inputValue(), "15");
+  assert.equal(await page.getByLabel("Disconnect safely after inactivity", { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel("Reconnect idle-disconnected drives after unlock", { exact: true }).isChecked(), false);
+  await page.getByLabel("Lock after computer inactivity (minutes; 0 disables)").fill("0");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const recoveryCode = await page.getByLabel("Recovery code", { exact: true }).textContent();
+  assert(recoveryCode && recoveryCode.length === 32);
+  await page.getByRole("button", { name: "I saved the recovery code", exact: true }).click();
+  await page.getByRole("button", { name: "Lock SDrive", exact: true }).click();
+  await page.getByRole("heading", { name: "SDrive is locked", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "+ New connection", exact: true }).count(), 0);
+  await exec(child.spawnfile, [], { windowsHide: true, timeout: 15000, env: smokeEnvironment(profile) });
+  await page.getByRole("heading", { name: "SDrive is locked", exact: true }).waitFor();
+  await page.screenshot({ path: path.join(artifacts, "application-locked-en.png") });
+  await page.getByLabel("Application PIN", { exact: true }).fill("000000");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await page.getByText("The PIN or recovery code is incorrect.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Forgot PIN?", exact: true }).click();
+  await page.getByLabel("Recovery code", { exact: true }).fill(recoveryCode);
+  await page.getByLabel("New PIN", { exact: true }).fill("654321");
+  await page.getByRole("button", { name: "Reset PIN", exact: true }).click();
+  await page.getByRole("button", { name: "I saved the recovery code", exact: true }).click();
+  await page.getByLabel("Application PIN", { exact: true }).fill("654321");
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await page.getByRole("heading", { name: "My drives", exact: true }).waitFor();
+  await page.getByRole("button", { name: "⚙   Preferences", exact: true }).click();
+  await page.getByLabel("Language").selectOption("pt-BR");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Bloquear SDrive", exact: true }).click();
+  await page.getByRole("heading", { name: "O SDrive está bloqueado", exact: true }).waitFor();
+  await page.screenshot({ path: path.join(artifacts, "application-locked-pt-BR.png") });
+  await page.getByLabel("PIN do aplicativo", { exact: true }).fill("654321");
+  await page.getByRole("button", { name: "Desbloquear", exact: true }).click();
+  await page.getByRole("button", { name: "Bloqueio do aplicativo", exact: true }).click();
+  await page.getByLabel("PIN atual", { exact: true }).fill("654321");
+  await page.getByRole("button", { name: "Desativar bloqueio do aplicativo", exact: true }).click();
+  await verifyAboutActions(page, "pt-BR");
+  await page.getByRole("button", { name: "⚙   Preferências", exact: true }).click();
+  await page.getByLabel("Idioma").selectOption("en");
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
   assert.deepEqual(errors, []);
   await page
     .getByRole("button", { name: "Exit safely", exact: true })
     .click();
   assert.equal(await exited, 0);
   console.log(
-    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, desktop preferences, English/Portuguese switching, safe exit — OK",
+    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, desktop preferences, PIN lock/recovery, second-instance activation while locked, English/Portuguese switching, safe exit — OK",
   );
 });

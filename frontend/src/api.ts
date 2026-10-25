@@ -1,6 +1,10 @@
 import { localizedMessage, type LocalizedMessage } from "./messages";
 import { Call, Clipboard, Events } from "@wailsio/runtime";
 
+export interface FileAccessView { path: string; state: string; checkedAt: string; processes: { pid: number; name: string; startedAt: string }[] }
+export interface AccessPolicy { idleMinutes: number; disconnectIdle: boolean; reconnect: boolean }
+export interface AccessStatus { setupPending: boolean; enabled: boolean; locked: boolean; language: string; policy: AccessPolicy; retryAt: string; error: string; warning: string }
+
 export interface AboutInfo {
   appVersion: string;
   rcloneVersion: string;
@@ -87,6 +91,7 @@ export interface Settings {
 export interface MountTarget { letter: string; folder: string; mode: string }
 export const mountTarget = (c: Connection): MountTarget => ({ letter: c.letter, folder: c.mountFolder || "", mode: c.mountMode || "" });
 export interface Snapshot {
+  access: AccessStatus;
 	importDrafts: ImportDraft[];
 	desktopWarning: string;
   cacheLocation: string;
@@ -164,6 +169,14 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }
 export const api = {
+  inspectFileAccess: (id: string, path: string) => invoke<FileAccessView>("InspectFileAccess", id, path),
+  accessStatus: () => invoke<AccessStatus>("AccessStatus"),
+  configureAccess: (currentPIN: string, newPIN: string, policy: AccessPolicy) => invoke<string>("ConfigureAccess", currentPIN, newPIN, policy),
+  disableAccess: (pin: string) => invoke<void>("DisableAccess", pin),
+  lock: () => invoke<void>("Lock"),
+  unlockAccess: (pin: string) => invoke<void>("UnlockAccess", pin),
+  recoverAccess: (code: string, pin: string) => invoke<string>("RecoverAccess", code, pin),
+  onAccessChanged: (callback: (locked: boolean) => void) => Events.On("access:changed", (event) => callback(event.data === true)),
 	exportConfiguration: () => invoke<void>("ExportConfiguration"),
 	previewImport: () => invoke<ImportPreview | null>("PreviewImport"),
 	commitImport: (id: string, document: PortableFile, applyPreferences: boolean) => invoke<void>("CommitImport", id, document, applyPreferences),

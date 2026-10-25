@@ -140,6 +140,10 @@ func (s *Service) readProxy() (ProxyConfig, error) {
 }
 func (s *Service) ProxySettings() (ProxyConfig, error) {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return ProxyConfig{}, err
+	}
 	defer s.mu.Unlock()
 	p, err := s.readProxy()
 	p.HasPassword = p.Password != ""
@@ -148,6 +152,10 @@ func (s *Service) ProxySettings() (ProxyConfig, error) {
 }
 func (s *Service) SaveProxy(p ProxyConfig) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err

@@ -40,6 +40,10 @@ func (s *Service) Mount(id string) (resultErr error) {
 	}()
 	defer func() { s.diagnostics.Operation("mount", resultErr) }()
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	record, owned := false, false
 	defer func() {
@@ -252,7 +256,14 @@ func (s *Service) pendingOn(ctx context.Context, rpc RPC, c Connection) (int, er
 	return max(cached, uploads.Active+uploads.Queued, uploads.CacheErrors), nil
 }
 
-func (s *Service) Unmount(id string) (resultErr error) {
+func (s *Service) Unmount(id string) error {
+	if err := s.accessAllowed(); err != nil {
+		return err
+	}
+	return s.unmount(id)
+}
+
+func (s *Service) unmount(id string) (resultErr error) {
 	defer s.reconcileDesktopIcons()
 	defer func() { s.diagnostics.Operation("unmount", resultErr) }()
 	s.mu.Lock()
@@ -346,6 +357,13 @@ func (s *Service) drainAndUnmount(c Connection) (unmounted bool, resultErr error
 }
 
 func (s *Service) Exit() (resultErr error) {
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if resultErr != nil && s.access.locked {
+			resultErr = fmt.Errorf("Could not exit safely. Unlock SDrive to inspect uploads and recovery.")
+		}
+	}()
 	defer func() { s.diagnostics.Operation("exit", resultErr) }()
 	s.mu.Lock()
 	if s.exiting {
@@ -373,7 +391,7 @@ func (s *Service) Exit() (resultErr error) {
 	}
 	s.mu.Unlock()
 	for _, id := range ids {
-		if err := s.Unmount(id); err != nil {
+		if err := s.unmount(id); err != nil {
 			return err
 		}
 	}

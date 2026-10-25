@@ -20,6 +20,7 @@ type RPC interface {
 	Alive() bool
 }
 type View struct {
+	Access           AccessStatus     `json:"access"`
 	DesktopWarning   string           `json:"desktopWarning"`
 	ImportDrafts     []ImportDraft    `json:"importDrafts"`
 	Providers        []Provider       `json:"providers"`
@@ -49,6 +50,9 @@ type ConnectionView struct {
 	Capacity     CapacityView  `json:"capacity"`
 }
 type Service struct {
+	pickAccessFile       func(string) (string, error)
+	fileAccessBusy       bool
+	access               accessProtection
 	desktopMu            sync.Mutex
 	syncDriveIcons       func([]Connection) error
 	desktopWarning       string
@@ -102,11 +106,12 @@ func New(dir string, rpc RPC, engineError string) (*Service, error) {
 	} else if !os.IsNotExist(err) {
 		loadErr = err
 	}
+	s.loadAccess()
 	s.initializeRecovery(loadErr)
 	if err := s.cacheReady(); err != nil {
 		s.settingsError = err.Error()
 	}
-	if s.settingsError == "" {
+	if s.settingsError == "" && !s.access.locked {
 		_ = s.cleanup()
 		if matches, err := platform.AutoStartMatches(s.store.Settings.AutoStart); err != nil || !matches {
 			s.startupWarning = "Windows startup may differ from saved preferences. Save preferences to reconcile it."
@@ -203,14 +208,22 @@ func newID() string {
 }
 func remote(c Connection) string { return "sd_" + c.Remote + ":" + c.Path }
 
-func (s *Service) Snapshot() View {
+func (s *Service) Snapshot() (v View) {
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v.Access = s.accessStatus()
+		if s.access.locked {
+			v = s.lockedView()
+		}
+	}()
 	defer s.reconcileDesktopIcons()
 	s.mu.Lock()
 	s.snapshotID++
 	snapshotID := s.snapshotID
 	rpc := s.rpc
 	_, backupErr := s.backupStore()
-	v := View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.winFsp(), EngineError: s.engineError}
+	v = View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.winFsp(), EngineError: s.engineError}
 	v.CacheLocation = s.dataPath()
 	v.ImportDrafts = append([]ImportDraft{}, s.store.ImportDrafts...)
 	v.DesktopWarning = s.desktopWarnings()
@@ -346,6 +359,10 @@ func (s *Service) Snapshot() View {
 	}
 	checks.Wait()
 	s.mu.Lock()
+	v.Access = s.accessStatus()
+	if s.access.locked {
+		v = s.lockedView()
+	}
 	changed := s.snapshotChanged
 	current := s.snapshotID == snapshotID && s.rpc == rpc
 	s.mu.Unlock()
@@ -357,6 +374,10 @@ func (s *Service) Snapshot() View {
 
 func (s *Service) UpdateConnection(c Connection) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	defer s.mu.Unlock()
 	if s.session != nil && s.session.connection.ID == c.ID {
 		return fmt.Errorf("connection operation in progress")
@@ -433,6 +454,10 @@ func (s *Service) updateConnection(c Connection) error {
 }
 func (s *Service) Remove(id string) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	delete(s.inspections, id)
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
@@ -475,6 +500,10 @@ func (s *Service) Remove(id string) error {
 
 func (s *Service) TestConnection(id string) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	i := s.index(id)
 	if i < 0 {
 		s.mu.Unlock()
@@ -527,6 +556,10 @@ func (s *Service) TestConnection(id string) error {
 }
 func (s *Service) OpenExplorer(id string) error {
 	s.mu.Lock()
+	if err := s.requireUnlocked(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	i := s.index(id)
 	if i < 0 || !s.mounted[id] {
 		s.mu.Unlock()
@@ -549,6 +582,9 @@ func (s *Service) OpenExplorer(id string) error {
 	return err
 }
 func (s *Service) Prerequisite(which string) error {
+	if err := s.accessAllowed(); err != nil {
+		return err
+	}
 	urls := map[string]string{"winfsp": "https://winfsp.dev/rel/", "webview2": "https://developer.microsoft.com/microsoft-edge/webview2/", "oauth-drive": "https://rclone.org/drive/#making-your-own-client-id", "oauth-onedrive": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-sharepoint": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-dropbox": "https://rclone.org/dropbox/#get-your-own-dropbox-app-id", "oauth-box": "https://rclone.org/box/#get-your-own-box-app-id", "oauth-pcloud": "https://rclone.org/pcloud/", "oauth-gcs": "https://rclone.org/googlecloudstorage/"}
 	url, ok := urls[which]
 	if !ok || s.open == nil {

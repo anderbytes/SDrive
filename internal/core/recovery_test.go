@@ -68,13 +68,13 @@ func TestIncompleteSettingsNeverAuthorizeCleanupOrWrites(t *testing.T) {
 
 func TestSettingsVersionsAndHistoricalCompatibility(t *testing.T) {
 	legacy := `{"connections":[],"settings":{"autoStart":true,"cacheGiB":3}}`
-	for _, prefix := range []string{"", `"version":1,`, `"version":2,`, `"version":3,`, `"version":4,`} {
+	for _, prefix := range []string{"", `"version":1,`, `"version":2,`, `"version":3,`, `"version":4,`, `"version":5,`} {
 		store, err := decodeStore([]byte("{" + prefix + legacy[1:]))
 		if err != nil || store.Settings.Language != "en" || store.Settings.CacheGiB != 3 || !store.Settings.AutoStart {
 			t.Fatalf("supported settings rejected: %+v, %v", store, err)
 		}
 	}
-	for _, version := range []string{"null", "0", "5", "-1", `"1"`, "1.5"} {
+	for _, version := range []string{"null", "0", "6", "-1", `"1"`, "1.5"} {
 		dir := t.TempDir()
 		writeFixture(t, dir, "settings.json", []byte(`{"version":`+version+","+legacy[1:]))
 		writeFixture(t, dir, "settings.backup.json", []byte(legacy))
@@ -93,7 +93,7 @@ func TestBackupPreservesPreviousSettingsAndFailedWrites(t *testing.T) {
 	}
 	first := readFixture(t, dir, "settings.json")
 	var shape map[string]any
-	if json.Unmarshal(first, &shape) != nil || shape["version"] != float64(4) {
+	if json.Unmarshal(first, &shape) != nil || shape["version"] != float64(5) {
 		t.Fatal("new settings are not versioned")
 	}
 	next := old

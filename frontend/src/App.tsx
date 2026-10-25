@@ -1,4 +1,6 @@
 import { errorMessage as message, type LocalizedMessage } from "./messages";
+import { FileAccessDialog } from "./FileAccessDialog";
+import { AccessBoundary, AccessSettings } from "./AccessProtection";
 import { SecretInput } from "./connection/SecretInput";
 import { ConfigurationPortability } from "./ConfigurationPortability";
 import { ConnectionEditor } from "./connection/ConnectionEditor";
@@ -46,12 +48,12 @@ const blank = (letter: string): Connection => ({
 export function App() {
   return (
     <LanguageProvider>
-      <AppContent />
+      <AccessBoundary>{(showLocked) => <AppContent onLocked={showLocked} />}</AccessBoundary>
     </LanguageProvider>
   );
 }
 
-function AppContent() {
+function AppContent({ onLocked }: { onLocked: () => void }) {
   const { t, setLanguage } = useLanguage();
   const [data, setData] = useState<Snapshot>();
   const [error, setError] = useState<string | LocalizedMessage>("");
@@ -63,6 +65,7 @@ function AppContent() {
   }>();
   const [working, setWorking] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState(false);
+  const [accessSettings, setAccessSettings] = useState(false);
   const [about, setAbout] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const [announcement, setAnnouncement] = useState("");
@@ -86,6 +89,7 @@ function AppContent() {
     try {
       const snapshot = await api.snapshot();
       if (!snapshotActive.current || request !== snapshotRequest.current) return;
+      if (snapshot.access.locked) { onLocked(); return; }
       setData(snapshot);
       setLanguage(snapshot.settings.language === "pt-BR" ? "pt-BR" : "en");
     } catch (e) {
@@ -156,6 +160,7 @@ function AppContent() {
   };
   return (
     <div className="shell">
+      {accessSettings && <AccessSettings onClose={() => { setAccessSettings(false); void refresh(); }} />}
       <aside>
         <div className="brand">
           <span className="logo">S</span>
@@ -172,6 +177,8 @@ function AppContent() {
         >
           {t("⚙   Preferences")}
         </button>
+        <button className="nav" onClick={() => setAccessSettings(true)}>{t("Application lock")}</button>
+        {data?.access?.enabled && <button className="nav" onClick={() => void run("lock", api.lock)}>{t("Lock SDrive")}</button>}
         <footer>
           {t("Open source · GPLv3")}
           <br /> Go + rclone <br />
@@ -561,6 +568,7 @@ function Drive({
   onEdit: (auth: boolean) => void;
 }) {
   const { t } = useLanguage();
+  const [fileAccess, setFileAccess] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const outside = (event: PointerEvent) => {
@@ -576,6 +584,7 @@ function Drive({
   };
   return (
     <article className="drive">
+      {fileAccess && <FileAccessDialog connectionID={c.id} onClose={() => setFileAccess(false)} />}
       <div className={`letter ${c.mounted ? "connected" : ""}`}>
         {c.mountFolder ? "▱" : <>{c.letter}<span>:</span></>}
       </div>
@@ -671,7 +680,8 @@ function Drive({
           <div className="dropdown" onClickCapture={(event) => {
             if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMenu();
           }}>
-            <button disabled={busy || !c.mounted} onClick={() => onAction(api.refreshDirectoryCache, "Refreshing directory metadata…", "Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.")}>{t("Refresh files in Explorer")}</button>
+            <button disabled={busy || !c.mounted} onClick={() => { closeMenu(); setFileAccess(true); }}>{t("Applications using a file")}</button>
+          <button disabled={busy || !c.mounted} onClick={() => onAction(api.refreshDirectoryCache, "Refreshing directory metadata…", "Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.")}>{t("Refresh files in Explorer")}</button>
             <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>
               {t("Test access")}
             </button>
