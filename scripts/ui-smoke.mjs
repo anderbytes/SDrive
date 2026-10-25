@@ -6,6 +6,30 @@ const exec = promisify(execFile);
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
+async function verifyHorizontalTabs(page, label) {
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  await page.setViewportSize({ width: 420, height: 740 });
+  try {
+    const bar = page.getByRole("tablist", { name: label, exact: true });
+    const tabs = bar.getByRole("tab");
+    const layout = await tabs.evaluateAll((elements) => elements.map((element) => ({ top: element.getBoundingClientRect().top, whiteSpace: getComputedStyle(element).whiteSpace })));
+    assert(layout.every((item) => Math.abs(item.top - layout[0].top) < 1 && item.whiteSpace === "nowrap"), "Tabs must stay on one horizontal line");
+    assert(await bar.evaluate((element) => element.scrollWidth > element.clientWidth), "Narrow tab bars must scroll horizontally");
+    await tabs.first().press("End");
+    assert(await tabs.last().evaluate((element) => {
+      const tab = element.getBoundingClientRect(), bar = element.parentElement.getBoundingClientRect();
+      return document.activeElement === element && tab.left >= bar.left && tab.right <= bar.right;
+    }), "Keyboard navigation must reveal the focused tab");
+    await tabs.last().press("Home");
+    assert(await tabs.first().evaluate((element) => {
+      const tab = element.getBoundingClientRect(), bar = element.parentElement.getBoundingClientRect();
+      return document.activeElement === element && tab.left >= bar.left && tab.right <= bar.right;
+    }), "Home must reveal the first tab");
+  } finally {
+    await page.setViewportSize(viewport);
+  }
+}
+
 async function verifyAboutActions(page, language) {
   const catalog = language === "en" ? {} : JSON.parse(await readFile(path.join(process.cwd(), "internal/i18n", `${language}.json`), "utf8"));
   const t = (source) => catalog[source] || source;
@@ -103,6 +127,8 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByLabel("Theme").selectOption("dark");
   await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
   assert.notEqual(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor), lightBackground);
+  await verifyHorizontalTabs(page, "Preferences categories");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.screenshot({ path: path.join(artifacts, "preferences-dark.png") });
   await page.getByRole("dialog", { name: "Preferences", exact: true }).press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
@@ -118,8 +144,12 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByRole("tab", { name: "General", exact: true }).press("ArrowRight");
   await page.emulateMedia({ forcedColors: "active" });
   assert.equal(await page.getByRole("tab", { name: "Appearance", exact: true }).evaluate((element) => getComputedStyle(element).outlineStyle), "solid");
+  await verifyHorizontalTabs(page, "Preferences categories");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.screenshot({ path: path.join(artifacts, "preferences-high-contrast.png") });
   await page.emulateMedia({ forcedColors: "none" });
+  await verifyHorizontalTabs(page, "Preferences categories");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.screenshot({ path: path.join(artifacts, "preferences-light.png") });
   await page.getByRole("tab", { name: "Cache", exact: true }).click();
   await page.getByLabel("Cache target per connection (GiB)").fill("3");
@@ -153,6 +183,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page
     .getByRole("button", { name: /Preferências/ })
     .click();
+  await verifyHorizontalTabs(page, "Categorias de preferências");
   assert.equal(await page.getByLabel("Idioma").inputValue(), "pt-BR");
   assert.equal(await page.getByLabel("Abrir o Explorer após conectar", { exact: true }).isChecked(), false);
   await page.getByRole("tab", { name: "Aparência", exact: true }).click();
