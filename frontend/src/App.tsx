@@ -1,6 +1,7 @@
 import { errorMessage as message, type LocalizedMessage } from "./messages";
 import { FileAccessDialog } from "./FileAccessDialog";
-import { TransportStatus } from "./TransportSecurity";
+import { DriveDetails, type DriveDetailSelection } from "./DriveDetails";
+import { formatBytes as bytes } from "./formatBytes";
 import { AccessBoundary, AccessSettings } from "./AccessProtection";
 import { SecretInput } from "./connection/SecretInput";
 import { ConfigurationPortability } from "./ConfigurationPortability";
@@ -19,12 +20,6 @@ import {
   type ImportDraft,
 } from "./api";
 
-const bytes = (value: number | null) => {
-  if (value === null) return "—";
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-  const index = value > 0 ? Math.min(Math.floor(Math.log2(value) / 10), units.length - 1) : 0;
-  return `${(value / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
-};
 const operationText = {
   "": "",
   validating: "Validating account…",
@@ -65,6 +60,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
     importDraft?: ImportDraft;
   }>();
   const [working, setWorking] = useState<Record<string, string>>({});
+  const [driveDetail, setDriveDetail] = useState<DriveDetailSelection>();
   const [settings, setSettings] = useState(false);
   const [accessSettings, setAccessSettings] = useState(false);
   const [about, setAbout] = useState(false);
@@ -368,6 +364,8 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             <Drive
               key={c.id}
               connection={c}
+              detailSelection={driveDetail}
+              onDetailSelect={setDriveDetail}
               provider={data.providers.find((p) => p.id === c.provider)!}
               busy={!!working[c.id] || c.busy}
               operation={operationText[c.operation] || working[c.id] || ""}
@@ -556,6 +554,8 @@ function RestoreSettingsDialog({
 function Drive({
   connection: c,
   provider: p,
+  detailSelection,
+  onDetailSelect,
   busy,
   operation,
   onAction,
@@ -563,6 +563,8 @@ function Drive({
 }: {
   connection: ConnectionView;
   provider: Provider;
+  detailSelection: DriveDetailSelection | undefined;
+  onDetailSelect: (selection: DriveDetailSelection | undefined) => void;
   busy: boolean;
   operation: string;
   onAction: (action: (id: string) => Promise<void>, operation?: string, success?: string) => void;
@@ -594,20 +596,8 @@ function Drive({
         {c.mountFolder && <p>{c.mountFolder}</p>}
         <p>
           {t(p.name)}
-          {p.experimental ? ` · ${t("Experimental")}` : ""} · {c.path || t("Root")}
-          {c.readOnly ? t(" · Read only") : ""}
+          {p.experimental ? ` · ${t("Experimental")}` : ""}
         </p>
-        <ul className="connection-options" aria-label={t("Connection options")}>
-          {[
-            c.readOnly && t("Read only"),
-            c.autoMount && t("Automatic mounting enabled"),
-            c.sessionOnly && t("Sign in on every connection"),
-            t(c.mountFolder ? "Local folder" : c.mountMode === "local" ? "Local disk" : "Network drive"),
-            c.useProxy && t("Proxy requested"),
-            !!c.uploadLimit && t("Upload limit: {size}/s", { size: bytes(c.uploadLimit || 0) }),
-            !!c.downloadLimit && t("Download limit: {size}/s", { size: bytes(c.downloadLimit || 0) }),
-          ].filter(Boolean).map((label) => <li key={String(label)} tabIndex={0} title={String(label)}>{label}</li>)}
-        </ul>
         <div className="state">
           {busy
             ? t(operation || "Operation in progress…")
@@ -621,31 +611,11 @@ function Drive({
                   ? t("Recovery required")
                   : t("Disconnected")}
         </div>
-        <TransportStatus connection={c} />
-        {c.uploads && (
-          <p>{t("{active} uploading · {queued} queued · {errors} cache errors", {
-            active: c.uploads.active, queued: c.uploads.queued, errors: c.uploads.cacheErrors,
-          })}</p>
-        )}
-        {c.recovery && !c.mounted && (
-          <p>{t("Preserved destination: {provider} · {path}", { provider: t(p.name), path: c.path || t("Root") })}
-            {c.pending !== null && <> · {t("{count} pending upload(s)", { count: c.pending })}</>}
-            {" "}{t("Recover using the original account and destination, wait for uploads, then disconnect.")}
-          </p>
-        )}
-        <p>{t("Approximate cache used: {used} · Pending file sizes: {pending}", {
-          used: bytes(c.cache.usedBytes), pending: bytes(c.cache.pendingBytes),
-        })}</p>
-        <small>{t("Pending sizes are whole local files, not bytes remaining to upload.")}</small>
-        <p>{t("Remote capacity: {total} · Used: {used} · Available: {free}", { total: bytes(c.capacity.total), used: bytes(c.capacity.used), free: bytes(c.capacity.free) })}</p>
-        <small>{t(c.capacity.state === "unsupported" ? "This service does not report capacity." : c.capacity.state === "available" ? "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk." : "Remote capacity is currently unknown.")}</small>
-        <br />
-        <small>{c.cache.checkedAt
-          ? t("Local inspection: {time} (updated every 30 s)", { time: new Date(c.cache.checkedAt).toLocaleTimeString() })
-          : t("Local cache inspection unavailable")}</small>
-        {c.mounted && c.pending !== null && c.pending > 0 && <p>{t("Close open files and wait for uploads before disconnecting.")}</p>}
-        {c.cache.error && <p className="inline-error" role="status">{t(c.cache.error)}</p>}
-        {c.error && <p className="inline-error">{t(c.errorMessage || c.error)}</p>}
+        {c.recovery && !c.mounted && (busy || c.pending === null) && <p className="inline-error">{t("Recovery required")}</p>}
+        {!!c.error && <p className="inline-error">{t("Connection needs attention.")}</p>}
+        {(!!c.cache.error || !!c.uploads?.cacheErrors) && <p className="inline-error">{t("Local cache needs attention.")}</p>}
+        {c.mounted && c.transportSecurity?.state !== "encrypted" && <p className="inline-error">{t(c.transportSecurity?.state === "unencrypted" ? "Traffic unencrypted" : "Traffic encryption could not be verified")}</p>}
+        <DriveDetails connection={c} provider={p} selection={detailSelection} onSelect={onDetailSelect} />
       </div>
       <div className="actions">
         <button

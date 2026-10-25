@@ -195,9 +195,11 @@ test.each(["en", "pt-BR"] as const)("About shows component versions and local di
 test("connection option indicators preserve recovery and upload messages", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, autoMount: true, readOnly: true, recovery: true, pending: 2, uploadLimit: 1024 }] });
   render(<App />);
+  fireEvent.mouseEnter(await screen.findByRole("button", { name: "Connection options" }));
   await screen.findByText("Automatic mounting enabled");
   expect(screen.getByRole("list", { name: "Connection options" }).textContent).toContain("Upload limit: 1.0 KiB/s");
   expect(screen.getAllByText(/Recovery required/).length).toBeGreaterThan(0);
+  fireEvent.mouseEnter(screen.getByRole("button", { name: "Alerts and recovery" }));
   expect(screen.getByText(/Recover using the original account and destination/)).toBeTruthy();
 });
 
@@ -309,6 +311,7 @@ test("structured action and snapshot errors translate even when English wording 
     connections: [{ ...connection, error: "Changed mount wording", errorMessage: { ...bridgeFixtures.samples.message, message: "Changed mount wording" } }],
   });
   render(<App />);
+  fireEvent.mouseEnter(await screen.findByRole("button", { name: "Alertas e recuperação" }));
   await screen.findByText("letra S: já está em uso");
   fireEvent.click(screen.getByText("Sair com segurança"));
   await screen.findByText("recupere a conexão My {letter} 😀 antes de sair com segurança");
@@ -679,7 +682,9 @@ test.each(["en", "pt-BR"])("drive labels and experimental text follow %s without
   render(<App />);
   await screen.findByRole("region", { name: language === "en" ? "Drives" : "Unidades" });
   expect(await screen.findByRole("heading", { name: "Root" })).toBeDefined();
-  expect(screen.getByText("Google Drive · Experimental · My drives")).toBeDefined();
+  expect(screen.getByText("Google Drive · Experimental")).toBeDefined();
+  fireEvent.mouseEnter(screen.getByRole("button", { name: language === "en" ? "Remote destination" : "Destino remoto" }));
+  expect(screen.getByRole("tooltip").textContent).toContain("Google Drive · My drives");
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "+ New connection" : "+ Nova conexão" }));
   selectAvailableCategory();
   expect(screen.getByRole("option", { name: "Google Drive (experimental)" })).toBeDefined();
@@ -1114,9 +1119,43 @@ test("unknown uploads never display Connected or a complete zero total", async (
   await screen.findByText("Pending uploads unknown");
   expect(screen.queryByText("Connected", { exact: true })).toBeNull();
   expect(screen.getByText("3 known; others unknown")).toBeDefined();
+  fireEvent.mouseEnter(screen.getAllByRole("button", { name: "Upload details" })[0]);
   expect(screen.getByText("1 uploading · 2 queued · 0 cache errors")).toBeDefined();
+  fireEvent.mouseEnter(screen.getAllByRole("button", { name: "Local cache" })[0]);
   expect(screen.getByText("Approximate cache used: — · Pending file sizes: —")).toBeDefined();
   expect(screen.getByRole("button", { name: "Disconnect" })).toBeDefined();
+});
+
+test.each(["en", "pt-BR"] as const)("mounted cache protection is not a recovery alert in %s", async (language) => {
+  vi.mocked(api.snapshot).mockResolvedValue({
+    ...snapshot, settings: { ...snapshot.settings, language },
+    connections: [{ ...connection, mounted: true, recovery: true,
+      transportSecurity: { state: "encrypted", protocol: "HTTPS", source: "", checkedAt: null },
+    }],
+  });
+  render(<App />);
+  const alerts = await screen.findByRole("button", { name: language === "en" ? "Alerts and recovery" : "Alertas e recuperação" });
+  expect(alerts.classList.contains("attention")).toBe(false);
+  expect(screen.queryByText(language === "en" ? "Recovery required" : "Recuperação necessária")).toBeNull();
+  fireEvent.mouseEnter(alerts);
+  expect(screen.getByText(language === "en" ? "No alerts or recovery required." : "Nenhum alerta ou recuperação necessária.")).toBeDefined();
+  expect(screen.queryByText(/Preserved destination:|Destino preservado:/)).toBeNull();
+});
+
+test("mounted cache protection keeps actual upload errors visible", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({
+    ...snapshot, connections: [{ ...connection, mounted: true, recovery: true, pending: null,
+      uploads: { active: 0, queued: 0, cacheErrors: 1 },
+      transportSecurity: { state: "encrypted", protocol: "HTTPS", source: "", checkedAt: null },
+    }],
+  });
+  render(<App />);
+  const alerts = await screen.findByRole("button", { name: "Alerts and recovery" });
+  expect(alerts.classList.contains("attention")).toBe(true);
+  fireEvent.mouseEnter(alerts);
+  expect(screen.getByRole("tooltip").textContent).toContain("Pending uploads unknown");
+  expect(screen.getByText("0 uploading · 0 queued · 1 cache errors")).toBeDefined();
+  expect(screen.queryByText(/Recover using the original account and destination/)).toBeNull();
 });
 
 test("recovery explains the preserved destination and measured cache", async () => {
@@ -1127,8 +1166,10 @@ test("recovery explains the preserved destination and measured cache", async () 
     }],
   });
   render(<App />);
+  fireEvent.mouseEnter(await screen.findByRole("button", { name: "Alerts and recovery" }));
   await screen.findByText("Preserved destination: Google Drive · Original library", { exact: false });
   expect(screen.getByText(/Recover using the original account and destination/)).toBeDefined();
+  fireEvent.mouseEnter(screen.getByRole("button", { name: "Local cache" }));
   expect(screen.getByText("Approximate cache used: 1.0 KiB · Pending file sizes: 2.0 KiB")).toBeDefined();
   expect(screen.getByText(/Free on cache disk: 10.0 GiB/)).toBeDefined();
   expect(screen.getByText(/updated every 30 s/)).toBeDefined();
@@ -1145,6 +1186,7 @@ test("unknown pending status and recovery messages are translated", async () => 
   render(<App />);
   await screen.findByText("Envios pendentes desconhecidos");
   expect(screen.getByText("0 conhecidos; demais desconhecidos")).toBeDefined();
+  fireEvent.mouseEnter(screen.getByRole("button", { name: "Alertas e recuperação" }));
   expect(screen.getByText(/Recupere usando a conta e o destino originais/)).toBeDefined();
   expect(screen.getByText("Não foi possível inspecionar o cache local; preserve os arquivos e tente novamente.")).toBeDefined();
 });
@@ -1389,6 +1431,7 @@ test("remote unknown capacity stays separate from pending local files and refres
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true, pending: 1, capacity: { total: null, used: null, free: 0, checkedAt: null, state: "available" } }] });
   vi.mocked(api.refreshDirectoryCache).mockResolvedValue();
   render(<App />);
+  fireEvent.mouseEnter(await screen.findByRole("button", { name: "Remote capacity" }));
   await screen.findByText("Remote capacity: — · Used: — · Available: 0 B");
   fireEvent.click(screen.getByRole("button", { name: "Refresh files in Explorer" }));
   await waitFor(() => expect(api.refreshDirectoryCache).toHaveBeenCalledExactlyOnceWith(connection.id));
@@ -1504,9 +1547,12 @@ test("wizard distinguishes destination validation from mounting", async () => {
   await screen.findByText("Drive connected");
 });
 
-test("automatic connection errors are visible on the saved drive card", async () => {
+test("automatic connection errors keep a card warning and details in the alerts tooltip", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, autoMount: true, error: "run the SDrive installer again to prepare virtual drives" }] });
   render(<App />);
+  await screen.findByText("Connection needs attention.");
+  expect(screen.queryByText("run the SDrive installer again to prepare virtual drives")).toBeNull();
+  fireEvent.mouseEnter(screen.getByRole("button", { name: "Alerts and recovery" }));
   await screen.findByText("run the SDrive installer again to prepare virtual drives");
   expect(screen.getByRole("button", { name: "Connect" })).toBeDefined();
   expect(screen.queryByText("Connected", { exact: true })).toBeNull();
@@ -1865,4 +1911,101 @@ test("a locked snapshot removes management even if the native lock event was mis
   act(() => {visibility(false);visibility(true);});
   await screen.findByRole("heading",{name:"SDrive is locked"});
   expect(screen.queryByRole("button",{name:"+ New connection"})).toBeNull();
+});
+
+
+test("drive cards hide details behind seven labeled icons without opening a dialog", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, path: "Team files", mounted: true,
+    transportSecurity: { state: "encrypted", protocol: "https", source: "configuration", checkedAt: null },
+  }] });
+  render(<App />);
+  const group = await screen.findByRole("group", { name: "Drive details" });
+  expect(within(group).getAllByRole("button")).toHaveLength(7);
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  expect(screen.queryByText(/Approximate cache used/)).toBeNull();
+  expect(screen.queryByText("Google Drive · Team files")).toBeNull();
+  const topics = [
+    ["Remote destination", "Google Drive · Team files"],
+    ["Connection options", "Automatic mounting disabled"],
+    ["Upload details", "Upload activity is currently unknown."],
+    ["Local cache", "Approximate cache used: 0 B · Pending file sizes: 0 B"],
+    ["Remote capacity", "Remote capacity is currently unknown."],
+    ["Connection security", "Traffic encrypted · HTTPS"],
+    ["Alerts and recovery", "No alerts or recovery required."],
+  ];
+  for (const [label, detail] of topics) {
+    const icon = within(group).getByRole("button", { name: label });
+    fireEvent.mouseEnter(icon);
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain(detail);
+    expect(icon.getAttribute("aria-describedby")).toBe(tooltip.id);
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  }
+});
+
+test("drive tooltips support focus, Escape, touch clicks and dismissal outside", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  render(<App />);
+  const icon = await screen.findByRole("button", { name: "Connection security" });
+  act(() => icon.focus());
+  expect(screen.getByRole("tooltip").textContent).toContain("unavailable while disconnected");
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  expect(document.activeElement).toBe(icon);
+  expect(icon.getAttribute("aria-describedby")).toBeNull();
+  fireEvent.click(icon);
+  expect(screen.getByRole("tooltip")).toBeDefined();
+  act(() => screen.getByRole("button", { name: "Connect" }).focus());
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  fireEvent.click(icon);
+  fireEvent.pointerDown(document.body);
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  act(() => icon.focus());
+  act(() => icon.blur());
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+test("hovered tooltips remain open while crossing into their selectable content", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  render(<App />);
+  const icon = await screen.findByRole("button", { name: "Local cache" });
+  vi.useFakeTimers();
+  try {
+    fireEvent.mouseEnter(icon);
+    fireEvent.mouseLeave(screen.getByRole("group", { name: "Drive details" }));
+    act(() => vi.advanceTimersByTime(60));
+    fireEvent.mouseEnter(screen.getByRole("tooltip"));
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.getByRole("tooltip").textContent).toContain("Pending sizes are whole local files");
+    fireEvent.mouseLeave(screen.getByRole("tooltip"));
+    act(() => vi.advanceTimersByTime(150));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  } finally { vi.useRealTimers(); }
+});
+
+test("only one drive tooltip opens and its content follows refreshed snapshots", async () => {
+  let current: Snapshot = { ...snapshot, connections: [
+    { ...connection, name: "First drive", path: "First library" },
+    { ...connection, id: "second", name: "Second drive", path: "Second library" },
+  ] };
+  vi.mocked(api.snapshot).mockImplementation(async () => current);
+  vi.useFakeTimers();
+  try {
+    render(<App />);
+    await act(async () => {});
+    const icons = screen.getAllByRole("button", { name: "Remote destination" });
+    fireEvent.mouseEnter(icons[0]);
+    expect(screen.getByRole("tooltip").textContent).toContain("First library");
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.mouseLeave(screen.getAllByRole("group", { name: "Drive details" })[0]);
+    fireEvent.mouseEnter(icons[1]);
+    act(() => vi.advanceTimersByTime(150));
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip").textContent).toContain("Second library");
+    current = { ...current, connections: current.connections.map((c) => c.id === "second" ? { ...c, path: "Updated library" } : c) };
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(screen.getByRole("tooltip").textContent).toContain("Updated library");
+    expect(screen.getByRole("tooltip").textContent).not.toContain("First library");
+  } finally { vi.useRealTimers(); }
 });

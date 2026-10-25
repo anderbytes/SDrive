@@ -577,8 +577,20 @@ header, .summary, .actions, .modal-actions, .alert { flex-wrap: wrap; }
   [aria-invalid="true"] { border: 2px solid LinkText; }
   .modal, .dropdown { box-shadow: none; }
 }
-.connection-options { display: flex; flex-wrap: wrap; gap: .35rem; padding: 0; margin: .5rem 0; list-style: none; }
-.connection-options li { border: 1px solid currentColor; border-radius: .35rem; padding: .15rem .4rem; font-size: .8rem; }
 
 .access-screen { max-width: 42rem; margin: 4vh auto; padding: 24px; }
 .access-screen pre, .modal pre { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+
+.drive-details { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.drive-detail-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 6px; color: #a9bbc9; }
+.drive-detail-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.drive-detail-icon.attention { color: #f5cb80; border-color: currentColor; }
+.detail-attention { position: absolute; top: -5px; right: -4px; border: 1px solid currentColor; border-radius: 50%; background: #18232f; width: 13px; height: 13px; font-size: 10px; line-height: 11px; font-weight: bold; }
+.drive-tooltip { position: fixed; z-index: 10; width: 360px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto; padding: 14px; border: 1px solid #526476; border-radius: 9px; background: #1c2936; color: #e4edf2; box-shadow: 0 8px 25px #0008; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; user-select: text; }
+.drive-tooltip strong { display: block; font-size: 13px; }
+.drive-tooltip p { margin: 8px 0 0; }
+.drive-tooltip ul { padding-left: 18px; margin: 8px 0 0; }
+@media (forced-colors: active) {
+  .drive-tooltip, .detail-attention { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
+  .drive-detail-icon.attention { color: LinkText; }
+}
