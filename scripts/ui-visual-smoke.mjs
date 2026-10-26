@@ -17,19 +17,22 @@ const connection = { ...fixtures.connectionUnknown, id: "visual-first", name: "D
 const snapshot = { ...fixtures.snapshotEmpty, access, settings: { ...fixtures.snapshotEmpty.settings, theme: "light", language: "en" },
   cacheLocation: "C:\\Synthetic\\Cache", freeBytes: 124 * 1024 ** 3,
   providers: [{ ...fixtures.providerEmpty, id: "webdav", name: "WebDAV", backend: "webdav", transportEncryption: "optional", available: true, oauth: false,
-    fields: [field("url", "WebDAV HTTPS URL"), field("user", "Username"), field("pass", "Password / app password", true)] }],
+    fields: [field("url", "WebDAV HTTPS URL"), field("user", "Username"), field("pass", "Password / app password", true)] },
+    { ...fixtures.providerEmpty, id: "gcs", name: "Google Cloud Storage", backend: "google cloud storage", transportEncryption: "required", available: true, oauth: true,
+      fields: [{ ...field("service_account_file", "Service account JSON file (optional)"), file: true }] }],
   connections: [connection, { ...connection, id: "visual-second", name: "Team library", letter: "T", path: "Projects", mounted: false },
     { ...connection, id: "visual-long", name: "Shared documents and administrative projects with a deliberately long name", letter: "U", path: "Long remote directory/".repeat(8), pending: null, recovery: true }],
   importDrafts: [], letters: ["V", "W"], winFsp: true, engineError: "", settingsError: "", desktopWarning: "", startupWarning: "", maintenanceError: "", recoveryHold: false };
 const apiSource = `window.visualSnapshot = ${JSON.stringify(snapshot)};
 const current = () => window.visualSnapshot;
 export const api = {
-  accessStatus: async () => current().access, snapshot: async () => current(), desktopVisible: async () => true,
+  accessStatus: async () => current().access, snapshot: async () => structuredClone(current()), desktopVisible: async () => true,
   onDesktopVisibility: cb => { window.visualVisibility = cb; return () => {}; }, onAccessChanged: cb => {window.visualAccess = cb; return () => {};},
   preferenceDefaults: async () => ({ ...current().settings, cacheGiB: 2, cacheMaxAgeHours: 24, writeBackSeconds: 5 }), restoreDefaultCacheLocation: async () => current().cacheLocation,
   proxy: async () => ({ address: '', username: '', password: '', hasPassword: false }), browsers: async () => [{ id: '', name: 'Default browser' }],
   fields: async () => ({ values: {}, transport: '' }), settings: async settings => { current().settings = settings; },
-  begin: async () => 'synthetic-draft', status: async () => ({busy:false,done:true,error:''}), folders: async () => [{name:'Documents',path:'Documents'}], end: async () => {},
+  begin: async () => 'synthetic-draft', status: async () => ({busy:false,authenticated:true,complete:false,error:''}), folders: async () => [{name:'Documents',path:'Documents'}], end: async () => {},
+  selectDirectory: async () => 'C:\\\\Synthetic\\\\NewCache', selectFile: async () => ${JSON.stringify("C:\\Synthetic\\Credentials\\" + "long-directory\\".repeat(8) + "account.json")},
   about: async () => ({appVersion:'fixture',rcloneVersion:'fixture',windowsVersion:'fixture',winFspVersion:'fixture',webView2Version:'fixture',architecture:'amd64'}),
   diagnostics: async () => 'Synthetic diagnostic report. No credentials or personal paths.', copyDiagnostics: async () => {},
   inspectFileAccess: async () => ({path:'S:\\\\Synthetic.txt',state:'unknown',checkedAt:new Date().toISOString(),processes:[]}),
@@ -52,18 +55,32 @@ try {
   browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
     ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : { channel: "msedge" });
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.addInitScript(() => {
+    window.visualMotion = [];
+    document.addEventListener("animationstart", event => window.visualMotion.push({ name: event.animationName, target: event.target.className }));
+  });
   page.setDefaultTimeout(8000);
   page.on("pageerror", e => errors.push(e.message));
   await page.goto(server.resolvedUrls.local[0]);
   await page.getByRole("heading", { name: "Documents", exact: true }).waitFor();
-  const capture = name => page.screenshot({ path: path.join(artifacts, name + ".png"), fullPage: true });
+  const settle = () => page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
+  const capture = async name => { await settle(); return page.screenshot({ path: path.join(artifacts, name + ".png"), fullPage: true }); };
   const bounds = async () => {
+    await settle();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Page horizontal overflow");
     const dialog = page.getByRole("dialog").last();
     if (await dialog.count()) {
       assert(await dialog.evaluate(e => e.scrollWidth <= e.clientWidth + 1), "Dialog horizontal overflow");
       assert(await dialog.evaluate(e => { const b = e.getBoundingClientRect(); return Math.abs(b.right - innerWidth) <= 1 && b.width <= (e.classList.contains("with-navigation") ? 800 : 640) && b.top >= (innerWidth < 640 ? 8 : 16) && b.bottom <= innerHeight - (innerWidth < 640 ? 8 : 16) + 1; }), "Drawer must align to the right edge");
       assert(await dialog.locator(".dialog-footer").evaluate(e => { const b = e.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight + 1; }), "Drawer actions clipped");
+    }
+    for (const row of await page.locator(".field-action:visible").all()) {
+      assert(await row.evaluate(element => {
+        const input = element.querySelector("input,select").getBoundingClientRect();
+        const button = element.querySelector(":scope > button").getBoundingClientRect();
+        return input.width >= 80 && button.height >= 44 && button.left >= input.right && Math.abs(input.bottom - button.bottom) <= 1;
+      }), "Field actions must share a horizontal row with usable input space");
     }
   };
   const details = async () => {
@@ -113,6 +130,67 @@ try {
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await bounds(); await capture("connection-access");
   await page.getByRole("button", { name: "Close setup", exact: true }).click();
+  for (const width of [1440, 1180, 850, 420]) {
+    await page.setViewportSize({ width, height: width === 420 ? 740 : 800 });
+    await page.getByRole("button", { name: "+ New connection", exact: true }).click();
+    await page.getByLabel("Mount into").selectOption("folder");
+    await page.getByRole("button", { name: "Choose parent directory", exact: true }).click();
+    await bounds();
+    assert((await page.getByLabel("Local mount folder", { exact: true }).inputValue()).endsWith("\\SDrive"));
+    await page.getByLabel("Connection type").selectOption("gcs:serviceAccount");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("button", { name: "Select file…", exact: true }).click();
+    await bounds();
+    assert((await page.getByLabel("Service account JSON file (optional)").inputValue()).endsWith("account.json"));
+    const advanced = page.locator(".advanced-options");
+    assert.equal(await advanced.locator("details").count(), 0, "Advanced groups must not nest disclosures");
+    assert.equal(await advanced.evaluate(element => element.closest("fieldset")), null, "Advanced settings must be outside primary fields");
+    await advanced.locator("summary").click();
+    for (const group of ["Files and cache", "Network", "Drive behavior"]) await advanced.getByRole("group", { name: group, exact: true }).waitFor();
+    await bounds(); await capture("advanced-groups-" + width);
+    const metadata = page.getByRole("spinbutton", { name: "Directory metadata lifetime (seconds)", exact: true });
+    await metadata.fill("-1");
+    await advanced.locator("summary").click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    assert.equal(await advanced.getAttribute("open"), "", "Invalid advanced field must reveal its group");
+    assert(await metadata.evaluate(element => document.activeElement === element), "Invalid advanced field must receive focus");
+    await metadata.fill("300");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("button", { name: "▱ Documents", exact: true }).waitFor();
+    await page.getByText("Enter destination directly", { exact: true }).click();
+    await bounds(); await capture("path-actions-" + width);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("button", { name: /Preferences/ }).click();
+    const navigationToggle = page.locator(".dialog-navigation .navigation-toggle");
+    if (await navigationToggle.isVisible()) await navigationToggle.click();
+    await page.getByRole("tab", { name: "Cache", exact: true }).click();
+    await bounds(); await capture("cache-actions-" + width);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  assert(await page.evaluate(() => window.visualMotion.some(event => event.name === "panel-enter")), "Drawers must animate on entry");
+  const menu = page.locator(".drive > .actions > details > summary").first();
+  for (let opening = 0; opening < 2; opening++) {
+    const count = await page.evaluate(() => window.visualMotion.filter(event => event.target === "dropdown").length);
+    await menu.click(); await settle();
+    assert.equal(await page.evaluate(() => window.visualMotion.filter(event => event.target === "dropdown").length), count + 1, "Menu must animate on each opening");
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator(".dropdown").first().evaluate(element => getComputedStyle(element).animationName), "none", "Closing must reset the menu animation");
+  }
+  const cardAnimations = await page.evaluate(() => window.visualMotion.filter(event => event.target.startsWith("drive ")).length);
+  await page.evaluate(() => { window.visualSnapshot.connections[0].path = "Refreshed library"; window.visualVisibility(false); window.visualVisibility(true); });
+  await page.getByText("WebDAV · Refreshed library", { exact: true }).waitFor();
+  await settle();
+  assert.equal(await page.evaluate(() => window.visualMotion.filter(event => event.target.startsWith("drive ")).length), cardAnimations, "Status refreshes must not animate existing cards");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "+ New connection", exact: true }).click();
+  assert.equal(await page.getByRole("dialog").evaluate(element => getComputedStyle(element).animationName), "none");
+  assert.equal(await page.getByRole("dialog").evaluate(element => getComputedStyle(element, "::backdrop").animationName), "none");
+  await page.getByRole("button", { name: "Close setup", exact: true }).click();
+  await menu.click();
+  assert.equal(await page.locator(".dropdown:visible").evaluate(element => getComputedStyle(element).animationName), "none");
+  await page.keyboard.press("Escape");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.locator(".drive > .actions > details > summary").first().click();
   await page.getByRole("button", { name: "Applications using a file", exact: true }).click();
   await page.getByRole("button", { name: "Select mounted file", exact: true }).click();
@@ -149,6 +227,24 @@ try {
       await page.setViewportSize({ width: 1440, height: 900 });
       await capture("units-pt-BR");
     }
+    const catalog = language === "en" ? {} : JSON.parse(await readFile(path.join(root, "internal/i18n", language + ".json"), "utf8"));
+    const t = text => catalog[text] || text;
+    await page.setViewportSize({ width: 420, height: 740 });
+    await page.getByRole("button", { name: t("+ New connection"), exact: true }).click();
+    await page.getByLabel(t("Mount into")).selectOption("folder");
+    await page.getByRole("button", { name: t("Choose parent directory"), exact: true }).click();
+    await bounds();
+    await page.getByLabel(t("Connection type")).selectOption("gcs:serviceAccount");
+    await page.getByRole("button", { name: t("Continue"), exact: true }).click();
+    await page.getByRole("button", { name: t("Select file…"), exact: true }).click();
+    await page.getByText(t("Advanced options"), { exact: true }).click();
+    await bounds(); await capture("advanced-groups-" + language);
+    await page.getByRole("button", { name: t("Close setup"), exact: true }).click();
+    await page.getByRole("button", { name: new RegExp(t("Preferences")) }).click();
+    await page.locator(".dialog-navigation .navigation-toggle").click();
+    await page.getByRole("tab", { name: t("Cache"), exact: true }).click();
+    await bounds(); await capture("cache-actions-" + language);
+    await page.getByRole("button", { name: t("Cancel"), exact: true }).click();
   }
   await page.evaluate(() => { window.visualSnapshot.settings.language = "en"; window.visualVisibility(false); window.visualVisibility(true); });
   await page.waitForFunction(() => document.documentElement.lang === "en");
@@ -162,7 +258,7 @@ try {
   await page.emulateMedia({ forcedColors: "none" });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "U1, 44px actions, long paths, four viewport sizes, seven topics, vertical preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

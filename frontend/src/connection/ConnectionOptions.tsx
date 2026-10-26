@@ -46,10 +46,10 @@ export function ConnectionOptions({ wizard }: { wizard: Wizard }) {
   const { t, connection: c, change, validationProps, fieldFeedback, browsers, initial, forgetCredentials, setForgetCredentials } = wizard;
   const sessionSupported = ["webdav", "nextcloud", "owncloud", "drive", "onedrive", "sharepoint"].includes(c.provider);
   return <>
-    <details><summary>{t("Files and cache")}</summary><DirectoryCacheOptions wizard={wizard} /></details>
-    {supportsNetworkOptions(c.provider) && <details><summary>{t("Network")}</summary><NetworkOptions wizard={wizard} /></details>}
-    {wizard.auth && (sessionSupported || wizard.p.oauth && c.authMethod !== "serviceAccount") && <details>
-      <summary>{t("Sign-in options")}</summary>
+    <fieldset className="option-group"><legend>{t("Files and cache")}</legend><DirectoryCacheOptions wizard={wizard} /></fieldset>
+    {supportsNetworkOptions(c.provider) && <fieldset className="option-group"><legend>{t("Network")}</legend><NetworkOptions wizard={wizard} /></fieldset>}
+    {wizard.auth && (sessionSupported || wizard.p.oauth && c.authMethod !== "serviceAccount") && <fieldset className="option-group">
+      <legend>{t("Sign-in options")}</legend>
       {wizard.p.oauth && c.authMethod !== "serviceAccount" && <>
         <label>{t("Sign-in browser")}<select {...validationProps("browser")} value={c.browser || ""} onChange={(e) => change({ browser: e.target.value })}>{browsers.map((b) => <option key={b.id} value={b.id}>{t(b.name)}</option>)}{c.browser && !browsers.some((b) => b.id === c.browser) && <option value={c.browser}>{t("Selected browser unavailable")}</option>}</select></label>
         {fieldFeedback("browser")}
@@ -63,6 +63,6 @@ export function ConnectionOptions({ wizard }: { wizard: Wizard }) {
         {fieldFeedback("sessionOnly")}
       </>}
       {c.sessionOnly && initial.id && !initial.sessionOnly && <label className="check"><input type="checkbox" required checked={forgetCredentials} onChange={(e) => setForgetCredentials(e.target.checked)} />{t("Remove this connection's saved credentials when setup is confirmed")}</label>}
-    </details>}
+    </fieldset>}
   </>;
 }

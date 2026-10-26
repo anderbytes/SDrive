@@ -87,16 +87,15 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page
     .getByText("Advanced options", { exact: true })
     .click();
-  const networkOptions = page.locator("summary").filter({ hasText: /^Network$/ });
-  await networkOptions.click();
+  const advancedOptions = page.locator(".advanced-options > summary");
   const bandwidth = page.getByRole("spinbutton", { name: "Download limit (KiB/s)", exact: true });
   await bandwidth.fill("-1");
-  await networkOptions.click();
+  await advancedOptions.click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   assert(await bandwidth.isVisible(), "Native validation opens the collapsed option group");
   assert(await bandwidth.evaluate(element => document.activeElement === element), "Native validation focuses the invalid option");
   await bandwidth.fill("0");
-  await page.getByText("Connection security", { exact: true }).click();
+  await page.getByRole("group", { name: "Connection security", exact: true }).waitFor();
   await page
     .getByRole("checkbox", { name: "Allow unencrypted connection (HTTP / FTP)", exact: true })
     .check();
@@ -291,7 +290,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   assert.equal(await page.getByRole("textbox", { name: "WebDAV HTTPS URL", exact: true }).inputValue(), portable.connections[0].values.url);
   await page.getByText("Advanced options", { exact: true }).click();
-  await page.getByText("Connection security", { exact: true }).click();
+  await page.getByRole("group", { name: "Connection security", exact: true }).waitFor();
   assert.equal(await page.getByRole("checkbox", { name: "Allow unencrypted connection (HTTP / FTP)", exact: true }).isChecked(), false);
   await page.getByRole("checkbox", { name: "Allow unencrypted connection (HTTP / FTP)", exact: true }).check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();

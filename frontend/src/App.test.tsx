@@ -363,7 +363,7 @@ test("network form converts KiB limits to independent byte rates", async () => {
   await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ downloadLimit: 512 * 1024, uploadLimit: 128 * 1024 })));
 });
 
-test("setup reveals nested invalid options before native validation and preserves the draft", async () => {
+test("setup reveals collapsed invalid options before native validation and preserves the draft", async () => {
   render(<App />);
   fireEvent.click(await screen.findByText("Add my first connection"));
   selectAvailableCategory();
@@ -376,7 +376,7 @@ test("setup reveals nested invalid options before native validation and preserve
     if (parent instanceof HTMLDetailsElement) groups.push(parent);
     parent = parent.parentElement;
   }
-  expect(groups).toHaveLength(2);
+  expect(groups).toHaveLength(1);
   expect(groups.every((group) => !group.open)).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
   expect(groups.every((group) => group.open)).toBe(true);
@@ -1203,6 +1203,13 @@ test("GCS service-account access is in Basic without OAuth fields", async () => 
     ),
   );
   expect(api.selectFile).toHaveBeenCalledWith("service_account_file");
+  const fileInput = screen.getByLabelText("JSON file") as HTMLInputElement;
+  const fileRow = fileInput.closest<HTMLElement>(".field-action")!;
+  expect(within(fileRow).getByRole("button", { name: "Select file…" })).toBeDefined();
+  vi.mocked(api.selectFile).mockResolvedValueOnce("");
+  fireEvent.click(screen.getByRole("button", { name: "Select file…" }));
+  await waitFor(() => expect(api.selectFile).toHaveBeenCalledTimes(2));
+  expect(fileInput.value).toBe("C:\\Credentials\\account.json");
   expect(
     (
       screen.getByRole("button", {
@@ -1901,6 +1908,43 @@ test.each([
   fireEvent.change(input, { target: { value: "corrected" } });
   expect(input.getAttribute("aria-invalid")).toBe("false");
   expect(screen.queryByText(message)).toBeNull();
+});
+
+test.each(["en", "pt-BR"] as const)("advanced settings stay separate, grouped and disabled during sign-in in %s", async (language) => {
+  const t = (key: string) => translate(language, key);
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, language });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language }, providers: [{
+    ...ftpProvider, fields: [...ftpProvider.fields, { key: "port", label: "Port (optional)", secret: false, required: false, default: "", advanced: true, file: false }],
+  }] });
+  render(<App />);
+  fireEvent.click(await screen.findByText(t("Add my first connection")));
+  fireEvent.click(screen.getByRole("button", { name: t("Continue") }));
+  const host = await screen.findByLabelText(t("Server")) as HTMLInputElement;
+  const advanced = screen.getByText(t("Advanced options")).closest("details")!;
+  expect(advanced.open).toBe(false);
+  expect(advanced.closest("fieldset")).toBeNull();
+  expect(advanced.querySelector("details")).toBeNull();
+  fireEvent.click(within(advanced).getByText(t("Advanced options")));
+  for (const title of ["Additional access settings", "Files and cache", "Connection security", "Drive behavior"]) {
+    expect(within(advanced).getByRole("group", { name: t(title) })).toBeDefined();
+  }
+  expect(within(advanced).queryByRole("group", { name: t("Network") })).toBeNull();
+  fireEvent.change(host, { target: { value: "example.test" } });
+  fireEvent.change(screen.getByLabelText(t("Username")), { target: { value: "synthetic-user" } });
+  const port = screen.getByLabelText(t("Port (optional)")) as HTMLInputElement;
+  fireEvent.change(port, { target: { value: "2121" } });
+  fireEvent.click(within(advanced).getByText(t("Advanced options")));
+  fireEvent.click(within(advanced).getByText(t("Advanced options")));
+  expect(port.value).toBe("2121");
+  expect(host.value).toBe("example.test");
+  let finish!: (id: string) => void;
+  vi.mocked(api.status).mockResolvedValue({ id: "synthetic-session", busy: true, authenticated: false, complete: false, question: null, error: "", connectionID: "" });
+  vi.mocked(api.begin).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  fireEvent.click(screen.getByRole("button", { name: t("Continue") }));
+  await waitFor(() => expect(port.matches(":disabled")).toBe(true));
+  expect(host.matches(":disabled")).toBe(true);
+  expect(screen.getByLabelText(t("Mount read only")).matches(":disabled")).toBe(true);
+  await act(async () => { finish("synthetic-session"); });
 });
 
 test("destination errors open the direct field, preserve it and prevent confirmation", async () => {

@@ -10,7 +10,7 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
     setFolderLoad, setFolderRequest,
   } = wizard;
   return (
-    <div>
+    <div className="reveal-content">
       <h3>{t("Choose what to connect")}</h3>
       <p>{t("Select a folder or keep the entire storage.")}</p>
       <p aria-live="polite">
@@ -80,6 +80,7 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
       {!initial.recovery && (
         <details>
           <summary>{t("Enter destination directly")}</summary>
+          <div className="field-action">
           <label>
             {t("Folder, bucket or share")}
             <input
@@ -93,14 +94,15 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
               }}
             />
           </label>
-          <small id={`${fieldID}-path-help`}>{t("Use the path provided by your administrator, separated by /.")}</small>
-          {fieldFeedback("path")}
           <button
             disabled={destinationLocked}
             onClick={() => navigate(directPath)}
           >
             {t("Open destination")}
           </button>
+          </div>
+          <small id={`${fieldID}-path-help`}>{t("Use the path provided by your administrator, separated by /.")}</small>
+          {fieldFeedback("path")}
         </details>
       )}
       {directPath !== path && <p role="status">{t("Destination not applied. Choose Open destination before connecting.")}</p>}

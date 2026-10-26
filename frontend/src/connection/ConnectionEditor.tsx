@@ -181,14 +181,16 @@ export function ConnectionEditor(props: EditorProps) {
                   )}
                 </div>
               )}
-              <details>
+            </fieldset>
+              <details className="advanced-options">
                 <summary>{t("Advanced options")}</summary>
-                {p.fields.some((field) => field.advanced && (field.key !== "key_file_pass" || values.key_file)) && <details>
-                  <summary>{t("Additional access settings")}</summary>
+                <fieldset className="advanced-content" disabled={loading || busy}>
+                {p.fields.some((field) => field.advanced && (field.key !== "key_file_pass" || values.key_file)) && <fieldset className="option-group">
+                  <legend>{t("Additional access settings")}</legend>
                   <AccessFields advanced wizard={wizard} />
-                </details>}
+                </fieldset>}
                 <ConnectionOptions wizard={wizard} />
-                {["webdav", "nextcloud", "owncloud", "s3", "ftp"].includes(p.id) && <details><summary>{t("Connection security")}</summary>
+                {["webdav", "nextcloud", "owncloud", "s3", "ftp"].includes(p.id) && <fieldset className="option-group"><legend>{t("Connection security")}</legend>
                 {p.id === "ftp" && <p>{t("FTP uses passive transfers only. Active mode, Mode Z compression and legacy filename charsets are not supported.")}</p>}
                 {p.id === "ftp" && (
                   <>
@@ -225,8 +227,8 @@ export function ConnectionEditor(props: EditorProps) {
                     <FieldHelp id={`${fieldID}-insecure-help`} label={t("Allow unencrypted connection (HTTP / FTP)")}>{t("Unencrypted connections expose credentials and file content to the network.")}</FieldHelp></div>
                   </>
                 )}
-                </details>}
-                <details><summary>{t("Drive behavior")}</summary>
+                </fieldset>}
+                <fieldset className="option-group"><legend>{t("Drive behavior")}</legend>
                 <div className="option-with-help"><label className="check">
                   <input
                     type="checkbox"
@@ -251,9 +253,9 @@ export function ConnectionEditor(props: EditorProps) {
                 </label>
                 <FieldHelp id={`${fieldID}-automount-help`} label={t("Connect automatically when SDrive starts")}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</FieldHelp></div>
                 </>}
-                </details>
+                </fieldset>
+                </fieldset>
               </details>
-            </fieldset>
           </form>
         )}
         {step === "auth" && <AuthenticationStep wizard={wizard} />}

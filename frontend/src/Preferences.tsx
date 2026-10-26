@@ -112,6 +112,7 @@ export function Preferences({
             <p>{t("Service icons are local monograms for SDrive drive letters. Existing customization takes precedence; mounted folders keep their icons.")}</p>
           </div>
           <div id={`${helpID}-Cache-panel`} role="tabpanel" aria-labelledby={`${helpID}-Cache-tab`} data-preference-tab="Cache" hidden={tab !== "Cache"}>
+            <div className="field-action">
             <label>
               {t("Cache target per connection (GiB)")}
               <input
@@ -126,6 +127,7 @@ export function Preferences({
               />
             </label>
             <button type="button" disabled={busy || !defaults} onClick={() => setSettings({ ...settings, cacheGiB: defaults!.cacheGiB })}>{t("Restore cache size")}</button>
+            </div>
             <p id={`${helpID}-cache-help`}>
               {t(
                 "Applied on the next mount. Open files and pending uploads may exceed the target. SDrive reserves 5 GiB of free space before connecting.",
@@ -138,11 +140,11 @@ export function Preferences({
             <p>{t("Timing changes apply on the next connection. Saving a file does not confirm its upload. Open files and pending uploads remain protected regardless of cache retention.")}</p>
             <fieldset disabled={busy}><legend>{t("Local cache location")}</legend>
               <p>{t("Current cache: {path}", { path: effectiveCache })}</p>
-              <label>{t("New empty cache directory")}<input type="text" value={cachePath} onChange={(e) => setCachePath(e.target.value)} /></label>
+              <div className="field-action"><label>{t("New empty cache directory")}<input type="text" value={cachePath} onChange={(e) => setCachePath(e.target.value)} /></label>
               <button type="button" onClick={async () => {
                 setBusy(true); setError("");
                 try { const path = await api.selectDirectory(); if (path) setCachePath(path); } catch (e) { setError(message(e)); } finally { setBusy(false); }
-              }}>{t("Choose directory")}</button>
+              }}>{t("Choose directory")}</button></div>
               <button type="button" disabled={!cachePath || cachePath === effectiveCache} onClick={async () => {
                 setBusy(true); setError(""); setCacheNotice("");
                 try { await api.changeCacheLocation(cachePath); setEffectiveCache(cachePath); setCacheNotice("Cache location changed. The previous cache was preserved."); } catch (e) { setError(message(e)); } finally { setBusy(false); }

@@ -74,7 +74,7 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
       onSelect={(key) => onSelect({ connectionID: c.id, topic: key })}
       items={items.map((entry) => ({ key: entry.key, label: t(entry.title), id: id + "-" + entry.key, panel: id + "-content", attention: entry.attention }))} />}
     footer={<button onClick={() => onSelect(undefined)}>{t("Close")}</button>}>
-    <section id={id + "-content"} role="tabpanel" aria-labelledby={id + "-" + item.key} tabIndex={0}>
+    <section key={item.key} id={id + "-content"} role="tabpanel" aria-labelledby={id + "-" + item.key} tabIndex={0}>
       <h3>{t(item.title)}</h3>{item.content}
     </section>
   </DialogLayout>;

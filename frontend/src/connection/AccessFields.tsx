@@ -15,7 +15,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
           (f.key !== "key_file_pass" || !!values.key_file) && !!f.advanced === advanced,
       )
       .map((f) => (
-        <div className="credential-field" key={`${p.id}-${f.key}`}>
+        <div className={`credential-field${f.file ? " field-action" : ""}`} key={`${p.id}-${f.key}`}>
           {f.secret ? (
             <SecretInput label={t(f.label)}
               validation={validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}

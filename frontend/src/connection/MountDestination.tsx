@@ -21,13 +21,14 @@ export function MountDestination({ wizard, collapsed = false }: { wizard: Wizard
       </select>
     </label>
     {folder ? <>
-      <div className="field-with-help"><label><span className="field-label">{t("Local mount folder")}</span><input disabled={busy || letterLocked} {...validationProps("mountFolder")} required value={c.mountFolder || ""} onChange={(e) => change({ mountFolder: e.target.value })} /></label>
-      <FieldHelp label={t("Local mount folder")}>{t("Choose an existing parent and a new subfolder name. The final path must not exist; SDrive never removes existing contents.")}</FieldHelp></div>
+      <div className="field-with-help">
+      <div className="field-action"><label><span className="field-label">{t("Local mount folder")}</span><input disabled={busy || letterLocked} {...validationProps("mountFolder")} required value={c.mountFolder || ""} onChange={(e) => change({ mountFolder: e.target.value })} /></label>
       <button type="button" onClick={() => void action(async () => {
         const parent = await api.selectDirectory();
         if (parent) change({ mountFolder: parent.replace(/[\\/]+$/, "") + "\\SDrive" });
-      })}>{t("Choose parent directory")}</button>
+      })}>{t("Choose parent directory")}</button></div>
       {fieldFeedback("mountFolder")}
+      <FieldHelp label={t("Local mount folder")}>{t("Choose an existing parent and a new subfolder name. The final path must not exist; SDrive never removes existing contents.")}</FieldHelp></div>
     </> : <>
       <div className="field-with-help"><label><span className="field-label">{t("Windows drive letter")}</span><select disabled={busy || letterLocked || !letters.length} {...validationProps("letter")} aria-label={t("Windows drive letter")} value={letters.includes(c.letter) ? c.letter : ""} onChange={(e) => change({ letter: e.target.value })}>
         {!letters.includes(c.letter) && <option value="" disabled>{t("Select…")}</option>}
