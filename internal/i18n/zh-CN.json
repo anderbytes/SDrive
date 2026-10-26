@@ -579,7 +579,7 @@
   "Cache location metadata is missing. Restore it before changing the profile.": "缓存位置元数据丢失。在更改配置文件之前恢复它。",
   "Cache ownership could not be verified. Preserve the profile and cache.": "无法验证缓存所有权。保留配置文件和缓存。",
   "Cache retention after last access (hours)": "上次访问后的缓存保留时间（小时）",
-  "Cache retention must be between 1 and 720 hours.": "缓存保留时间必须介于 1 到 720 小时之间。",
+  "Cache retention must be between 1 and 4320 hours.": "缓存保留时间必须介于 1 到 4320 小时之间。",
   "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk.": "容量由提供商报告，并且可能覆盖整个帐户。它与本地缓存磁盘是分开的。",
   "Change cache location": "更改缓存位置",
   "Choose a directory on an available local disk.": "选择可用本地磁盘上的目录。",
@@ -816,5 +816,14 @@
   "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.": "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.",
   "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.": "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.",
   "The default cache contains files or unknown entries. Preserve it before restoring its location.": "The default cache contains files or unknown entries. Preserve it before restoring its location.",
-  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in."
+  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.",
+  "Google document download format": "Google 文档下载格式",
+  "Office formats (default)": "Office 格式（默认）",
+  "OpenDocument formats": "OpenDocument 格式",
+  "PDF preferred (with fallback)": "优先 PDF（含备用格式）",
+  "Changes document extensions after reconfiguring a disconnected drive. PDF is preferred where supported; other documents use fallback formats. This does not convert uploads.": "重新配置已断开的驱动器后更改文档扩展名。支持时优先使用 PDF；其他文档使用备用格式。不会转换上传文件。",
+  "Virtual capacity in Explorer (GiB)": "资源管理器中的虚拟容量 (GiB)",
+  "Virtual capacity must be between 0 and 8388607 GiB.": "虚拟容量必须介于 0 到 8388607 GiB 之间。",
+  "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "零使用提供商默认值。重新连接后更改显示的总容量；不会预留空间、强制配额或更改提供商配额及本地缓存可用空间。",
+  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "保留时间为 1–4320 小时（180 天）。控制上次访问后的清理，不保证离线可用；待上传文件仍受保护。"
 }

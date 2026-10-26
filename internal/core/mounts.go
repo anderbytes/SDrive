@@ -449,6 +449,10 @@ func destinationFields(c Connection, config map[string]string) map[string]string
 	if c.Provider == "drive" && config["shared_with_me"] == "true" {
 		identity["shared_with_me"] = "true"
 	}
+	// Omit the default to preserve existing recovery hashes.
+	if c.Provider == "drive" && config["export_formats"] != "" && config["export_formats"] != "docx,xlsx,pptx,svg" {
+		identity["export_formats"] = config["export_formats"]
+	}
 	if c.PrimaryURL != "" {
 		identity["url"] = c.PrimaryURL
 	}

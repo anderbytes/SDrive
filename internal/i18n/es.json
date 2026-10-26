@@ -579,7 +579,7 @@
   "Cache location metadata is missing. Restore it before changing the profile.": "Faltan metadatos de ubicación de caché. Restáurelo antes de cambiar el perfil.",
   "Cache ownership could not be verified. Preserve the profile and cache.": "No se pudo verificar la propiedad de la caché. Conservar el perfil y el caché.",
   "Cache retention after last access (hours)": "Retención de caché después del último acceso (horas)",
-  "Cache retention must be between 1 and 720 hours.": "La retención de caché debe estar entre 1 y 720 horas.",
+  "Cache retention must be between 1 and 4320 hours.": "La retención de caché debe estar entre 1 y 4320 horas.",
   "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk.": "La capacidad la informa el proveedor y puede cubrir toda la cuenta. Está separado del disco de caché local.",
   "Change cache location": "Cambiar ubicación de caché",
   "Choose a directory on an available local disk.": "Elija un directorio en un disco local disponible.",
@@ -816,5 +816,14 @@
   "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.": "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.",
   "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.": "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.",
   "The default cache contains files or unknown entries. Preserve it before restoring its location.": "The default cache contains files or unknown entries. Preserve it before restoring its location.",
-  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in."
+  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.",
+  "Google document download format": "Formato de descarga de documentos Google",
+  "Office formats (default)": "Formatos Office (predeterminado)",
+  "OpenDocument formats": "Formatos OpenDocument",
+  "PDF preferred (with fallback)": "Preferir PDF (con alternativas)",
+  "Changes document extensions after reconfiguring a disconnected drive. PDF is preferred where supported; other documents use fallback formats. This does not convert uploads.": "Cambia las extensiones tras reconfigurar una unidad desconectada. Prefiere PDF donde sea compatible; otros documentos usan formatos alternativos. No convierte las cargas.",
+  "Virtual capacity in Explorer (GiB)": "Capacidad virtual en Explorer (GiB)",
+  "Virtual capacity must be between 0 and 8388607 GiB.": "La capacidad virtual debe estar entre 0 y 8388607 GiB.",
+  "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "Cero usa el valor del proveedor. Cambia el total mostrado al reconectar; no reserva espacio, impone cuotas ni cambia la cuota del proveedor o el espacio libre de la caché local.",
+  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "La retención acepta de 1 a 4320 horas (180 días). Controla la eliminación tras el último acceso, no la disponibilidad sin conexión; las cargas pendientes siguen protegidas."
 }

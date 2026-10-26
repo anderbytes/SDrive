@@ -3,6 +3,9 @@ import type { Wizard } from "./useConnectionWizard";
 export function DirectoryCacheOptions({ wizard }: { wizard: Wizard }) {
   const { t, connection: c, change, validationProps, fieldFeedback, initial } = wizard;
   return <>
+    <label>{t("Virtual capacity in Explorer (GiB)")}<input type="number" min="0" max="8388607" step="1" disabled={initial.recovery} {...validationProps("virtualCapacityGiB")} value={c.virtualCapacityGiB || 0} onChange={(e) => change({ virtualCapacityGiB: Number(e.target.value) })} /></label>
+    {fieldFeedback("virtualCapacityGiB")}
+    <small>{t("Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.")}</small>
     <label>{t("Directory metadata lifetime (seconds)")}<input type="number" min="1" max="86400" step="1" disabled={initial.recovery} {...validationProps("directoryCacheSeconds")} value={c.directoryCacheSeconds || 300} onChange={(e) => change({ directoryCacheSeconds: Number(e.target.value) })} /></label>
     {fieldFeedback("directoryCacheSeconds")}
     <small>{t("External changes appear on the next directory access after this lifetime, or after Refresh files in Explorer. Some services detect changes earlier. This is separate from SDrive status updates and applies on the next connection.")}</small>

@@ -137,7 +137,8 @@ export function Preferences({
                 "Applied on the next mount. Open files and pending uploads may exceed the target. SDrive reserves 5 GiB of free space before connecting.",
               )}
             </p>
-            <label>{t("Cache retention after last access (hours)")}<input type="number" min="1" max="720" step="1" value={settings.cacheMaxAgeHours ?? 24} onChange={(e) => setSettings({ ...settings, cacheMaxAgeHours: Number(e.target.value) })} /></label>
+            <label>{t("Cache retention after last access (hours)")}<input type="number" min="1" max="4320" step="1" value={settings.cacheMaxAgeHours ?? 24} onChange={(e) => setSettings({ ...settings, cacheMaxAgeHours: Number(e.target.value) })} /></label>
+            <small>{t("Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.")}</small>
             <label>{t("Upload delay after last use (seconds)")}<input type="number" min="0" max="3600" step="1" value={settings.writeBackSeconds ?? 5} onChange={(e) => setSettings({ ...settings, writeBackSeconds: Number(e.target.value) })} /></label>
             <button type="button" disabled={busy || !defaults} onClick={() => setSettings({ ...settings, cacheMaxAgeHours: defaults!.cacheMaxAgeHours, writeBackSeconds: defaults!.writeBackSeconds })}>{t("Restore cache timing")}</button>
             <p>{t("Timing changes apply on the next connection. Saving a file does not confirm its upload. Open files and pending uploads remain protected regardless of cache retention.")}</p>

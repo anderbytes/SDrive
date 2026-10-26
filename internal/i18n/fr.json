@@ -579,7 +579,7 @@
   "Cache location metadata is missing. Restore it before changing the profile.": "Les métadonnées de l'emplacement du cache sont manquantes. Restaurez-le avant de modifier le profil.",
   "Cache ownership could not be verified. Preserve the profile and cache.": "La propriété du cache n'a pas pu être vérifiée. Conservez le profil et le cache.",
   "Cache retention after last access (hours)": "Rétention du cache après le dernier accès (heures)",
-  "Cache retention must be between 1 and 720 hours.": "La durée de conservation du cache doit être comprise entre 1 et 720 heures.",
+  "Cache retention must be between 1 and 4320 hours.": "La durée de conservation du cache doit être comprise entre 1 et 4320 heures.",
   "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk.": "La capacité est déclarée par le fournisseur et peut couvrir la totalité du compte. Il est distinct du disque de cache local.",
   "Change cache location": "Changer l'emplacement du cache",
   "Choose a directory on an available local disk.": "Choisissez un répertoire sur un disque local disponible.",
@@ -816,5 +816,14 @@
   "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.": "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.",
   "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.": "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.",
   "The default cache contains files or unknown entries. Preserve it before restoring its location.": "The default cache contains files or unknown entries. Preserve it before restoring its location.",
-  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in."
+  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.",
+  "Google document download format": "Format de téléchargement des documents Google",
+  "Office formats (default)": "Formats Office (par défaut)",
+  "OpenDocument formats": "Formats OpenDocument",
+  "PDF preferred (with fallback)": "PDF préféré (avec formats de secours)",
+  "Changes document extensions after reconfiguring a disconnected drive. PDF is preferred where supported; other documents use fallback formats. This does not convert uploads.": "Modifie les extensions après reconfiguration d’un lecteur déconnecté. PDF est préféré si disponible ; les autres documents utilisent des formats de secours. Ne convertit pas les envois.",
+  "Virtual capacity in Explorer (GiB)": "Capacité virtuelle dans l’Explorateur (GiB)",
+  "Virtual capacity must be between 0 and 8388607 GiB.": "La capacité virtuelle doit être comprise entre 0 et 8388607 GiB.",
+  "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "Zéro utilise la valeur du fournisseur. Modifie le total affiché après reconnexion ; ne réserve pas d’espace, n’impose pas de quota et ne modifie ni le quota du fournisseur ni l’espace libre du cache local.",
+  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "La conservation accepte de 1 à 4320 heures (180 jours). Elle contrôle l’éviction après le dernier accès, pas la disponibilité hors ligne ; les envois en attente restent protégés."
 }

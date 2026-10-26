@@ -23,6 +23,7 @@ type Connection struct {
 	Letter                string `json:"letter"`
 	MountMode             string `json:"mountMode,omitempty"`
 	MountFolder           string `json:"mountFolder,omitempty"`
+	VirtualCapacityGiB    int64  `json:"virtualCapacityGiB,omitempty"`
 	DirectoryCacheSeconds int    `json:"directoryCacheSeconds,omitempty"`
 	ReadOnly              bool   `json:"readOnly"`
 	AutoMount             bool   `json:"autoMount"`

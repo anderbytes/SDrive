@@ -18,7 +18,7 @@ func TestRuntimeSettingsCompatibilityAndValidation(t *testing.T) {
 		}
 	}
 	store := defaultStore()
-	age, delay := 48, 0
+	age, delay := 4320, 0
 	store.Settings.CacheMaxAgeHours, store.Settings.WriteBackSeconds = &age, &delay
 	c := testConnection()
 	c.Letter, c.MountFolder, c.MountMode, c.DirectoryCacheSeconds = "", filepath.Join(t.TempDir(), "mount"), "local", 30
@@ -28,7 +28,7 @@ func TestRuntimeSettingsCompatibilityAndValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	loaded, err := decodeStore(raw)
-	if err != nil || loaded.Connections[0] != c || *loaded.Settings.WriteBackSeconds != 0 || *loaded.Settings.CacheMaxAgeHours != 48 {
+	if err != nil || loaded.Connections[0] != c || *loaded.Settings.WriteBackSeconds != 0 || *loaded.Settings.CacheMaxAgeHours != 4320 {
 		t.Fatal("runtime settings did not round trip")
 	}
 	for _, invalid := range []int{-1, 3601} {
@@ -73,6 +73,49 @@ func TestMountTargetsRejectExistingFoldersAndPreserveLetterDefaults(t *testing.T
 	}
 }
 
+func TestVirtualCapacityValidationPersistenceAndEngineOptions(t *testing.T) {
+	for _, capacity := range []int64{0, 256, 8388607, -1, 8388608} {
+		c := testConnection()
+		c.VirtualCapacityGiB = capacity
+		valid := capacity >= 0 && capacity <= 8388607
+		if err := validateConnection(&c); (err == nil) != valid {
+			t.Fatalf("capacity %d: %v", capacity, err)
+		}
+		if !valid {
+			continue
+		}
+		store := defaultStore()
+		store.Connections = []Connection{c}
+		raw, err := encodeStore(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := decodeStore(raw)
+		if err != nil || loaded.Connections[0].VirtualCapacityGiB != capacity {
+			t.Fatal("saved capacity lost")
+		}
+		d := portableDefinition(c)
+		if d.connection().VirtualCapacityGiB != capacity || validatePortableConnection(d) != nil {
+			t.Fatal("portable capacity lost")
+		}
+		vfs := mountOptions(c, store.Settings)["vfsOpt"].(map[string]any)
+		value, present := vfs["DiskSpaceTotalSize"]
+		if present != (capacity > 0) || (present && value != capacity<<30) {
+			t.Fatalf("engine capacity: %v", vfs)
+		}
+	}
+}
+
+func TestCacheRetentionBounds(t *testing.T) {
+	for _, hours := range []int{0, 1, 24, 720, 4320, 4321} {
+		settings := defaultStore().Settings
+		settings.CacheMaxAgeHours = &hours
+		if err := validateCacheDurations(settings); (err == nil) != (hours >= 1 && hours <= 4320) {
+			t.Fatalf("retention %d: %v", hours, err)
+		}
+	}
+}
+
 func TestMountRuntimeOptionsUseTimingAndPrivateLocalPermissions(t *testing.T) {
 	c := testConnection()
 	defaults := mountOptions(c, defaultStore().Settings)
@@ -80,12 +123,12 @@ func TestMountRuntimeOptionsUseTimingAndPrivateLocalPermissions(t *testing.T) {
 	if vfs["CacheMaxAge"] != int64(24*time.Hour) || vfs["WriteBack"] != int64(5*time.Second) || vfs["DirCacheTime"] != int64(300*time.Second) || defaults["mountOpt"].(map[string]any)["NetworkMode"] != true {
 		t.Fatal("runtime defaults changed")
 	}
-	age, delay := 48, 0
+	age, delay := 4320, 0
 	settings := Settings{CacheGiB: 7, CacheMaxAgeHours: &age, WriteBackSeconds: &delay}
 	c.MountMode, c.DirectoryCacheSeconds = "local", 30
 	options := mountOptions(c, settings)
 	vfs = options["vfsOpt"].(map[string]any)
-	if vfs["FilePerms"] != uint32(0600) || vfs["DirPerms"] != uint32(0700) || vfs["PollInterval"] != int64(0) || vfs["WriteBack"] != int64(0) || vfs["CacheMaxAge"] != int64(48*time.Hour) || options["mountOpt"].(map[string]any)["NetworkMode"] != false {
+	if vfs["FilePerms"] != uint32(0600) || vfs["DirPerms"] != uint32(0700) || vfs["PollInterval"] != int64(0) || vfs["WriteBack"] != int64(0) || vfs["CacheMaxAge"] != int64(4320*time.Hour) || options["mountOpt"].(map[string]any)["NetworkMode"] != false {
 		t.Fatal("local runtime options differ")
 	}
 }

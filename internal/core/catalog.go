@@ -102,7 +102,7 @@ func Catalog() []Provider {
 			p.Fields = append(p.Fields, Field{Key: "disable_epsv", Label: "Use PASV instead of EPSV", Choices: []string{"false", "true"}, Default: "false", Advanced: true}, Field{Key: "disable_mlsd", Label: "Use LIST instead of MLSD", Choices: []string{"false", "true"}, Default: "false", Advanced: true})
 		}
 		if p.ID == "drive" {
-			p.Fields = append(p.Fields, Field{Key: "shared_with_me", Label: "Google Drive contents", Default: "false", Choices: []string{"false", "true"}, Hint: "Shared with me is separate from Shared Drives. Existing library and root selections are preserved."}, Field{Key: "root_folder_id", Label: "Root folder ID (optional)", Advanced: true})
+			p.Fields = append(p.Fields, Field{Key: "shared_with_me", Label: "Google Drive contents", Default: "false", Choices: []string{"false", "true"}, Hint: "Shared with me is separate from Shared Drives. Existing library and root selections are preserved."}, Field{Key: "export_formats", Label: "Google document download format", Default: "docx,xlsx,pptx,svg", Choices: []string{"docx,xlsx,pptx,svg", "pdf,docx,xlsx,pptx,svg", "odt,ods,odp,svg"}, Advanced: true, Hint: "Changes document extensions after reconfiguring a disconnected drive. PDF is preferred where supported; other documents use fallback formats. This does not convert uploads."}, Field{Key: "root_folder_id", Label: "Root folder ID (optional)", Advanced: true})
 		}
 	}
 	return providers
@@ -201,6 +201,11 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 func validateDriveContents(config map[string]string) error {
 	if config["type"] != "drive" {
 		return nil
+	}
+	switch config["export_formats"] {
+	case "", "docx,xlsx,pptx,svg", "pdf,docx,xlsx,pptx,svg", "odt,ods,odp,svg":
+	default:
+		return fieldMessage("export_formats", "validation.option_invalid", map[string]string{"label": "Google document download format"})
 	}
 	switch config["shared_with_me"] {
 	case "", "false":

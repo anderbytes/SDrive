@@ -448,7 +448,8 @@
         "alternateURL": "https://alternate.example.test/dav",
         "resourceID": "synthetic-resource",
         "primaryURL": "https://example.test/dav",
-        "binding": "{}"
+        "binding": "{}",
+        "virtualCapacityGiB": 256
       },
       "values": {
         "host": "example.test"
@@ -567,7 +568,8 @@
         "idleTimeout": 60,
         "alternateURL": "https://alternate.example.test/dav",
         "transport": "",
-        "values": {}
+        "values": {},
+        "virtualCapacityGiB": 256
       }
     },
     "importPreview": {
@@ -597,7 +599,8 @@
             "idleTimeout": 60,
             "alternateURL": "https://alternate.example.test/dav",
             "transport": "",
-            "values": {}
+            "values": {},
+            "virtualCapacityGiB": 256
           }
         ],
         "preferences": {
@@ -828,7 +831,8 @@
             "protocol": "",
             "source": "",
             "checkedAt": null
-          }
+          },
+          "virtualCapacityGiB": 256
         }
       ],
       "settings": {

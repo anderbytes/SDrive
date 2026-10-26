@@ -69,6 +69,7 @@ type ConfigInput struct {
 }
 type ConfigSession struct {
 	importDraftID string
+	exportFormats string
 	sharedWithMe  bool
 	ID            string    `json:"id"`
 	Busy          bool      `json:"busy"`
@@ -163,7 +164,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		}
 		oldRemote = old.Remote
 		if old.Recovery {
-			if c.Provider != old.Provider || c.Path != old.Path || mountTarget(c) != mountTarget(old) || c.ReadOnly != old.ReadOnly || c.DirectoryCacheSeconds != old.DirectoryCacheSeconds {
+			if c.Provider != old.Provider || c.Path != old.Path || mountTarget(c) != mountTarget(old) || c.ReadOnly != old.ReadOnly || c.DirectoryCacheSeconds != old.DirectoryCacheSeconds || c.VirtualCapacityGiB != old.VirtualCapacityGiB {
 				return "", fmt.Errorf("preserve provider, folder, letter and access mode during recovery")
 			}
 			if c.UploadLimit != old.UploadLimit || c.DownloadLimit != old.DownloadLimit || c.UseProxy != old.UseProxy || c.ConnectTimeout != old.ConnectTimeout || c.IdleTimeout != old.IdleTimeout || c.AlternateURL != old.AlternateURL {
@@ -221,6 +222,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 	s.session = ss
 	ss.importDraftID = input.ImportDraftID
 	ss.sharedWithMe = params["shared_with_me"] == "true"
+	ss.exportFormats = params["export_formats"]
 	done := ss.done
 	started := false
 	defer func() {
@@ -257,6 +259,20 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 			err := getConfig("sd_"+oldRemote, &existing)
 			if err != nil {
 				return "", fmt.Errorf("could not load access details; cancel and try again")
+			}
+			if p.ID == "drive" && !inPlace {
+				previous := existing["export_formats"]
+				if previous == "" {
+					previous = "docx,xlsx,pptx,svg"
+				}
+				if previous != params["export_formats"] {
+					checkCtx, done := context.WithTimeout(ctx, 5*time.Second)
+					pending, cacheErr := s.cachedPending(checkCtx, Connection{Remote: oldRemote})
+					done()
+					if cacheErr != nil || pending != 0 {
+						return "", fmt.Errorf("unmount and resolve pending files before editing")
+					}
+				}
 			}
 			if p.ID == "drive" && existing["type"] == "drive" && params["shared_with_me"] != "true" && existing["team_drive"] != "" {
 				params["team_drive"] = existing["team_drive"]
@@ -310,6 +326,9 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		}
 		for key, value := range params {
 			if (key == "disable_epsv" || key == "disable_mlsd" || key == "shared_with_me") && value == "false" && existing[key] == "" {
+				continue
+			}
+			if key == "export_formats" && value == "docx,xlsx,pptx,svg" && existing[key] == "" {
 				continue
 			}
 			if key == "sas_url" {
@@ -448,6 +467,10 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 		}
 		if p.ID == "drive" && ss.sharedWithMe != (config["shared_with_me"] == "true") {
 			ss.Error = "The engine did not preserve the selected Google Drive contents. Cancel and try again."
+			return
+		}
+		if p.ID == "drive" && config["export_formats"] != ss.exportFormats && !(config["export_formats"] == "" && ss.exportFormats == "docx,xlsx,pptx,svg") {
+			ss.Error = "the engine did not save a valid account configuration; cancel and try again"
 			return
 		}
 		if ss.inPlace {

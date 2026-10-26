@@ -18,7 +18,7 @@ Settings writes use version 5; unversioned, version 1, version 2, version 3 and 
 | Retention | 24 hours | Inactivity since last access before content becomes eligible for eviction |
 | Upload delay | 5 seconds | Delay after last use before write-back; zero requests immediate scheduling |
 
-Retention accepts 1–720 hours and upload delay accepts 0–3600 seconds. Changes apply on the next connection. Open files, pending uploads and periodic eviction can exceed size/age targets. Saving a file locally never confirms its remote upload. There is no cache-delete action.
+Retention accepts 1–4320 hours and upload delay accepts 0–3600 seconds. Changes apply on the next connection. Open files, pending uploads and periodic eviction can exceed size/age targets. Saving a file locally never confirms its remote upload. There is no cache-delete action.
 
 ## Remote changes and browsing traffic
 
@@ -55,3 +55,11 @@ Explorer, tray actions, reconciliation and safe disconnect use the saved destina
 Native checks use temporary profiles, loopback WebDAV, disposable files and existing WinFsp/rclone components. They cover both letter presentations and folders, alternate cache, external changes, pending writes, open-file disconnect, collisions, reopening and process interruption/recovery. They do not certify cloud accounts, physical power loss or a second interactive Windows account.
 
 Recheck the pinned rclone 1.75.2 [VFS options](https://github.com/rclone/rclone/blob/v1.75.2/vfs/vfscommon/options.go), [directory/dirty-entry handling](https://github.com/rclone/rclone/blob/v1.75.2/vfs/dir.go), [RC refresh](https://github.com/rclone/rclone/blob/v1.75.2/vfs/rc.go) and [Windows mount/permission rules](https://github.com/rclone/rclone/blob/v1.75.2/cmd/mountlib/mount.md) on upgrades.
+
+## Document representation and virtual capacity
+
+Google Drive setup and Reconfigure account offer preferred download formats in Advanced options: Office (the existing DOCX/XLSX/PPTX/SVG default), PDF with Office/SVG fallbacks, or OpenDocument/SVG. The engine chooses the first supported format for each native document. Exported extensions and bytes follow that selection; uploading files does not convert them to Google documents. Existing binary files are unchanged. A format change requires a disconnected drive and a fresh clean-cache check. Pending recovery only permits the original format; nondefault formats participate in the destination hash and session-only binding. Reconfiguration creates a separate remote/cache identity. Portable definitions retain the selection without credentials.
+
+Virtual capacity in Explorer is an optional whole GiB value in the connection's file options (0 uses the provider default; maximum 8,388,607 GiB). It maps to the pinned engine's `DiskSpaceTotalSize` VFS option, applies after reconnecting and survives local and portable configuration. It changes the volume's reported total only: it neither reserves space nor enforces a quota. Free/used values still follow engine/provider reporting; SDrive's provider capacity and local cache free space remain separate. Invalid, fractional and overflowing inputs are rejected.
+
+Engine references: [Google document export formats](https://rclone.org/drive/#drive-export-formats) and [VFS disk options](https://rclone.org/commands/rclone_mount/#vfs-disk-options). Behavior was also checked against the pinned engine source.

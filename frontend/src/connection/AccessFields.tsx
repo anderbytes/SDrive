@@ -24,7 +24,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
           {t(f.label)}
           {f.choices ? (
             <select
-              disabled={f.key === "shared_with_me" && wizard.initial.recovery}
+              disabled={["shared_with_me", "export_formats"].includes(f.key) && wizard.initial.recovery}
               {...validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
               value={values[f.key] ?? f.default}
               onChange={(e) => setValue(f.key, e.target.value)}
@@ -35,6 +35,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
                     ? t("United States")
                     : value === "eapi.pcloud.com"
                       ? t("Europe")
+                      : f.key === "export_formats" ? t(value === "docx,xlsx,pptx,svg" ? "Office formats (default)" : value === "odt,ods,odp,svg" ? "OpenDocument formats" : "PDF preferred (with fallback)")
                       : f.key === "shared_with_me" ? t(value === "true" ? "Shared with me" : "My Drive / selected library") : value}
                 </option>
               ))}

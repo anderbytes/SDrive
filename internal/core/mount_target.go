@@ -55,6 +55,9 @@ func validateMountTarget(c *Connection) error {
 	if c.MountMode != "" && c.MountMode != "network" && c.MountMode != "local" {
 		return &FieldError{Field: "mountMode", Message: "Choose network drive or local disk."}
 	}
+	if c.VirtualCapacityGiB < 0 || c.VirtualCapacityGiB > 8388607 {
+		return &FieldError{Field: "virtualCapacityGiB", Message: "Virtual capacity must be between 0 and 8388607 GiB."}
+	}
 	if c.DirectoryCacheSeconds < 0 || c.DirectoryCacheSeconds > 86400 {
 		return &FieldError{Field: "directoryCacheSeconds", Message: "Directory cache duration must be between 1 and 86400 seconds."}
 	}
@@ -113,6 +116,9 @@ func mountOptions(c Connection, settings Settings) map[string]any {
 	}
 	maxAge, writeBack := cacheDurations(settings)
 	vfs := map[string]any{"CacheMode": "full", "CacheMaxSize": int64(settings.CacheGiB) << 30, "CacheMinFreeSpace": int64(5) << 30, "CacheMaxAge": int64(maxAge), "WriteBack": int64(writeBack), "ReadOnly": c.ReadOnly, "DirCacheTime": int64(time.Duration(directorySeconds) * time.Second), "PollInterval": int64(poll)}
+	if c.VirtualCapacityGiB > 0 {
+		vfs["DiskSpaceTotalSize"] = c.VirtualCapacityGiB << 30
+	}
 	// Local disks and folder mounts must not expose Everyone's default rclone permissions.
 	if c.MountMode == "local" {
 		vfs["FilePerms"], vfs["DirPerms"] = uint32(0600), uint32(0700)
@@ -140,8 +146,8 @@ func cacheDurations(settings Settings) (time.Duration, time.Duration) {
 }
 
 func validateCacheDurations(settings Settings) error {
-	if settings.CacheMaxAgeHours != nil && (*settings.CacheMaxAgeHours < 1 || *settings.CacheMaxAgeHours > 720) {
-		return fmt.Errorf("Cache retention must be between 1 and 720 hours.")
+	if settings.CacheMaxAgeHours != nil && (*settings.CacheMaxAgeHours < 1 || *settings.CacheMaxAgeHours > 4320) {
+		return fmt.Errorf("Cache retention must be between 1 and 4320 hours.")
 	}
 	if settings.WriteBackSeconds != nil && (*settings.WriteBackSeconds < 0 || *settings.WriteBackSeconds > 3600) {
 		return fmt.Errorf("Upload delay must be between 0 and 3600 seconds.")

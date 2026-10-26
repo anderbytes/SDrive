@@ -579,7 +579,7 @@
   "Cache location metadata is missing. Restore it before changing the profile.": "Mancano i metadati della posizione della cache. Ripristinalo prima di modificare il profilo.",
   "Cache ownership could not be verified. Preserve the profile and cache.": "Impossibile verificare la proprietà della cache. Conserva il profilo e la cache.",
   "Cache retention after last access (hours)": "Conservazione della cache dopo l'ultimo accesso (ore)",
-  "Cache retention must be between 1 and 720 hours.": "La conservazione della cache deve essere compresa tra 1 e 720 ore.",
+  "Cache retention must be between 1 and 4320 hours.": "La conservazione della cache deve essere compresa tra 1 e 4320 ore.",
   "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk.": "La capacità viene segnalata dal fornitore e può coprire l'intero account. È separato dal disco della cache locale.",
   "Change cache location": "Modifica la posizione della cache",
   "Choose a directory on an available local disk.": "Scegli una directory su un disco locale disponibile.",
@@ -816,5 +816,14 @@
   "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.": "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.",
   "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.": "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.",
   "The default cache contains files or unknown entries. Preserve it before restoring its location.": "The default cache contains files or unknown entries. Preserve it before restoring its location.",
-  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in."
+  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.",
+  "Google document download format": "Formato di download dei documenti Google",
+  "Office formats (default)": "Formati Office (predefinito)",
+  "OpenDocument formats": "Formati OpenDocument",
+  "PDF preferred (with fallback)": "Preferisci PDF (con formati alternativi)",
+  "Changes document extensions after reconfiguring a disconnected drive. PDF is preferred where supported; other documents use fallback formats. This does not convert uploads.": "Cambia le estensioni dopo la riconfigurazione di un’unità disconnessa. Preferisce PDF se supportato; gli altri documenti usano formati alternativi. Non converte i caricamenti.",
+  "Virtual capacity in Explorer (GiB)": "Capacità virtuale in Esplora file (GiB)",
+  "Virtual capacity must be between 0 and 8388607 GiB.": "La capacità virtuale deve essere compresa tra 0 e 8388607 GiB.",
+  "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "Zero usa il valore del provider. Cambia il totale visualizzato dopo la riconnessione; non riserva spazio, impone quote o cambia la quota del provider o lo spazio libero della cache locale.",
+  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "La conservazione accetta 1–4320 ore (180 giorni). Controlla la rimozione dopo l’ultimo accesso, non la disponibilità offline; i caricamenti in sospeso restano protetti."
 }

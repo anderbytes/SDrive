@@ -1519,16 +1519,30 @@ test("folder mount confirmation keeps the selected local destination", async () 
   expect(screen.getByText("Your files are available at C:\\Synthetic\\NewMount.")).toBeDefined();
 });
 
-test("cache timing preserves an explicit zero upload delay", async () => {
+test("setup submits preferred document formats and virtual capacity", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [{ ...snapshot.providers[0], fields: [{ key: "export_formats", label: "Google document download format", secret: false, required: false, default: "docx,xlsx,pptx,svg", choices: ["docx,xlsx,pptx,svg", "pdf,docx,xlsx,pptx,svg"], advanced: true, file: false }] }] });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByText("Advanced options"));
+  expect((screen.getByLabelText("Google document download format") as HTMLSelectElement).value).toBe("docx,xlsx,pptx,svg");
+  fireEvent.change(screen.getByLabelText("Google document download format"), { target: { value: "pdf,docx,xlsx,pptx,svg" } });
+  fireEvent.change(screen.getByLabelText("Virtual capacity in Explorer (GiB)"), { target: { value: "256" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ connection: expect.objectContaining({ virtualCapacityGiB: 256 }), values: expect.objectContaining({ export_formats: "pdf,docx,xlsx,pptx,svg" }) })));
+});
+
+test("cache timing accepts 180 days and preserves an explicit zero upload delay", async () => {
   vi.mocked(api.settings).mockResolvedValue();
   render(<App />);
   await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
   fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
-  fireEvent.change(screen.getByLabelText("Cache retention after last access (hours)"), { target: { value: "48" } });
+  fireEvent.change(screen.getByLabelText("Cache retention after last access (hours)"), { target: { value: "4320" } });
   fireEvent.change(screen.getByLabelText("Upload delay after last use (seconds)"), { target: { value: "0" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(api.settings).toHaveBeenCalledWith(expect.objectContaining({ cacheMaxAgeHours: 48, writeBackSeconds: 0 })));
+  await waitFor(() => expect(api.settings).toHaveBeenCalledWith(expect.objectContaining({ cacheMaxAgeHours: 4320, writeBackSeconds: 0 })));
 });
 
 test("cache location failure keeps the current location visible", async () => {

@@ -48,6 +48,7 @@ export interface Connection {
   mountMode?: string;
   mountFolder?: string;
   directoryCacheSeconds?: number;
+  virtualCapacityGiB?: number;
   readOnly: boolean;
   autoMount: boolean;
   recovery: boolean;

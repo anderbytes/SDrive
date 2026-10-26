@@ -13,7 +13,7 @@ import (
 
 // Samples are synthetic; no service operation, profile or credential is used.
 func bridgeSamples() map[string]any {
-	connection := Connection{ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S", AuthMethod: "oauth", SessionOnly: true, UploadLimit: 1024, DownloadLimit: 2048, UseProxy: true, Browser: "edge", PrivateBrowser: true, ConnectTimeout: 30, IdleTimeout: 60, AlternateURL: "https://alternate.example.test/dav", ResourceID: "synthetic-resource", PrimaryURL: "https://example.test/dav", Binding: "{}", MountMode: "local", MountFolder: `C:\Synthetic\Mount`, DirectoryCacheSeconds: 300}
+	connection := Connection{ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S", AuthMethod: "oauth", SessionOnly: true, UploadLimit: 1024, DownloadLimit: 2048, UseProxy: true, Browser: "edge", PrivateBrowser: true, ConnectTimeout: 30, IdleTimeout: 60, AlternateURL: "https://alternate.example.test/dav", ResourceID: "synthetic-resource", PrimaryURL: "https://example.test/dav", Binding: "{}", MountMode: "local", MountFolder: `C:\Synthetic\Mount`, DirectoryCacheSeconds: 300, VirtualCapacityGiB: 256}
 	age, delay := 24, 5
 	settings := Settings{Theme: "system", Language: "en", CacheGiB: 2, CacheMaxAgeHours: &age, WriteBackSeconds: &delay}
 	field := Field{Key: "host", Label: "Server", Required: true, Choices: []string{"example.test"}, Hint: "Server hostname"}
