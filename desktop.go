@@ -318,16 +318,21 @@ func (d *desktop) updateTray() {
 func setupDesktop(app *application.App, window *application.WebviewWindow, service *core.Service, dir, version string, hidden bool) *desktop {
 	d := &desktop{app: app, window: window, service: service, dir: dir, wake: make(chan struct{}, 1), done: make(chan struct{}), ready: make(chan struct{})}
 	d.visible.Store(!hidden)
+	overlay := setupDisconnectOverlay(d)
 	core.SetDesktopStatus(service, d.visible.Load, d.accept, version)
 	core.SetAccessChanged(service, func(locked bool) {
 		application.InvokeAsync(func() {
 			if !d.stopped.Load() {
+				overlay.render()
 				window.EmitEvent("access:changed", locked)
 				go service.Snapshot()
 			}
 		})
 	})
-	core.SetLanguageChanged(service, func(string) { go service.Snapshot() })
+	core.SetLanguageChanged(service, func(string) {
+		application.InvokeAsync(overlay.render)
+		go service.Snapshot()
+	})
 	d.tray = app.SystemTray.New()
 	d.tray.SetIcon(trayIcon())
 	d.tray.SetTooltip("SDrive")
@@ -406,6 +411,9 @@ func setupDesktop(app *application.App, window *application.WebviewWindow, servi
 	})
 	app.OnShutdown(func() {
 		d.stopped.Store(true)
+		if overlay.timer != nil {
+			overlay.timer.Stop()
+		}
 		close(d.done)
 		if d.geometryTimer != nil {
 			d.geometryTimer.Stop()

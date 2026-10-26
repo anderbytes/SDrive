@@ -99,6 +99,8 @@ type Service struct {
 	transportInspections map[string]*transportInspection
 	desktopVisible       func() bool
 	snapshotChanged      func(uint64, View)
+	disconnectChanged    func(DisconnectProgress)
+	disconnectSequence   uint64
 	appVersion           string
 	diagnostics          *diagnostics.Collector
 }

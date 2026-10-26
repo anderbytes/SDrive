@@ -1,4 +1,10 @@
 {
+  "Drive disconnected.": "Laufwerk getrennt.",
+  "Could not disconnect safely. Open SDrive to check uploads and recovery.": "Sicheres Trennen fehlgeschlagen. Öffnen Sie SDrive, um Uploads und Wiederherstellung zu prüfen.",
+  "Drive disconnection": "Laufwerktrennung",
+  "Disconnecting drives…": "Laufwerke werden getrennt…",
+  "Disconnection complete": "Trennung abgeschlossen",
+  "Drive": "Laufwerk",
   "Drive settings": "Laufwerkseinstellungen",
   "General": "Allgemein",
   "Files": "Dateien",

@@ -1,4 +1,10 @@
 {
+  "Drive disconnected.": "驱动器已断开连接。",
+  "Could not disconnect safely. Open SDrive to check uploads and recovery.": "无法安全断开连接。请打开 SDrive 检查上传和恢复状态。",
+  "Drive disconnection": "驱动器断开连接",
+  "Disconnecting drives…": "正在断开驱动器连接…",
+  "Disconnection complete": "断开连接已完成",
+  "Drive": "驱动器",
   "Drive settings": "驱动器设置",
   "General": "常规",
   "Files": "文件",

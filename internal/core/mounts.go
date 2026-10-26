@@ -290,13 +290,21 @@ func (s *Service) unmount(id string) (resultErr error) {
 	}
 	s.busy[id] = true
 	s.operations[id] = "checkingUploads"
+	s.notifyDisconnect(c, "checkingUploads")
 	s.snapshotID++
 	delete(s.inspections, id)
 	delete(s.transportInspections, id)
 	s.mu.Unlock()
 	unmounted, err := s.drainAndUnmount(c)
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer func() {
+		stage := "succeeded"
+		if resultErr != nil {
+			stage = "failed"
+		}
+		s.notifyDisconnect(c, stage)
+		s.mu.Unlock()
+	}()
 	s.busy[id] = false
 	delete(s.operations, id)
 	s.snapshotID++
@@ -338,7 +346,10 @@ func (s *Service) drainAndUnmount(c Connection) (unmounted bool, resultErr error
 			break
 		}
 		s.mu.Lock()
-		s.operations[c.ID] = "waitingUploads"
+		if s.operations[c.ID] != "waitingUploads" {
+			s.operations[c.ID] = "waitingUploads"
+			s.notifyDisconnect(c, "waitingUploads")
+		}
 		s.snapshotID++
 		s.mu.Unlock()
 		select {
@@ -349,6 +360,7 @@ func (s *Service) drainAndUnmount(c Connection) (unmounted bool, resultErr error
 	}
 	s.mu.Lock()
 	s.operations[c.ID] = "unmounting"
+	s.notifyDisconnect(c, "unmounting")
 	s.snapshotID++
 	s.mu.Unlock()
 	if err := callRPC(ctx, rpc, "mount/unmount", map[string]string{"mountPoint": mountPoint(c)}, nil); err != nil {

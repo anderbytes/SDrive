@@ -1,3 +1,17 @@
+.disconnect-overlay { box-sizing: border-box; height: 100vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); background: var(--surface); font-size: 14px; }
+.disconnect-overlay header { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.disconnect-overlay header span { color: var(--muted); }
+.disconnect-rows { flex: 1; min-height: 0; overflow-y: auto; }
+.disconnect-row { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; overflow-wrap: anywhere; }
+.disconnect-row p { margin: 4px 0 0; font-size: 13px; }
+.disconnect-indicator { flex: 0 0 18px; width: 18px; height: 18px; text-align: center; }
+.disconnect-row:not(.succeeded):not(.failed) .disconnect-indicator { box-sizing: border-box; border: 2px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: disconnect-spin 1s linear infinite; }
+.disconnect-overlay footer { display: flex; gap: 8px; }
+.disconnect-overlay footer button { flex: 1; }
+@keyframes disconnect-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .disconnect-indicator { animation: none !important; } }
+@media (forced-colors: active) { .disconnect-overlay { border-color: CanvasText; } .disconnect-row:not(.succeeded):not(.failed) .disconnect-indicator { border-color: GrayText; border-top-color: CanvasText; } }
+
 :root {
   font-family: "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;

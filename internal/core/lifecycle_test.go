@@ -251,6 +251,7 @@ func TestMountStagesAndDuplicateCallsDoNotOverwriteActiveOperation(t *testing.T)
 }
 
 func TestDisconnectShowsCheckingWaitingAndUnmounting(t *testing.T) {
+	progress := make(chan DisconnectProgress, 8)
 	stats := make(chan chan struct{}, 2)
 	unmount, unmounted := make(chan struct{}), make(chan struct{})
 	calls := 0
@@ -273,6 +274,7 @@ func TestDisconnectShowsCheckingWaitingAndUnmounting(t *testing.T) {
 		return map[string]any{}, nil
 	}})
 	c := testConnection()
+	SetDisconnectProgress(s, func(event DisconnectProgress) { progress <- event })
 	s.store.Connections = []Connection{c}
 	s.mounted[c.ID] = true
 	done := make(chan error, 1)
@@ -303,6 +305,12 @@ func TestDisconnectShowsCheckingWaitingAndUnmounting(t *testing.T) {
 	close(unmounted)
 	if err := receive(t, done); err != nil || s.busy[c.ID] || s.operations[c.ID] != "" || s.store.Connections[0].Recovery {
 		t.Fatalf("disconnect did not clear state: %v", err)
+	}
+	for index, stage := range []string{"checkingUploads", "waitingUploads", "unmounting", "succeeded"} {
+		event := receive(t, progress)
+		if event.ID != c.ID || event.Name != c.Name || event.Stage != stage || event.Sequence != uint64(index+1) {
+			t.Fatalf("unexpected lifecycle notification: %+v", event)
+		}
 	}
 }
 

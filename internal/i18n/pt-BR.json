@@ -1,4 +1,10 @@
 {
+  "Drive disconnected.": "Unidade desconectada.",
+  "Could not disconnect safely. Open SDrive to check uploads and recovery.": "Não foi possível desconectar com segurança. Abra o SDrive para verificar os envios e a recuperação.",
+  "Drive disconnection": "Desconexão de unidades",
+  "Disconnecting drives…": "Desconectando unidades…",
+  "Disconnection complete": "Desconexão concluída",
+  "Drive": "Unidade",
   "Drive settings": "Configurações da unidade",
   "General": "Geral",
   "Files": "Arquivos",
