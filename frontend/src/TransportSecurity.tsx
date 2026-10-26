@@ -1,5 +1,6 @@
 import type { ConnectionView, Provider } from "./api";
 import { useLanguage } from "./i18n";
+import { FieldHelp } from "./FieldHelp";
 
 export function TransportCapability({ provider }: { provider: Provider }) {
   const { t } = useLanguage();
@@ -23,7 +24,10 @@ export function TransportCapability({ provider }: { provider: Provider }) {
             : provider.transportEncryption === "required"
               ? "This connection type uses HTTPS to encrypt traffic."
               : "";
-  return <div role="status"><p>{t(label)}</p>{help && <small>{t(help)}</small>}</div>;
+  const warning = ["smb", "mega"].includes(provider.id) || provider.transportEncryption === "none";
+  return <div className={`transport-capability${warning ? " transport-warning" : ""}`}><div role="status">{t(label)}</div>
+    {help && (warning ? <small>{t(help)}</small> : <FieldHelp label={t(label)}>{t(help)}</FieldHelp>)}
+  </div>;
 }
 
 export function TransportStatus({ connection }: { connection: ConnectionView }) {

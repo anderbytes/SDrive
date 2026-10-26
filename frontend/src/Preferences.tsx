@@ -7,6 +7,7 @@ import { SecretInput } from "./connection/SecretInput";
 import { ConfigurationPortability } from "./ConfigurationPortability";
 import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
+import { DialogNavigation } from "./DialogNavigation";
 import { useTheme, type Theme } from "./theme";
 
 const tabs = ["General", "Appearance", "Cache", "Network", "Configuration"] as const;
@@ -43,21 +44,14 @@ export function Preferences({
   });
   return (
     <DialogLayout dialogRef={dialog} titleID="preferences-title" title={t("Preferences")} onClose={onClose} closeDisabled={busy}
+      navigation={<DialogNavigation label={t("Preferences categories")} selected={tab} onSelect={(key) => setTab(key as typeof tab)}
+        items={tabs.map((name) => ({ key: name, label: t(name), id: `${helpID}-${name}-tab`, panel: `${helpID}-${name}-panel`, disabled: busy }))} />}
       footer={<><button type="button" disabled={busy} onClick={onClose}>{t("Cancel")}</button><button form={`${helpID}-form`} className="primary" disabled={busy}>{t("Save")}</button></>}>
         {error && (
           <div role="alert" className="alert error">
             {t(error)}
           </div>
         )}
-        <div className="edit-tabs" role="tablist" aria-label={t("Preferences categories")}>
-          {tabs.map((name, index) => <button key={name} id={`${helpID}-${name}-tab`} type="button" role="tab" aria-selected={tab === name} aria-controls={`${helpID}-${name}-panel`} tabIndex={tab === name ? 0 : -1} disabled={busy}
-            onClick={() => setTab(name)} onKeyDown={(e) => {
-              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-              e.preventDefault();
-              const next = e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[tabs.length - 1] : tabs[(index + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-              setTab(next); document.getElementById(`${helpID}-${next}-tab`)?.focus();
-            }}>{t(name)}</button>)}
-        </div>
         <form id={`${helpID}-form`} noValidate
           onSubmit={async (e) => {
             e.preventDefault();

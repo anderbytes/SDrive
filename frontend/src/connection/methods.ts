@@ -2,6 +2,10 @@ import type { Connection, Provider } from "../api";
 
 export const advancedDisclaimer = "These connections require additional setup. You will need to register an application with the provider and enter your Client ID and, when required, Client Secret. SDrive is a local tool and does not maintain shared OAuth applications. This model keeps application registration and permissions under your control. Read the service's setup instructions before continuing.";
 
+export function supportsNetworkOptions(provider: string) {
+  return ["webdav", "nextcloud", "owncloud", "drive", "onedrive", "sharepoint", "dropbox", "box", "pcloud", "s3", "b2", "azureblob", "gcs"].includes(provider);
+}
+
 export function methods(providers: Provider[]) {
   return providers.flatMap((p) => p.id === "gcs"
     ? [{ provider: p, authMethod: "serviceAccount", advanced: false, key: "gcs:serviceAccount", label: "Google Cloud Storage — service account" },

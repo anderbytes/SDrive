@@ -163,7 +163,7 @@ test("preference tabs preserve edits, navigate by keyboard and reveal invalid fi
   await openPreferences();
   expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
   expect(screen.getByRole("tabpanel", { name: "General" })).toBeDefined();
-  fireEvent.keyDown(screen.getByRole("tab", { name: "General" }), { key: "ArrowRight" });
+  fireEvent.keyDown(screen.getByRole("tab", { name: "General" }), { key: "ArrowDown" });
   expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Appearance" }));
   fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
   fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
@@ -235,7 +235,7 @@ test("system theme follows live changes while explicit themes and lock screens s
   vi.mocked(api.accessStatus).mockResolvedValue({ ...access, locked: true, theme: "light" });
   render(<App />);
   await screen.findByRole("heading", { name: "SDrive is locked" });
-  expect(document.documentElement.dataset.theme).toBe("light");
+  await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
   act(() => { dark = false; system.dispatchEvent(new Event("change")); dark = true; system.dispatchEvent(new Event("change")); });
   expect(document.documentElement.dataset.theme).toBe("light");
 });
@@ -347,7 +347,7 @@ test("Connect on a session-only drive requests authentication instead of mountin
   fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
   await screen.findByRole("heading", { name: "Reconfigure account" });
   expect(api.mount).not.toHaveBeenCalled();
-  expect((screen.getByLabelText("Connect automatically when SDrive starts") as HTMLInputElement).disabled).toBe(true);
+  expect(screen.queryByLabelText("Connect automatically when SDrive starts")).toBeNull();
 });
 
 test("network form converts KiB limits to independent byte rates", async () => {
@@ -361,6 +361,56 @@ test("network form converts KiB limits to independent byte rates", async () => {
   fireEvent.change(screen.getByLabelText("Upload limit (KiB/s)"), { target: { value: "128" } });
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ downloadLimit: 512 * 1024, uploadLimit: 128 * 1024 })));
+});
+
+test("setup reveals nested invalid options before native validation and preserves the draft", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  selectAvailableCategory();
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const input = screen.getByLabelText("Directory metadata lifetime (seconds)");
+  fireEvent.change(input, { target: { value: "-1" } });
+  const groups: HTMLDetailsElement[] = [];
+  let parent = input.parentElement;
+  while (parent) {
+    if (parent instanceof HTMLDetailsElement) groups.push(parent);
+    parent = parent.parentElement;
+  }
+  expect(groups).toHaveLength(2);
+  expect(groups.every((group) => !group.open)).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  expect(groups.every((group) => group.open)).toBe(true);
+  expect((input as HTMLInputElement).value).toBe("-1");
+  expect(api.begin).not.toHaveBeenCalled();
+});
+
+test("SFTP hides incompatible settings and only offers a key passphrase when a key is selected", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [{ ...snapshot.providers[0], id: "webdav", name: "WebDAV", oauth: false }, { ...snapshot.providers[0], id: "sftp", name: "SFTP", oauth: false, fields: [
+    { key: "key_file", label: "SSH private key path", secret: false, required: false, default: "", advanced: false, file: true },
+    { key: "key_file_pass", label: "Private key password", secret: true, required: false, default: "", advanced: true, file: false },
+  ] }] });
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.change(screen.getByLabelText("Download limit (KiB/s)"), { target: { value: "256" } });
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  fireEvent.change(screen.getByLabelText("Connection type"), { target: { value: "sftp" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(screen.queryByLabelText("Private key password")).toBeNull();
+  expect(screen.queryByLabelText("Use the proxy configured in Preferences")).toBeNull();
+  expect(screen.queryByLabelText("Download limit (KiB/s)")).toBeNull();
+  expect(screen.queryByLabelText("Sign in on every connection (credentials only in memory)")).toBeNull();
+  fireEvent.change(screen.getByLabelText("SSH private key path"), { target: { value: "C:\\Synthetic\\key" } });
+  expect(screen.getByLabelText("Private key password")).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("SSH private key path"), { target: { value: "" } });
+  expect(screen.queryByLabelText("Private key password")).toBeNull();
+  vi.mocked(api.probe).mockResolvedValue({ key: "synthetic-key", fingerprint: "SHA256:synthetic" });
+  vi.mocked(api.begin).mockResolvedValue("draft");
+  vi.mocked(api.status).mockResolvedValue({ ...bridgeFixtures.samples.sessionEmpty, id: "draft", busy: true });
+  fireEvent.click(screen.getByRole("button", { name: "Verify SSH identity" }));
+  fireEvent.click(await screen.findByLabelText("I verified the fingerprint and trust this server"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ connection: expect.objectContaining({ provider: "sftp", downloadLimit: 0, uploadLimit: 0 }) })));
 });
 
 test("private browser selection reaches authentication without silently falling back", async () => {
@@ -845,6 +895,7 @@ test("drive action disclosure closes on Escape, outside interaction, focus depar
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   render(<App />);
   const summary = await screen.findByLabelText("More actions for My Drive");
+  await act(async () => {});
   const details = summary.closest("details")!;
   fireEvent.click(summary);
   expect(details.open).toBe(true);
@@ -1511,8 +1562,8 @@ test("folder mount confirmation keeps the selected local destination", async () 
   const connect = await openAuthenticatedFolder();
   fireEvent.change(screen.getByLabelText("Mount into"), { target: { value: "folder" } });
   fireEvent.change(screen.getByLabelText("Local mount folder"), { target: { value: "C:\\Synthetic\\NewMount" } });
-  expect((screen.getByLabelText("Drive presentation") as HTMLSelectElement).value).toBe("local");
-  expect((screen.getByLabelText("Drive presentation") as HTMLSelectElement).disabled).toBe(true);
+  expect(screen.queryByLabelText("Drive presentation")).toBeNull();
+  expect(screen.getByText("Drive presentation · Local disk")).toBeTruthy();
   fireEvent.click(connect);
   await screen.findByText("Drive connected");
   expect(api.confirm).toHaveBeenCalledExactlyOnceWith("draft", "", { letter: "", folder: "C:\\Synthetic\\NewMount", mode: "local" });
@@ -1780,7 +1831,7 @@ test("listing retries cannot overlap and late results are ignored after closing"
   await openAuthenticatedFolder();
   let finish!: (items: { name: string; path: string }[]) => void;
   vi.mocked(api.folders).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-  const retry = screen.getByRole("button", { name: "Retry folder listing" });
+  const retry = await screen.findByRole("button", { name: "Retry folder listing" });
   fireEvent.click(retry);
   fireEvent.click(retry);
   await screen.findByText("Loading folders…");
@@ -2143,7 +2194,7 @@ test.each(["en", "pt-BR"] as const)("edit tabs group settings and support keyboa
   expect(general.getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("tabpanel").id).toBe(general.getAttribute("aria-controls"));
   expect(within(screen.getByRole("tabpanel")).getByLabelText(english ? "Drive name" : "Nome da unidade")).toBeTruthy();
-  fireEvent.keyDown(general, { key: "ArrowRight" });
+  fireEvent.keyDown(general, { key: "ArrowDown" });
   expect(document.activeElement).toBe(files);
   expect(screen.getByRole("tabpanel").id).toBe(files.getAttribute("aria-controls"));
   const panel = screen.getByRole("tabpanel");
@@ -2153,9 +2204,9 @@ test.each(["en", "pt-BR"] as const)("edit tabs group settings and support keyboa
   fireEvent.keyDown(files, { key: "End" });
   expect(document.activeElement).toBe(network);
   expect(screen.getByRole("tabpanel").querySelector('[data-field="bandwidth"]')).toBeTruthy();
-  fireEvent.keyDown(network, { key: "ArrowRight" });
+  fireEvent.keyDown(network, { key: "ArrowDown" });
   expect(document.activeElement).toBe(general);
-  fireEvent.keyDown(general, { key: "ArrowLeft" });
+  fireEvent.keyDown(general, { key: "ArrowUp" });
   expect(document.activeElement).toBe(network);
   fireEvent.keyDown(network, { key: "Home" });
   expect(document.activeElement).toBe(general);

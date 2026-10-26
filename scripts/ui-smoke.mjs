@@ -6,25 +6,25 @@ const exec = promisify(execFile);
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-async function verifyHorizontalTabs(page, label) {
+async function verifySectionNavigation(page, label) {
   const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
   await page.setViewportSize({ width: 420, height: 740 });
   try {
-    const bar = page.getByRole("tablist", { name: label, exact: true });
+    const drawer = page.getByRole("dialog");
+    const toggle = drawer.locator(".navigation-toggle");
+    const bar = drawer.getByRole("tablist", { name: label, exact: true });
+    assert.equal(await bar.isVisible(), false, "Narrow navigation starts collapsed");
+    await toggle.click();
+    assert.equal(await bar.getAttribute("aria-orientation"), "vertical");
+    assert(await bar.evaluate(element => element.scrollWidth <= element.clientWidth + 1), "Categories must not scroll horizontally");
     const tabs = bar.getByRole("tab");
-    const layout = await tabs.evaluateAll((elements) => elements.map((element) => ({ top: element.getBoundingClientRect().top, whiteSpace: getComputedStyle(element).whiteSpace })));
-    assert(layout.every((item) => Math.abs(item.top - layout[0].top) < 1 && item.whiteSpace === "nowrap"), "Tabs must stay on one horizontal line");
-    assert(await bar.evaluate((element) => element.scrollWidth > element.clientWidth), "Narrow tab bars must scroll horizontally");
     await tabs.first().press("End");
-    assert(await tabs.last().evaluate((element) => {
-      const tab = element.getBoundingClientRect(), bar = element.parentElement.getBoundingClientRect();
-      return document.activeElement === element && tab.left >= bar.left && tab.right <= bar.right;
-    }), "Keyboard navigation must reveal the focused tab");
+    assert(await tabs.last().evaluate(element => document.activeElement === element));
     await tabs.last().press("Home");
-    assert(await tabs.first().evaluate((element) => {
-      const tab = element.getBoundingClientRect(), bar = element.parentElement.getBoundingClientRect();
-      return document.activeElement === element && tab.left >= bar.left && tab.right <= bar.right;
-    }), "Home must reveal the first tab");
+    assert(await tabs.first().evaluate(element => document.activeElement === element));
+    await tabs.first().click();
+    assert.equal(await bar.isVisible(), false, "Choosing a category collapses narrow navigation");
+    assert(await toggle.evaluate(element => document.activeElement === element));
   } finally {
     await page.setViewportSize(viewport);
   }
@@ -62,8 +62,8 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByText("These connections require additional setup.", { exact: false }).waitFor();
   await page.getByLabel("Connection type").selectOption("drive");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByLabel("Google Drive contents").selectOption("true");
-  assert.equal(await page.getByLabel("Google Drive contents").inputValue(), "true");
+  await page.getByRole("combobox", { name: "Google Drive contents", exact: true }).selectOption("true");
+  assert.equal(await page.getByRole("combobox", { name: "Google Drive contents", exact: true }).inputValue(), "true");
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByLabel("Connection type").selectOption("yandex");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -75,20 +75,30 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   assert.equal(await page.getByRole("tab", { name: "Basic", exact: true }).getAttribute("aria-selected"), "true");
   await page.getByLabel("Connection type").selectOption("webdav");
   await page.getByLabel("Mount into").selectOption("folder");
-  await page.getByLabel("Local mount folder").fill(path.join(artifacts, "new-mount"));
-  assert.equal(await page.getByLabel("Drive presentation").inputValue(), "local");
-  assert.equal(await page.getByLabel("Drive presentation").isDisabled(), true);
+  await page.getByRole("textbox", { name: "Local mount folder", exact: true }).fill(path.join(artifacts, "new-mount"));
+  assert.equal(await page.getByRole("combobox", { name: "Drive presentation", exact: true }).count(), 0);
+  await page.getByText("Drive presentation · Local disk", { exact: true }).waitFor();
   await page
     .getByRole("button", { name: "Continue", exact: true })
     .click();
   await page
-    .getByLabel("WebDAV HTTPS URL")
+    .getByRole("textbox", { name: "WebDAV HTTPS URL", exact: true })
     .fill(`http://127.0.0.1:${dav.address().port}/dav/`);
   await page
     .getByText("Advanced options", { exact: true })
     .click();
+  const networkOptions = page.locator("summary").filter({ hasText: /^Network$/ });
+  await networkOptions.click();
+  const bandwidth = page.getByRole("spinbutton", { name: "Download limit (KiB/s)", exact: true });
+  await bandwidth.fill("-1");
+  await networkOptions.click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  assert(await bandwidth.isVisible(), "Native validation opens the collapsed option group");
+  assert(await bandwidth.evaluate(element => document.activeElement === element), "Native validation focuses the invalid option");
+  await bandwidth.fill("0");
+  await page.getByText("Connection security", { exact: true }).click();
   await page
-    .getByLabel("Allow unencrypted connection (HTTP / FTP)")
+    .getByRole("checkbox", { name: "Allow unencrypted connection (HTTP / FTP)", exact: true })
     .check();
   await page
     .getByRole("button", { name: "Continue", exact: true })
@@ -130,7 +140,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .getByRole("heading", { name: "Preferences", exact: true })
     .waitFor();
   assert.equal(await page.getByRole("tab", { name: "General", exact: true }).getAttribute("aria-selected"), "true");
-  await page.getByRole("tab", { name: "General", exact: true }).press("ArrowRight");
+  await page.getByRole("tab", { name: "General", exact: true }).press("ArrowDown");
   assert.equal(await page.getByRole("tab", { name: "Appearance", exact: true }).getAttribute("aria-selected"), "true");
   await page.emulateMedia({ colorScheme: "light" });
   await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
@@ -138,7 +148,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByLabel("Theme").selectOption("dark");
   await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
   assert.notEqual(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor), lightBackground);
-  await verifyHorizontalTabs(page, "Preferences categories");
+  await verifySectionNavigation(page, "Preferences categories");
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.screenshot({ path: path.join(artifacts, "preferences-dark.png") });
   await page.getByRole("dialog", { name: "Preferences", exact: true }).press("Escape");
@@ -151,15 +161,15 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
   await page.getByLabel("Theme").selectOption("light");
   await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
-  await page.getByRole("tab", { name: "Appearance", exact: true }).press("ArrowLeft");
-  await page.getByRole("tab", { name: "General", exact: true }).press("ArrowRight");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).press("ArrowUp");
+  await page.getByRole("tab", { name: "General", exact: true }).press("ArrowDown");
   await page.emulateMedia({ forcedColors: "active" });
   assert.equal(await page.getByRole("tab", { name: "Appearance", exact: true }).evaluate((element) => getComputedStyle(element).outlineStyle), "solid");
-  await verifyHorizontalTabs(page, "Preferences categories");
+  await verifySectionNavigation(page, "Preferences categories");
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.screenshot({ path: path.join(artifacts, "preferences-high-contrast.png") });
   await page.emulateMedia({ forcedColors: "none" });
-  await verifyHorizontalTabs(page, "Preferences categories");
+  await verifySectionNavigation(page, "Preferences categories");
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.screenshot({ path: path.join(artifacts, "preferences-light.png") });
   await page.getByRole("tab", { name: "Cache", exact: true }).click();
@@ -206,7 +216,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page
     .getByRole("button", { name: /Preferências/ })
     .click();
-  await verifyHorizontalTabs(page, "Categorias de preferências");
+  await verifySectionNavigation(page, "Categorias de preferências");
   assert.equal(await page.getByLabel("Idioma").inputValue(), "pt-BR");
   assert.equal(await page.getByLabel("Abrir o Explorer após conectar", { exact: true }).isChecked(), false);
   await page.getByRole("tab", { name: "Aparência", exact: true }).click();
@@ -279,10 +289,11 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByRole("button", { name: "Authenticate", exact: true }).click();
   assert.equal(await page.getByLabel("Connection type").inputValue(), "webdav");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  assert.equal(await page.getByLabel("WebDAV HTTPS URL").inputValue(), portable.connections[0].values.url);
+  assert.equal(await page.getByRole("textbox", { name: "WebDAV HTTPS URL", exact: true }).inputValue(), portable.connections[0].values.url);
   await page.getByText("Advanced options", { exact: true }).click();
-  assert.equal(await page.getByLabel("Allow unencrypted connection (HTTP / FTP)").isChecked(), false);
-  await page.getByLabel("Allow unencrypted connection (HTTP / FTP)").check();
+  await page.getByText("Connection security", { exact: true }).click();
+  assert.equal(await page.getByRole("checkbox", { name: "Allow unencrypted connection (HTTP / FTP)", exact: true }).isChecked(), false);
+  await page.getByRole("checkbox", { name: "Allow unencrypted connection (HTTP / FTP)", exact: true }).check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: "▱ Documents", exact: true }).waitFor();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -341,6 +352,6 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .click();
   assert.equal(await exited, 0);
   console.log(
-    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, preference tabs, live theme previews and cancellation, system/light/dark themes and forced colors, desktop preferences, PIN lock/recovery, second-instance activation while locked, seven-language switching and persistence, safe exit — OK",
+    "Native Wails/WebView2 smoke: setup, WebDAV browsing, portable export/import and draft reauthentication/cancellation, preference sections, live theme previews and cancellation, system/light/dark themes and forced colors, desktop preferences, PIN lock/recovery, second-instance activation while locked, seven-language switching and persistence, safe exit — OK",
   );
 });

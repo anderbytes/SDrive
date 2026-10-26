@@ -1,5 +1,6 @@
 import { api } from "../api";
 import { SecretInput } from "./SecretInput";
+import { FieldHelp } from "../FieldHelp";
 import type { Wizard } from "./useConnectionWizard";
 
 export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: Wizard }) {
@@ -11,7 +12,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
       .filter(
         (f) =>
           (!(p.id === "gcs") || (wizard.connection.authMethod === "serviceAccount" ? !["client_id", "client_secret"].includes(f.key) : f.key !== "service_account_file")) &&
-          !!f.advanced === advanced,
+          (f.key !== "key_file_pass" || !!values.key_file) && !!f.advanced === advanced,
       )
       .map((f) => (
         <div className="credential-field" key={`${p.id}-${f.key}`}>
@@ -21,7 +22,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
               value={values[f.key] ?? f.default ?? ""} required={f.required || (f.key === "client_secret" && !wizard.initial.id)}
               onChange={(value) => setValue(f.key, value)} />
           ) : <label>
-          {t(f.label)}
+          <span className="field-label">{t(f.label)}</span>
           {f.choices ? (
             <select
               disabled={["shared_with_me", "export_formats"].includes(f.key) && wizard.initial.recovery}
@@ -52,7 +53,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
           )}
           </label>}
           {fieldFeedback(f.key)}
-          {f.hint && <small id={`${fieldID}-${f.key}-help`}>{t(f.hint)}</small>}
+          {f.hint && <FieldHelp id={`${fieldID}-${f.key}-help`} label={t(f.label)}>{t(f.hint)}</FieldHelp>}
           {f.file && (
             <button
               type="button"

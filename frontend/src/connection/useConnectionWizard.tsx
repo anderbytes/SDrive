@@ -2,7 +2,7 @@ import { errorMessage as message, localizedMessage, type LocalizedMessage } from
 import { driveNameError, trimDriveName } from "./name";
 import { useEffect, useId, useState, useReducer } from "react";
 import { api, mountTarget, validationError, type Browser, type Connection, type FieldError, type Snapshot, type ImportDraft } from "../api";
-import { methods, methodKey } from "./methods";
+import { methods, methodKey, supportsNetworkOptions } from "./methods";
 import { useLanguage } from "../i18n";
 import { useDialog } from "../useDialog";
 import { initialWizardState, wizardReducer } from "./state";
@@ -243,7 +243,10 @@ export function useConnectionWizard({
   const selectMethod = (key: string) => {
     const method = serviceMethods.find((m) => m.key === key);
     if (!method) return;
-    change({ provider: method.provider.id, authMethod: method.authMethod, name: "", sessionOnly: false, alternateURL: "", connectTimeout: 0, idleTimeout: 0, useProxy: false });
+    change({ provider: method.provider.id, authMethod: method.authMethod, name: "", sessionOnly: false, alternateURL: "", connectTimeout: 0, idleTimeout: 0, useProxy: false,
+      ...(!supportsNetworkOptions(method.provider.id) ? { uploadLimit: 0, downloadLimit: 0 } : {}),
+      ...(!method.provider.oauth || method.authMethod === "serviceAccount" ? { browser: "", privateBrowser: false } : {}),
+    });
     setValues({}); setIdentity(undefined); setTrusted(false); setTransport("explicit"); setInsecure(false);
   };
   const selectCategory = (next: string) => {

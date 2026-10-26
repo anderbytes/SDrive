@@ -827,5 +827,15 @@
   "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "零使用提供商默认值。重新连接后更改显示的总容量；不会预留空间、强制配额或更改提供商配额及本地缓存可用空间。",
   "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "保留时间为 1–4320 小时（180 天）。控制上次访问后的清理，不保证离线可用；待上传文件仍受保护。",
   "SOCKS5 authentication requires both username and password, each at most 255 bytes.": "SOCKS5 身份验证需要用户名和密码，每项最多 255 字节。",
-  "SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings.": "SOCKS5 通过代理解析目标名称。浏览器登录使用浏览器自身的网络设置。"
+  "SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings.": "SOCKS5 通过代理解析目标名称。浏览器登录使用浏览器自身的网络设置。",
+  "Sections": "分区",
+  "Help for {field}": "{field}的帮助",
+  "Connection setup": "连接设置",
+  "Service": "服务",
+  "Access": "访问",
+  "Folder": "文件夹",
+  "Additional access settings": "其他访问设置",
+  "Drive behavior": "驱动器行为",
+  "Files and cache": "文件与缓存",
+  "Sign-in options": "登录选项"
 }

@@ -1,6 +1,6 @@
 # Connection authentication and networking
 
-New-drive setup starts in **Basic**. Password/address access, S3, B2, Azure and GCS service accounts belong there. **Advanced** contains the OAuth methods that require your own application registration; see [OAuth setup](oauth-setup.md). These tabs are separate from the access form's Advanced options.
+New-drive setup starts in **Basic**. Password/address access, S3, B2, Azure and GCS service accounts belong there. **Advanced** contains the OAuth methods that require your own application registration; see [OAuth setup](oauth-setup.md). This compact category selector is separate from the access form's Advanced options. Setup retains its guided sequence, shown in the side navigation. Additional access settings, files/cache, network, sign-in and drive behavior remain collapsed until needed; only applicable settings are offered. Field explanations are available through help icons, while authentication requirements and active security warnings remain visible.
 
 ## Isolated connection engines
 

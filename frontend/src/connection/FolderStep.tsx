@@ -104,7 +104,7 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
         </details>
       )}
       {directPath !== path && <p role="status">{t("Destination not applied. Choose Open destination before connecting.")}</p>}
-      <MountDestination wizard={wizard} />
+      <MountDestination wizard={wizard} collapsed />
       {!data.winFsp && (
         <p role="alert">
           {t("Run the SDrive installer again to prepare drive mounting.")}

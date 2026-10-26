@@ -62,7 +62,7 @@ try {
     const dialog = page.getByRole("dialog").last();
     if (await dialog.count()) {
       assert(await dialog.evaluate(e => e.scrollWidth <= e.clientWidth + 1), "Dialog horizontal overflow");
-      assert(await dialog.evaluate(e => { const b = e.getBoundingClientRect(); return Math.abs(b.right - innerWidth) <= 1 && b.width <= 640 && b.top >= 0; }), "Drawer must align to the right edge");
+      assert(await dialog.evaluate(e => { const b = e.getBoundingClientRect(); return Math.abs(b.right - innerWidth) <= 1 && b.width <= (e.classList.contains("with-navigation") ? 800 : 640) && b.top >= (innerWidth < 640 ? 8 : 16) && b.bottom <= innerHeight - (innerWidth < 640 ? 8 : 16) + 1; }), "Drawer must align to the right edge");
       assert(await dialog.locator(".dialog-footer").evaluate(e => { const b = e.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight + 1; }), "Drawer actions clipped");
     }
   };
@@ -83,8 +83,10 @@ try {
     await details();
     for (const topic of ["Remote destination", "Connection options", "Upload details", "Local cache", "Remote capacity", "Connection security", "Alerts and recovery"]) {
       const tab = page.getByRole("tab", { name: topic, exact: true });
+      const menu = page.locator(".dialog-navigation .navigation-toggle");
+      if (await menu.isVisible() && !await tab.isVisible()) await menu.click();
       await tab.click(); await bounds();
-      assert(await tab.evaluate(e => { const a = e.getBoundingClientRect(), b = e.parentElement.getBoundingClientRect(); return a.left >= b.left - 1 && a.right <= b.right + 1; }), "Selected topic must remain visible");
+      assert.equal(await page.locator(".navigation-items button[aria-selected=true]").textContent().then(text => text.replace(/ !$/, "").trim()), topic);
     }
     await capture("details-" + viewport.width);
     await page.getByRole("button", { name: "Close", exact: true }).click();
@@ -92,6 +94,22 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "+ New connection", exact: true }).click();
   await bounds(); await capture("connection-service");
+  const help = page.getByRole("button", { name: "Help for Windows drive letter", exact: true });
+  await help.hover();
+  const tooltip = page.getByRole("tooltip");
+  await tooltip.waitFor();
+  assert(await tooltip.evaluate(element => {
+    const box = element.getBoundingClientRect(), dialog = element.closest("dialog").getBoundingClientRect();
+    return box.left >= dialog.left && box.right <= dialog.right && box.top >= dialog.top && box.bottom <= dialog.bottom;
+  }), "Help must fit inside the modal top layer");
+  assert(await tooltip.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return element.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+  }), "Help must remain visible above the scrolling body");
+  await capture("connection-help");
+  await page.keyboard.press("Escape");
+  assert.equal(await tooltip.count(), 0, "Escape dismisses help");
+  assert.equal(await page.getByRole("dialog").count(), 1, "Dismissing help preserves setup");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await bounds(); await capture("connection-access");
   await page.getByRole("button", { name: "Close setup", exact: true }).click();
@@ -144,7 +162,7 @@ try {
   await page.emulateMedia({ forcedColors: "none" });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "U1, 44px actions, long paths, four viewport sizes, seven topics, five preference tabs, setup, nested import, access settings, diagnostics, seven languages, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "U1, 44px actions, long paths, four viewport sizes, seven topics, vertical preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

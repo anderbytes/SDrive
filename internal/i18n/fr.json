@@ -827,5 +827,15 @@
   "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "Zéro utilise la valeur du fournisseur. Modifie le total affiché après reconnexion ; ne réserve pas d’espace, n’impose pas de quota et ne modifie ni le quota du fournisseur ni l’espace libre du cache local.",
   "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "La conservation accepte de 1 à 4320 heures (180 jours). Elle contrôle l’éviction après le dernier accès, pas la disponibilité hors ligne ; les envois en attente restent protégés.",
   "SOCKS5 authentication requires both username and password, each at most 255 bytes.": "L’authentification SOCKS5 exige un nom d’utilisateur et un mot de passe de 255 octets maximum chacun.",
-  "SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings.": "SOCKS5 résout les noms de destination via le proxy. La connexion dans le navigateur utilise ses propres paramètres réseau."
+  "SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings.": "SOCKS5 résout les noms de destination via le proxy. La connexion dans le navigateur utilise ses propres paramètres réseau.",
+  "Sections": "Sections",
+  "Help for {field}": "Aide pour {field}",
+  "Connection setup": "Configuration de la connexion",
+  "Service": "Service",
+  "Access": "Accès",
+  "Folder": "Dossier",
+  "Additional access settings": "Paramètres d’accès supplémentaires",
+  "Drive behavior": "Comportement du lecteur",
+  "Files and cache": "Fichiers et cache",
+  "Sign-in options": "Options de connexion"
 }

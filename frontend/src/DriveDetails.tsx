@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react";
 import { DialogLayout } from "./DialogLayout";
+import { DialogNavigation } from "./DialogNavigation";
 import { useDialog } from "./useDialog";
 import type { ConnectionView, Provider } from "./api";
 import { useLanguage } from "./i18n";
@@ -69,21 +70,10 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
   ];
   const item = items.find((entry) => entry.key === topic) || items[0];
   return <DialogLayout dialogRef={dialog} titleID={id} title={t("Drive details") + " · " + c.name} onClose={() => onSelect(undefined)}
+    navigation={<DialogNavigation label={t("Drive details")} selected={item.key}
+      onSelect={(key) => onSelect({ connectionID: c.id, topic: key })}
+      items={items.map((entry) => ({ key: entry.key, label: t(entry.title), id: id + "-" + entry.key, panel: id + "-content", attention: entry.attention }))} />}
     footer={<button onClick={() => onSelect(undefined)}>{t("Close")}</button>}>
-    <div className="edit-tabs detail-tabs" role="tablist" aria-label={t("Drive details")}>
-      {items.map((entry, index) => <button key={entry.key} type="button" role="tab" id={id + "-" + entry.key}
-        aria-selected={item.key === entry.key} aria-controls={id + "-content"} tabIndex={item.key === entry.key ? 0 : -1}
-        className={entry.attention ? "attention" : undefined}
-        onClick={() => onSelect({ connectionID: c.id, topic: entry.key })}
-        onKeyDown={(event) => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-          event.preventDefault();
-          const next = event.key === "Home" ? items[0] : event.key === "End" ? items[items.length - 1]
-            : items[(index + (event.key === "ArrowRight" ? 1 : items.length - 1)) % items.length];
-          onSelect({ connectionID: c.id, topic: next.key });
-          document.getElementById(id + "-" + next.key)?.focus();
-        }}>{t(entry.title)}{entry.attention && <span aria-hidden="true"> !</span>}</button>)}
-    </div>
     <section id={id + "-content"} role="tabpanel" aria-labelledby={id + "-" + item.key} tabIndex={0}>
       <h3>{t(item.title)}</h3>{item.content}
     </section>

@@ -37,6 +37,15 @@ test("connection status distinguishes effective settings, negotiation and missin
   expect(view.container.textContent).toBe("");
 });
 
+test("SMB and MEGA security qualifications stay visible without opening help", () => {
+  const view = render(<TransportCapability provider={{ ...provider, id: "smb" }} />);
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(screen.getByText(/Signing alone does not encrypt/).tagName).toBe("SMALL");
+  view.rerender(<TransportCapability provider={{ ...provider, id: "mega" }} />);
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(screen.getByText(/over HTTP by default/).tagName).toBe("SMALL");
+});
+
 test("MEGA explains encrypted content separately from HTTP transport in both languages", () => {
   render(<LanguageProvider><LanguageSwitch /><TransportStatus connection={{ ...connection, provider: "mega", transportSecurity: { state: "unencrypted", protocol: "http", source: "configuration", checkedAt: "2026-10-25T12:00:00Z" } }} /></LanguageProvider>);
   expect(screen.getByText("Traffic unencrypted · HTTP")).toBeTruthy();

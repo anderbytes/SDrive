@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
 import { MountDestination } from "./MountDestination";
 import { TransportCapability } from "../TransportSecurity";
-import { advancedDisclaimer, methodKey, oauthInstructions } from "./methods";
+import { advancedDisclaimer, methodKey, oauthInstructions, supportsNetworkOptions } from "./methods";
 import { ConnectionOptions, DirectoryCacheOptions, NetworkOptions } from "./ConnectionOptions";
 import { api } from "../api";
 import { useConnectionWizard, type EditorProps } from "./useConnectionWizard";
@@ -9,6 +9,8 @@ import { AccessFields } from "./AccessFields";
 import { AuthenticationActions, AuthenticationStep } from "./AuthenticationStep";
 import { FolderActions, FolderStep } from "./FolderStep";
 import { DialogLayout } from "../DialogLayout";
+import { DialogNavigation } from "../DialogNavigation";
+import { FieldHelp } from "../FieldHelp";
 
 export function ConnectionEditor(props: EditorProps) {
   const wizard = useConnectionWizard(props);
@@ -31,9 +33,18 @@ export function ConnectionEditor(props: EditorProps) {
       {step === "edit" ? t("Save changes") : busy || loading ? t("Preparing…") : step === "access" && p.oauth && !values.service_account_file ? t("Sign in with {provider}", { provider: p.name }) : t("Continue")}
     </button>
   </>;
+  const setupSection = step === "service" ? "Service" : ["access", "auth"].includes(step) ? "Access"
+    : step === "complete" || savedID || busy && step === "folder" ? "Connect" : "Folder";
+  const navigation = step === "edit" ? <DialogNavigation label={t("Drive settings")} selected={editTab} onSelect={setEditTab}
+    items={["general", "files", "network"].filter((key) => key !== "network" || supportsNetworkOptions(connection.provider)).map((key) => ({ key, label: t(key === "general" ? "General" : key === "files" ? "Files" : "Network"),
+      id: `${fieldID}-edit-${key}-tab`, panel: `${fieldID}-edit-${key}-panel`, disabled: busy }))} />
+    : <DialogNavigation steps label={t("Connection setup")} selected={setupSection}
+      onSelect={(key) => { if (key === "Service" && step === "access" && !initial.id && !busy) dispatch({ type: "service" }); }}
+      items={["Service", "Access", "Folder", "Connect"].map((key) => ({ key, label: t(key),
+        disabled: key !== setupSection && !(key === "Service" && step === "access" && !initial.id && !busy) }))} />;
   return (
     <DialogLayout dialogRef={dialog} titleID="editor-title" title={initial.id ? auth ? t("Reconfigure account") : t("Edit drive") : t("New connection")}
-      eyebrow={auth ? t("SERVICE → ACCESS → FOLDER → CONNECT") : t("CONFIGURE DRIVE")} onClose={close} closeDisabled={busy} closeLabel={t("Close setup")} footer={footer}>
+      navigation={navigation} eyebrow={auth ? undefined : t("CONFIGURE DRIVE")} onClose={close} closeDisabled={busy} closeLabel={t("Close setup")} footer={footer}>
         {(error || session?.error) && (
           <div role="alert" className="alert error">
             {t(error || session?.error || "")}
@@ -70,9 +81,7 @@ export function ConnectionEditor(props: EditorProps) {
               <label>{t("Connection type")}<select value={methodKey(connection, data.providers)} onChange={(e) => wizard.selectMethod(e.target.value)}>
                 {wizard.serviceMethods.filter((m) => m.advanced === (wizard.category === "advanced")).map((m) => <option key={m.key} value={m.key}>{t(m.label)}{m.provider.experimental ? ` (${t("experimental")})` : ""}</option>)}
               </select></label>
-              <TransportCapability provider={p} />
               {!wizard.serviceMethods.some((m) => m.advanced === (wizard.category === "advanced")) && <p>{t("No connection methods in this category.")}</p>}
-              {wizard.category === "advanced" && <p>{t(oauthInstructions[p.id] || "")}</p>}
             </div>
             <label>
               {t("Drive name")}
@@ -96,14 +105,14 @@ export function ConnectionEditor(props: EditorProps) {
               void begin();
             }}
           >
-            <h3>
+            <div className="access-intro"><h3>
               {p.id === "gcs" && connection.authMethod === "serviceAccount"
                 ? t("Access to {provider}", { provider: p.name })
                 : p.oauth
                 ? t("Sign in to {provider}", { provider: p.name })
                 : t("Access to {provider}", { provider: p.name })}
             </h3>
-            <p>
+            <FieldHelp label={t("Access details")}>
               {p.id === "gcs" && connection.authMethod === "serviceAccount"
                 ? t("Select a service account JSON file authorized for your bucket. Browser sign-in is not required.")
                 : p.oauth
@@ -113,7 +122,7 @@ export function ConnectionEditor(props: EditorProps) {
                 : t(
                     "Enter your account credentials or the details provided by your storage administrator.",
                   )}
-            </p>
+            </FieldHelp></div>
             {unavailable && (
               <div className="alert warning" role="status">
                 {t(p.notice || "")}
@@ -134,6 +143,7 @@ export function ConnectionEditor(props: EditorProps) {
               <legend>{t("Access details")}</legend>
               <AccessFields advanced={false} wizard={wizard} />
               <TransportCapability provider={p} />
+              {(p.id === "ftp" && transport === "plain" || /^http:\/\//i.test(values.url || values.endpoint || "")) && <p role="status" className="alert warning">{t("Unencrypted connections expose credentials and file content to the network.")}</p>}
               {p.id === "ftp" && transport === "plain" && <p role="status">{t("This connection uses unencrypted FTP. Confirm permission in Advanced options before continuing.")}</p>}
               {p.id === "sftp" && (
                 <div className="host-key">
@@ -173,8 +183,12 @@ export function ConnectionEditor(props: EditorProps) {
               )}
               <details>
                 <summary>{t("Advanced options")}</summary>
-                <AccessFields advanced wizard={wizard} />
+                {p.fields.some((field) => field.advanced && (field.key !== "key_file_pass" || values.key_file)) && <details>
+                  <summary>{t("Additional access settings")}</summary>
+                  <AccessFields advanced wizard={wizard} />
+                </details>}
                 <ConnectionOptions wizard={wizard} />
+                {["webdav", "nextcloud", "owncloud", "s3", "ftp"].includes(p.id) && <details><summary>{t("Connection security")}</summary>
                 {p.id === "ftp" && <p>{t("FTP uses passive transfers only. Active mode, Mode Z compression and legacy filename charsets are not supported.")}</p>}
                 {p.id === "ftp" && (
                   <>
@@ -192,14 +206,14 @@ export function ConnectionEditor(props: EditorProps) {
                         <option value="plain">{t("Unencrypted FTP")}</option>
                       </select>
                     </label>
-                    <small id={`${fieldID}-transport-help`}>{t("FTPS encrypts the connection. Unencrypted FTP exposes credentials and file content to the network.")}</small>
+                    <FieldHelp id={`${fieldID}-transport-help`} label={t("Access type")}>{t("FTPS encrypts the connection. Unencrypted FTP exposes credentials and file content to the network.")}</FieldHelp>
                   </>
                 )}
                 {["webdav", "nextcloud", "owncloud", "s3", "ftp"].includes(
                   p.id,
                 ) && (
                   <>
-                    <label className="check">
+                    <div className="option-with-help"><label className="check">
                       <input
                         type="checkbox"
                         aria-describedby={`${fieldID}-insecure-help`}
@@ -208,10 +222,12 @@ export function ConnectionEditor(props: EditorProps) {
                       />
                       {t("Allow unencrypted connection (HTTP / FTP)")}
                     </label>
-                    <small id={`${fieldID}-insecure-help`}>{t("Unencrypted connections expose credentials and file content to the network.")}</small>
+                    <FieldHelp id={`${fieldID}-insecure-help`} label={t("Allow unencrypted connection (HTTP / FTP)")}>{t("Unencrypted connections expose credentials and file content to the network.")}</FieldHelp></div>
                   </>
                 )}
-                <label className="check">
+                </details>}
+                <details><summary>{t("Drive behavior")}</summary>
+                <div className="option-with-help"><label className="check">
                   <input
                     type="checkbox"
                     aria-describedby={`${fieldID}-readonly-help`}
@@ -221,8 +237,9 @@ export function ConnectionEditor(props: EditorProps) {
                   />
                   {t("Mount read only")}
                 </label>
-                <small id={`${fieldID}-readonly-help`}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</small>
-                <label className="check">
+                <FieldHelp id={`${fieldID}-readonly-help`} label={t("Mount read only")}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</FieldHelp></div>
+                {!connection.sessionOnly && <>
+                <div className="option-with-help"><label className="check">
                   <input
                     type="checkbox"
                     aria-describedby={`${fieldID}-automount-help`}
@@ -232,7 +249,9 @@ export function ConnectionEditor(props: EditorProps) {
                   />
                   {t("Connect automatically when SDrive starts")}
                 </label>
-                <small id={`${fieldID}-automount-help`}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</small>
+                <FieldHelp id={`${fieldID}-automount-help`} label={t("Connect automatically when SDrive starts")}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</FieldHelp></div>
+                </>}
+                </details>
               </details>
             </fieldset>
           </form>
@@ -265,24 +284,6 @@ export function ConnectionEditor(props: EditorProps) {
               void update();
             }}
           >
-            <div className="edit-tabs" role="tablist" aria-label={t("Drive settings")}>
-              {(["general", "files", "network"] as const).map((tab, index, tabs) => (
-                <button key={tab} id={`${fieldID}-edit-${tab}-tab`} type="button" role="tab"
-                  aria-selected={editTab === tab} aria-controls={`${fieldID}-edit-${tab}-panel`}
-                  tabIndex={editTab === tab ? 0 : -1}
-                  onClick={() => setEditTab(tab)}
-                  onKeyDown={(e) => {
-                    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-                    e.preventDefault();
-                    const next = e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[tabs.length - 1]
-                      : tabs[(index + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-                    setEditTab(next);
-                    document.getElementById(`${fieldID}-edit-${next}-tab`)?.focus();
-                  }}>
-                  {t(tab === "general" ? "General" : tab === "files" ? "Files" : "Network")}
-                </button>
-              ))}
-            </div>
             <div id={`${fieldID}-edit-general-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-general-tab`} data-edit-tab="general" hidden={editTab !== "general"}>
               <label>
                 {t("Drive name")}
@@ -295,7 +296,7 @@ export function ConnectionEditor(props: EditorProps) {
               </label>
               {fieldFeedback("name")}
               <MountDestination wizard={wizard} />
-              <label className="check">
+              <div className="option-with-help"><label className="check">
                 <input
                   type="checkbox"
                   aria-describedby={`${fieldID}-readonly-help`}
@@ -305,9 +306,10 @@ export function ConnectionEditor(props: EditorProps) {
                 />
                 {t("Mount read only")}
               </label>
-              <small id={`${fieldID}-readonly-help`}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</small>
+              <FieldHelp id={`${fieldID}-readonly-help`} label={t("Mount read only")}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</FieldHelp></div>
               {connection.provider === "drive" && <p>{t("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")}</p>}
-              <label className="check">
+              {!connection.sessionOnly && <>
+              <div className="option-with-help"><label className="check">
                 <input
                   type="checkbox"
                   aria-describedby={`${fieldID}-automount-help`}
@@ -317,7 +319,8 @@ export function ConnectionEditor(props: EditorProps) {
                 />
                 {t("Connect automatically when SDrive starts")}
               </label>
-              <small id={`${fieldID}-automount-help`}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</small>
+              <FieldHelp id={`${fieldID}-automount-help`} label={t("Connect automatically when SDrive starts")}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</FieldHelp></div>
+              </>}
             </div>
             <div id={`${fieldID}-edit-files-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-files-tab`} data-edit-tab="files" hidden={editTab !== "files"}>
               <label>
