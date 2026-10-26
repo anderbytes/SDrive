@@ -219,6 +219,15 @@ Section "SDrive"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "NoRepair" 1
+  retry_restore_startup:
+  ClearErrors
+  ExecWait '"$INSTDIR\SDrive.exe" --restore-startup' $0
+  ${If} ${Errors}
+  ${OrIf} $0 != 0
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(RestoreStartupFailed)" /SD IDCANCEL IDRETRY retry_restore_startup
+    SetErrorLevel 1
+    Abort
+  ${EndIf}
 SectionEnd
 
 Section "Uninstall"

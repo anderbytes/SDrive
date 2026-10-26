@@ -120,9 +120,6 @@ func New(dir string, rpc RPC, engineError string) (*Service, error) {
 	}
 	if s.settingsError == "" && !s.access.locked {
 		_ = s.cleanup()
-		if matches, err := platform.AutoStartMatches(s.store.Settings.AutoStart); err != nil || !matches {
-			s.startupWarning = "Windows startup may differ from saved preferences. Save preferences to reconcile it."
-		}
 	}
 	return s, nil
 }

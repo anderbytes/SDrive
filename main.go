@@ -61,6 +61,13 @@ func (w installerLog) Write(data []byte) (int, error) {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--restore-startup" {
+		if err := restoreStartup(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--cleanup-drive-icons" {
 		if err := errors.Join(platform.CleanupDriveIcons(), platform.CleanupDriveLabels()); err != nil {
 			os.Exit(1)
@@ -168,6 +175,8 @@ func main() {
 	if uiSmoke == "true" {
 		// Disposable preferences must never change the user's Windows startup entry.
 		core.SetAutoStart(service, func(bool) error { return nil })
+	} else {
+		diagnosticLog.Operation("startup_restore", core.ReconcileStartup(service))
 	}
 	core.SetDiagnostics(service, diagnosticLog)
 	core.SetDriveLabels(service, func(connections []core.Connection) error {

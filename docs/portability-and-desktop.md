@@ -1,5 +1,15 @@
 # Configuration portability and desktop preferences
 
+## Windows startup after reinstalling
+
+The local `settings.json` remains the source of truth for **Start with Windows**. Uninstalling removes the Windows startup entry while preserving the profile. Both installers restore that preference before finishing, even when you do not launch the application. Opening SDrive also reconciles a missing entry or an outdated executable path. Disable startup in SDrive Preferences to keep it disabled; external removal of its Run entry is repaired on the next launch. Separate Windows startup-disable controls are left untouched.
+
+The installer runs the installed executable with `--restore-startup`. This command locks the profile and only reconciles startup: it does not launch the interface, start engines, mount drives, access credentials or rewrite settings. A missing profile is a no-op. Invalid or incompatible settings and pending recovery prevent reconciliation. PIN protection does not prevent restoring this saved integration and remains enforced when the application opens.
+
+If restoration fails, installation offers Retry / Cancel; silent installation returns exit code 1. Installed files and the preserved profile remain available. On application launch, a reconciliation failure leaves the app usable and displays the startup warning; save Preferences to retry after resolving the cause.
+
+Run `./scripts/test-startup-installer.ps1` for an isolated NSIS check of the production restoration block, including helper arguments, success and silent failures. Core startup tests exercise preserved profiles and simulated registry state across reinstallations without touching the user's startup entry.
+
 ## Export and import
 
 In **Preferences → Configuration → Portable configuration**, export a local JSON file or review an import. This is a portable definition file, not a restore operation for `settings.backup.json`. It never transfers pending files or their original recovery identity.
