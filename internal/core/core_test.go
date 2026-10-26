@@ -142,9 +142,9 @@ func waitSession(t *testing.T, s *Service, id string) ConfigSession {
 	return ConfigSession{}
 }
 
-func TestAllEighteenProfiles(t *testing.T) {
-	if len(Catalog()) != 18 {
-		t.Fatal("catalog must contain 18 profiles")
+func TestProviderCatalogSetupFlows(t *testing.T) {
+	if len(Catalog()) != 19 {
+		t.Fatal("catalog must contain 19 profiles")
 	}
 	backends := map[string]bool{}
 	ids := map[string]bool{}
@@ -215,8 +215,8 @@ func TestAllEighteenProfiles(t *testing.T) {
 			}
 		})
 	}
-	if len(backends) != 15 {
-		t.Fatalf("expected 15 backends, got %d", len(backends))
+	if len(backends) != 16 {
+		t.Fatalf("expected 16 backends, got %d", len(backends))
 	}
 }
 

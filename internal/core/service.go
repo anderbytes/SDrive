@@ -602,7 +602,7 @@ func (s *Service) Prerequisite(which string) error {
 	if err := s.accessAllowed(); err != nil {
 		return err
 	}
-	urls := map[string]string{"winfsp": "https://winfsp.dev/rel/", "webview2": "https://developer.microsoft.com/microsoft-edge/webview2/", "oauth-drive": "https://rclone.org/drive/#making-your-own-client-id", "oauth-onedrive": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-sharepoint": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-dropbox": "https://rclone.org/dropbox/#get-your-own-dropbox-app-id", "oauth-box": "https://rclone.org/box/#get-your-own-box-app-id", "oauth-pcloud": "https://rclone.org/pcloud/", "oauth-gcs": "https://rclone.org/googlecloudstorage/"}
+	urls := map[string]string{"winfsp": "https://winfsp.dev/rel/", "webview2": "https://developer.microsoft.com/microsoft-edge/webview2/", "oauth-drive": "https://rclone.org/drive/#making-your-own-client-id", "oauth-onedrive": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-sharepoint": "https://rclone.org/onedrive/#getting-your-own-client-id-and-key", "oauth-dropbox": "https://rclone.org/dropbox/#get-your-own-dropbox-app-id", "oauth-box": "https://rclone.org/box/#get-your-own-box-app-id", "oauth-pcloud": "https://rclone.org/pcloud/", "oauth-gcs": "https://rclone.org/googlecloudstorage/", "oauth-yandex": "https://yandex.com/dev/id/doc/en/register-client"}
 	url, ok := urls[which]
 	if !ok || s.open == nil {
 		return fmt.Errorf("unknown link")

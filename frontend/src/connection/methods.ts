@@ -21,5 +21,6 @@ export const oauthInstructions: Record<string, string> = {
   dropbox: "Create a scoped Dropbox application with the intended folder access. Add http://localhost:53682/ as a redirect and enable the required file permissions before authorizing.",
   box: "Create a Box application using user OAuth 2.0. Add http://127.0.0.1:53682/ as a redirect and enable the required file permissions. Enterprise approval may be required.",
   pcloud: "Register a pCloud OAuth application and add http://localhost:53682/ as a redirect. Select the region matching your account. Application approval may be required.",
+  yandex: "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.",
   gcs: "Enable Cloud Storage API, configure OAuth consent and create a Google desktop application. Grant only the bucket permissions needed by this account.",
 };

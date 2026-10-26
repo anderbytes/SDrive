@@ -24,6 +24,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
           {t(f.label)}
           {f.choices ? (
             <select
+              disabled={f.key === "shared_with_me" && wizard.initial.recovery}
               {...validationProps(f.key, f.hint ? `${fieldID}-${f.key}-help` : undefined)}
               value={values[f.key] ?? f.default}
               onChange={(e) => setValue(f.key, e.target.value)}
@@ -34,7 +35,7 @@ export function AccessFields({ advanced, wizard }: { advanced: boolean; wizard: 
                     ? t("United States")
                     : value === "eapi.pcloud.com"
                       ? t("Europe")
-                      : value}
+                      : f.key === "shared_with_me" ? t(value === "true" ? "Shared with me" : "My Drive / selected library") : value}
                 </option>
               ))}
             </select>

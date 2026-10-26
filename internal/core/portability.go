@@ -103,7 +103,7 @@ func portableField(providerID, key string) bool {
 			continue
 		}
 		switch key {
-		case "user", "username", "host", "port", "url", "domain", "provider", "region", "endpoint", "project_number", "root_folder_id", "hostname", "disable_epsv", "disable_mlsd":
+		case "user", "username", "host", "port", "url", "domain", "provider", "region", "endpoint", "project_number", "root_folder_id", "shared_with_me", "hostname", "disable_epsv", "disable_mlsd":
 			return true
 		case "account":
 			return providerID == "azureblob"

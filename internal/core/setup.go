@@ -262,7 +262,7 @@ func sensitiveQuestion(name string) bool {
 
 func validateConfiguredRemote(p Provider, config map[string]string) error {
 	invalid := fmt.Errorf("the engine did not save a valid account configuration; cancel and try again")
-	if config == nil || config["type"] != p.Backend {
+	if config == nil || config["type"] != p.Backend || validateDriveContents(config) != nil {
 		return invalid
 	}
 	if oauthParameters(p, config) != nil {

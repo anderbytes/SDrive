@@ -50,6 +50,7 @@ vi.mock("./api", async (importOriginal) => ({
   api: {
     inspectFileAccess: vi.fn(), accessStatus: vi.fn(), configureAccess: vi.fn(), disableAccess: vi.fn(), lock: vi.fn(), unlockAccess: vi.fn(), recoverAccess: vi.fn(), onAccessChanged: vi.fn(),
     exportConfiguration: vi.fn(), previewImport: vi.fn(), commitImport: vi.fn(), removeImportDraft: vi.fn(),
+    preferenceDefaults: vi.fn(), restoreDefaultCacheLocation: vi.fn(),
     selectDirectory: vi.fn(), changeCacheLocation: vi.fn(), refreshDirectoryCache: vi.fn(),
     browsers: vi.fn(), proxy: vi.fn(), saveProxy: vi.fn(),
     about: vi.fn(),
@@ -136,6 +137,8 @@ beforeEach(() => {
   vi.mocked(api.accessStatus).mockResolvedValue(access);
   vi.mocked(api.onAccessChanged).mockReturnValue(() => {});
   vi.mocked(api.browsers).mockResolvedValue([{ id: "", name: "Default browser" }]);
+  vi.mocked(api.preferenceDefaults).mockResolvedValue({ ...snapshot.settings, cacheMaxAgeHours: 24, writeBackSeconds: 5 });
+  vi.mocked(api.restoreDefaultCacheLocation).mockResolvedValue("C:\\Synthetic\\Profile\\cache");
   vi.mocked(api.proxy).mockResolvedValue({ address: "", username: "", password: "", hasPassword: false });
   vi.mocked(api.desktopVisible).mockResolvedValue(true);
   vi.mocked(api.onDesktopVisibility).mockReturnValue(() => {});
@@ -2202,4 +2205,83 @@ test("multiple invalid panels keep the first invalid field visible", async () =>
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   expect(screen.getByRole("tab", { name: "General" }).getAttribute("aria-selected")).toBe("true");
   expect(api.update).not.toHaveBeenCalled();
+});
+
+
+test.each(["en", "pt-BR"] as const)("cache and proxy defaults stay isolated and wait for Save in %s", async (language) => {
+  const t = (source: string) => translate(language, source);
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, language });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language, cacheGiB: 9, cacheMaxAgeHours: 72, writeBackSeconds: 90 } });
+  vi.mocked(api.proxy).mockResolvedValue({ address: "http://proxy.test", username: "synthetic", password: "", hasPassword: true });
+  vi.mocked(api.settings).mockResolvedValue();
+  vi.mocked(api.saveProxy).mockResolvedValue();
+  render(<App />);
+  const preferences = await screen.findByRole("button", { name: new RegExp(t("Preferences")) });
+  await waitFor(() => expect((preferences as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(preferences);
+  fireEvent.click(screen.getByRole("tab", { name: t("Cache") }));
+  const restoreSize = screen.getByRole("button", { name: t("Restore cache size") });
+  await waitFor(() => expect((restoreSize as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(restoreSize);
+  expect((screen.getByLabelText(t("Cache target per connection (GiB)")) as HTMLInputElement).value).toBe("2");
+  expect((screen.getByLabelText(t("Cache retention after last access (hours)")) as HTMLInputElement).value).toBe("72");
+  fireEvent.click(screen.getByRole("button", { name: t("Restore cache timing") }));
+  expect((screen.getByLabelText(t("Cache retention after last access (hours)")) as HTMLInputElement).value).toBe("24");
+  expect((screen.getByLabelText(t("Upload delay after last use (seconds)")) as HTMLInputElement).value).toBe("5");
+  expect(api.restoreDefaultCacheLocation).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("tab", { name: t("Network") }));
+  fireEvent.click(screen.getByRole("button", { name: t("Restore proxy defaults") }));
+  expect(api.settings).not.toHaveBeenCalled();
+  expect(api.saveProxy).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: t("Save") }));
+  await waitFor(() => expect(api.settings).toHaveBeenCalledWith(expect.objectContaining({ cacheGiB: 2, cacheMaxAgeHours: 24, writeBackSeconds: 5, language, theme: "system" })));
+  expect(api.saveProxy).toHaveBeenCalledExactlyOnceWith({ address: "", username: "", password: "", hasPassword: false });
+});
+
+test("Cancel discards restored settings and proxy credentials", async () => {
+  render(<App />); await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
+  const button=screen.getByRole("button", { name: "Restore cache size" });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(button);
+  fireEvent.click(screen.getByRole("tab", { name: "Network" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restore proxy defaults" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(api.settings).not.toHaveBeenCalled(); expect(api.saveProxy).not.toHaveBeenCalled();
+});
+
+test("default cache location applies explicitly and survives Cancel, while failure preserves the visible location", async () => {
+  render(<App />); await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
+  vi.mocked(api.restoreDefaultCacheLocation).mockRejectedValueOnce(new Error("The cache is pending or unknown. Preserve it and recover files before changing its location."));
+  fireEvent.click(screen.getByRole("button", { name: "Restore default cache location" }));
+  await screen.findByRole("alert");
+  expect(screen.getByText(`Current cache: ${snapshot.cacheLocation}`)).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Restore default cache location" }));
+  await screen.findByText("Current cache: C:\\Synthetic\\Profile\\cache");
+  expect(api.settings).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(api.restoreDefaultCacheLocation).toHaveBeenCalledTimes(2);
+});
+
+test("Shared with me selection reaches setup and stays locked during recovery", async () => {
+  const drive={...snapshot.providers[0], fields:[{key:"shared_with_me", label:"Google Drive contents", secret:false, required:false, default:"false", choices:["false","true"], advanced:false, file:false}]};
+  vi.mocked(api.snapshot).mockResolvedValue({...snapshot,providers:[drive]});
+  vi.mocked(api.begin).mockResolvedValue("shared-draft");
+  vi.mocked(api.status).mockResolvedValue({...bridgeFixtures.samples.sessionEmpty,id:"shared-draft",busy:true});
+  render(<App />);
+  fireEvent.click(await screen.findByText("Add my first connection")); selectAvailableCategory();
+  fireEvent.click(screen.getByText("Continue"));
+  fireEvent.change(screen.getByLabelText("Google Drive contents"),{target:{value:"true"}});
+  fireEvent.click(screen.getByRole("button",{name:"Sign in with Google Drive"}));
+  await waitFor(()=>expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({values:{shared_with_me:"true"}})));
+  cleanup();
+  vi.mocked(api.snapshot).mockResolvedValue({...snapshot,providers:[drive],connections:[{...connection,recovery:true,sessionOnly:true}]});
+  vi.mocked(api.fields).mockResolvedValue({values:{shared_with_me:"true"},transport:""});
+  render(<App />);
+  fireEvent.click(await screen.findByLabelText("More actions for My Drive"));
+  fireEvent.click(screen.getByRole("button", {name:"Reconfigure account"}));
+  const selection=await screen.findByLabelText("Google Drive contents") as HTMLSelectElement;
+  await waitFor(()=>expect(selection.value).toBe("true"));
+  expect(selection.disabled).toBe(true);
 });

@@ -74,6 +74,7 @@ type Calls = { [K in BridgeKey]: Parameters<(typeof api)[K]> };
 type Results = {
   inspectFileAccess: FileAccessView; accessStatus: AccessStatus; configureAccess: string; disableAccess: void; lock: void; unlockAccess: void; recoverAccess: string;
   exportConfiguration: void; previewImport: ImportPreview | null; commitImport: void; removeImportDraft: void;
+  preferenceDefaults: Settings; restoreDefaultCacheLocation: string;
   selectDirectory: string; changeCacheLocation: void; refreshDirectoryCache: void;
   browsers: Browser[]; proxy: ProxyConfig; saveProxy: void;
   about: AboutInfo; diagnostics: string; desktopVisible: boolean; snapshot: Snapshot;
@@ -86,6 +87,7 @@ type Results = {
 const calls = {
   inspectFileAccess: ["connection", "file.txt"], accessStatus: [], configureAccess: ["", "123456", { idleMinutes: 15, disconnectIdle: false, reconnect: false }], disableAccess: ["123456"], lock: [], unlockAccess: ["123456"], recoverAccess: ["synthetic", "123456"],
   exportConfiguration: [], previewImport: [], commitImport: ["preview", { ...samples.importPreview.document, preferences: { ...samples.importPreview.document.preferences, theme: "system", language: "en" } }, false], removeImportDraft: ["draft"],
+  preferenceDefaults: [], restoreDefaultCacheLocation: [],
   selectDirectory: [], changeCacheLocation: ["C:\\Synthetic\\Cache"], refreshDirectoryCache: ["connection"],
   browsers: [], proxy: [], saveProxy: [{ address: "", username: "", password: "", hasPassword: false }],
   about: [], diagnostics: [], desktopVisible: [], snapshot: [],

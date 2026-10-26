@@ -58,8 +58,19 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   );
   assert.equal(await page.getByRole("tab", { name: "Basic", exact: true }).getAttribute("aria-selected"), "true");
   await page.getByRole("tab", { name: "Advanced", exact: true }).click();
-  assert.equal(await page.getByLabel("Connection type").locator("option").count(), 7);
+  assert.equal(await page.getByLabel("Connection type").locator("option").count(), 8);
   await page.getByText("These connections require additional setup.", { exact: false }).waitFor();
+  await page.getByLabel("Connection type").selectOption("drive");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Google Drive contents").selectOption("true");
+  assert.equal(await page.getByLabel("Google Drive contents").inputValue(), "true");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByLabel("Connection type").selectOption("yandex");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Client ID").waitFor();
+  await page.getByText("Register your own Yandex OAuth application", { exact: false }).waitFor();
+  assert.equal(await page.getByLabel("Client ID").getAttribute("required"), "");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("tab", { name: "Advanced", exact: true }).press("Home");
   assert.equal(await page.getByRole("tab", { name: "Basic", exact: true }).getAttribute("aria-selected"), "true");
   await page.getByLabel("Connection type").selectOption("webdav");
@@ -152,6 +163,16 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.screenshot({ path: path.join(artifacts, "preferences-light.png") });
   await page.getByRole("tab", { name: "Cache", exact: true }).click();
+  await page.getByLabel("Cache target per connection (GiB)").fill("9");
+  await page.getByRole("button", { name: "Restore cache size", exact: true }).click();
+  assert.equal(await page.getByLabel("Cache target per connection (GiB)").inputValue(), "2");
+  await page.getByRole("button", { name: "Restore cache timing", exact: true }).click();
+  assert.equal(await page.getByLabel("Cache retention after last access (hours)").inputValue(), "24");
+  assert.equal(await page.getByLabel("Upload delay after last use (seconds)").inputValue(), "5");
+  await page.getByRole("tab", { name: "Network", exact: true }).click();
+  await page.getByRole("button", { name: "Restore proxy defaults", exact: true }).click();
+  assert.equal(await page.getByLabel("Proxy HTTP/HTTPS address").inputValue(), "");
+  await page.getByRole("tab", { name: "Cache", exact: true }).click();
   await page.getByLabel("Cache target per connection (GiB)").fill("3");
   await page.getByLabel("Cache retention after last access (hours)").fill("48");
   await page.getByLabel("Upload delay after last use (seconds)").fill("0");
@@ -160,6 +181,8 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByLabel("New empty cache directory").fill(selectedCache);
   await page.getByRole("button", { name: "Change cache location", exact: true }).click();
   await page.getByText("Cache location changed. The previous cache was preserved.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Restore default cache location", exact: true }).click();
+  await page.getByText(`Current cache: ${path.join(profile, "SDrive", "cache")}`, { exact: true }).waitFor();
   await page
     .getByRole("button", { name: "Save", exact: true })
     .click();
@@ -192,6 +215,9 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.getByRole("tab", { name: "Configuração", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "Exportar configuração", exact: true }).isVisible(), true);
   await page.getByRole("tab", { name: "Cache", exact: true }).click();
+  await page.getByRole("button", { name: "Restaurar tamanho do cache", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Restaurar tempos do cache", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Restaurar local padrão do cache", exact: true }).waitFor();
   assert.equal(await page.getByLabel("Retenção do cache após o último acesso (horas)").inputValue(), "48");
   assert.equal(await page.getByLabel("Atraso do upload após o último uso (segundos)").inputValue(), "0");
   await page.getByRole("tab", { name: "Geral", exact: true }).click();

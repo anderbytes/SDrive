@@ -133,3 +133,126 @@ func TestMissingCacheBindingNeverFallsBackToLegacyCache(t *testing.T) {
 		t.Fatal("missing binding authorized fallback or writes")
 	}
 }
+
+func TestDefaultCacheRestorationPreservesBothDirectoriesAndReopens(t *testing.T) {
+	s := cacheLocationService(t)
+	original := s.dataPath()
+	external := t.TempDir()
+	if err := s.ChangeCacheLocation(external); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(original, "vfs", "empty"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	path, err := s.RestoreDefaultCacheLocation()
+	if err != nil || path != original || s.dataPath() != original {
+		t.Fatalf("restore: %s %v", path, err)
+	}
+	if _, err := os.Stat(filepath.Join(external, cacheOwnerFile)); err != nil {
+		t.Fatal("previous cache removed")
+	}
+	reopened, _ := New(s.dir, &fakeRPC{}, "")
+	if reopened.dataPath() != original || reopened.settingsError != "" {
+		t.Fatalf("reopen: %s", reopened.settingsError)
+	}
+	if _, err := s.RestoreDefaultCacheLocation(); err != nil {
+		t.Fatal("default no-op failed", err)
+	}
+	if err := s.ChangeCacheLocation(filepath.Join(s.dir, "cache")); err == nil {
+		t.Fatal("general relocation accepted profile path")
+	}
+}
+
+func TestDefaultCacheRestorationRejectsOccupiedAndUnsafeState(t *testing.T) {
+	for _, state := range []string{"occupied", "invalid owner", "dirty", "unknown", "mounted", "busy", "recovery", "commit failure"} {
+		t.Run(state, func(t *testing.T) {
+			s := cacheLocationService(t)
+			original := s.dataPath()
+			external := t.TempDir()
+			if err := s.ChangeCacheLocation(external); err != nil {
+				t.Fatal(err)
+			}
+			switch state {
+			case "occupied":
+				if err := os.WriteFile(filepath.Join(original, "preserved"), []byte("data"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "invalid owner":
+				if err := os.WriteFile(filepath.Join(original, cacheOwnerFile), []byte("invalid"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "dirty":
+				content := "pending"
+				cacheFixture(t, s, s.store.Connections[0], `{"Dirty":true}`, &content)
+			case "unknown":
+				content := "unknown"
+				cacheFixture(t, s, s.store.Connections[0], `broken`, &content)
+			case "mounted":
+				s.mounted[s.store.Connections[0].ID] = true
+			case "busy":
+				s.busy[s.store.Connections[0].ID] = true
+			case "recovery":
+				s.store.Connections[0].Recovery = true
+			case "commit failure":
+				name, _ := windows.UTF16PtrFromString(filepath.Join(s.dir, cacheLocationFile))
+				handle, err := windows.CreateFile(name, windows.GENERIC_READ, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, 0, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer windows.CloseHandle(handle)
+			}
+			if _, err := s.RestoreDefaultCacheLocation(); err == nil || s.dataPath() != external {
+				t.Fatal("unsafe restoration accepted")
+			}
+			binding, err := readCacheLocation(s.dir)
+			if err != nil || binding.Path != external {
+				t.Fatal("original binding lost")
+			}
+			if state == "occupied" {
+				data, err := os.ReadFile(filepath.Join(original, "preserved"))
+				if err != nil || string(data) != "data" {
+					t.Fatal("target contents changed")
+				}
+			}
+		})
+	}
+}
+
+func TestDefaultCacheRestorationCreatesMissingDefault(t *testing.T) {
+	s := cacheLocationService(t)
+	original := s.dataPath()
+	if err := s.ChangeCacheLocation(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(original, cacheOwnerFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(original); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RestoreDefaultCacheLocation(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPreferenceDefaultsAndProxyResetPreserveConnectionChoices(t *testing.T) {
+	s := cacheLocationService(t)
+	defaults, err := s.PreferenceDefaults()
+	if err != nil || defaults.CacheGiB != 2 || *defaults.CacheMaxAgeHours != 24 || *defaults.WriteBackSeconds != 5 {
+		t.Fatalf("defaults: %+v %v", defaults, err)
+	}
+	s.store.Connections[0].UseProxy = true
+	if err := s.SaveProxy(ProxyConfig{Address: "http://127.0.0.1:1234", Username: "synthetic", Password: "synthetic-secret"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveProxy(ProxyConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := s.readProxy()
+	if err != nil || saved.Address != "" || saved.Username != "" || saved.Password != "" || !s.store.Connections[0].UseProxy {
+		t.Fatal("proxy reset lost policy or kept credentials")
+	}
+	if _, err := s.destinationClient(s.store.Connections[0]); err == nil {
+		t.Fatal("proxy-required connection silently bypassed proxy")
+	}
+}

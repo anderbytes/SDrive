@@ -26,6 +26,7 @@ const current = () => window.visualSnapshot;
 export const api = {
   accessStatus: async () => current().access, snapshot: async () => current(), desktopVisible: async () => true,
   onDesktopVisibility: cb => { window.visualVisibility = cb; return () => {}; }, onAccessChanged: cb => {window.visualAccess = cb; return () => {};},
+  preferenceDefaults: async () => ({ ...current().settings, cacheGiB: 2, cacheMaxAgeHours: 24, writeBackSeconds: 5 }), restoreDefaultCacheLocation: async () => current().cacheLocation,
   proxy: async () => ({ address: '', username: '', password: '', hasPassword: false }), browsers: async () => [{ id: '', name: 'Default browser' }],
   fields: async () => ({ values: {}, transport: '' }), settings: async settings => { current().settings = settings; },
   begin: async () => 'synthetic-draft', status: async () => ({busy:false,done:true,error:''}), folders: async () => [{name:'Documents',path:'Documents'}], end: async () => {},

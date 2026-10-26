@@ -54,6 +54,7 @@ func bridgeMethods() map[string]any {
 	names := map[string]string{
 		"inspectFileAccess": "InspectFileAccess", "accessStatus": "AccessStatus", "configureAccess": "ConfigureAccess", "disableAccess": "DisableAccess", "lock": "Lock", "unlockAccess": "UnlockAccess", "recoverAccess": "RecoverAccess",
 		"exportConfiguration": "ExportConfiguration", "previewImport": "PreviewImport", "commitImport": "CommitImport", "removeImportDraft": "RemoveImportDraft",
+		"preferenceDefaults": "PreferenceDefaults", "restoreDefaultCacheLocation": "RestoreDefaultCacheLocation",
 		"selectDirectory": "SelectDirectory", "changeCacheLocation": "ChangeCacheLocation", "refreshDirectoryCache": "RefreshDirectoryCache",
 		"browsers": "Browsers", "proxy": "ProxySettings", "saveProxy": "SaveProxy",
 		"about": "About", "diagnostics": "Diagnostics", "desktopVisible": "DesktopVisible", "snapshot": "Snapshot",

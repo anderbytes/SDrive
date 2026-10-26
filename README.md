@@ -49,7 +49,7 @@ See the [maintainer guide](docs/development.md) to build and test, and the [loca
 
 ## Project status
 
-All 18 profiles have implemented setup flows and automated tests. This **does not certify compatibility with every account and provider**. See the [validation matrix](docs/provider-validation.md) and [contributor guide](docs/contributing.md). Proton Drive and Wails v3 are beta.
+All 19 profiles have implemented setup flows and automated tests. This **does not certify compatibility with every account and provider**. See the [validation matrix](docs/provider-validation.md) and [contributor guide](docs/contributing.md). Proton Drive and Wails v3 are beta.
 
 The first version does not include Linux support, full offline synchronization, distributed editing locks, a Windows service or an automatic updater. Files are accessed on demand; saving to a virtual drive does not mean the upload has finished.
 

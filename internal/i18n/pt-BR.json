@@ -801,5 +801,20 @@
   "Try again": "Tentar novamente",
   "Local folder": "Pasta local",
   "Refresh": "Atualizar",
-  "Close dialog": "Fechar diálogo"
+  "Close dialog": "Fechar diálogo",
+  "Google Drive contents": "Conteúdo do Google Drive",
+  "Shared with me": "Compartilhados comigo",
+  "My Drive / selected library": "Meu Drive / biblioteca selecionada",
+  "Shared with me is separate from Shared Drives. Existing library and root selections are preserved.": "Compartilhados comigo é diferente de Drives compartilhados. As seleções existentes de biblioteca e pasta raiz são preservadas.",
+  "Shared with me cannot be combined with a Shared Drive.": "Compartilhados comigo não pode ser combinado com um Drive compartilhado.",
+  "Select valid Google Drive contents.": "Selecione um conteúdo válido do Google Drive.",
+  "The engine did not preserve the selected Google Drive contents. Cancel and try again.": "O mecanismo não preservou o conteúdo selecionado do Google Drive. Cancele e tente novamente.",
+  "Restore cache size": "Restaurar tamanho do cache",
+  "Restore cache timing": "Restaurar tempos do cache",
+  "Restore default cache location": "Restaurar local padrão do cache",
+  "Restore proxy defaults": "Restaurar padrões do proxy",
+  "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.": "A restauração do local padrão é aplicada imediatamente, independentemente de Salvar ou Cancelar. Arquivos existentes no diretório padrão impedem a restauração; ambos os caches são preservados.",
+  "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.": "Salvar remove o endereço e as credenciais salvas do proxy. As conexões que exigem proxy mantêm essa escolha e não podem conectar até que um proxy seja configurado.",
+  "The default cache contains files or unknown entries. Preserve it before restoring its location.": "O cache padrão contém arquivos ou entradas desconhecidas. Preserve-o antes de restaurar seu local.",
+  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Registre seu próprio aplicativo OAuth do Yandex para acessar a API do Disk. Adicione http://localhost:53682/ como URI de redirecionamento e conceda permissões de leitura do Disk, além de escrita para acesso gravável. Informe seu Client ID e Client Secret antes de entrar."
 }

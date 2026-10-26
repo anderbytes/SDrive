@@ -232,6 +232,9 @@ func checkDestination(c Connection, config map[string]string) (string, error) {
 	if config["type"] != p.Backend {
 		return "", fmt.Errorf("destination type does not match the saved connection")
 	}
+	if err := validateDriveContents(config); err != nil {
+		return "", err
+	}
 	identity := destinationFields(c, config)
 	encoded, _ := json.Marshal(identity)
 	hash := fmt.Sprintf("%x", sha256.Sum256(encoded))
@@ -441,6 +444,10 @@ func destinationFields(c Connection, config map[string]string) map[string]string
 			continue
 		}
 		identity[key] = config[key]
+	}
+	// Omit the default to preserve hashes from before content-view selection.
+	if c.Provider == "drive" && config["shared_with_me"] == "true" {
+		identity["shared_with_me"] = "true"
 	}
 	if c.PrimaryURL != "" {
 		identity["url"] = c.PrimaryURL

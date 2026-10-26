@@ -2,11 +2,14 @@ package core
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"sdrive/internal/platform"
@@ -142,6 +145,70 @@ func CachePath(s *Service) string {
 }
 
 func (s *Service) ChangeCacheLocation(path string) error {
+	return s.changeCacheLocation(path, false)
+}
+
+func (s *Service) RestoreDefaultCacheLocation() (string, error) {
+	path := filepath.Join(s.dir, "cache")
+	if err := s.changeCacheLocation(path, true); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// Only the fixed default may reuse an owner marker and empty directory skeleton.
+func cacheDestinationOwner(path string, restoreDefault bool) (string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return "", err
+	}
+	if len(entries) == 0 {
+		return "", nil
+	}
+	if !restoreDefault {
+		return "", fmt.Errorf("Choose an empty dedicated cache directory.")
+	}
+	owner := ""
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = filepath.WalkDir(path, func(current string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			_, err := platform.DirectoryIdentity(current)
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if current != filepath.Join(path, cacheOwnerFile) || !info.Mode().IsRegular() || info.Size() != 32 {
+			return fmt.Errorf("The default cache contains files or unknown entries. Preserve it before restoring its location.")
+		}
+		b, err := os.ReadFile(current)
+		if err != nil {
+			return err
+		}
+		if _, err := hex.DecodeString(string(b)); err != nil || len(b) != 32 {
+			return fmt.Errorf("Cache ownership could not be verified. Preserve the profile and cache.")
+		}
+		owner = string(b)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if owner == "" {
+		return "", fmt.Errorf("Cache ownership could not be verified. Preserve the profile and cache.")
+	}
+	return owner, nil
+}
+
+func (s *Service) changeCacheLocation(path string, restoreDefault bool) error {
 	s.mu.Lock()
 	if err := s.requireUnlocked(); err != nil {
 		s.mu.Unlock()
@@ -150,6 +217,9 @@ func (s *Service) ChangeCacheLocation(path string) error {
 	defer s.mu.Unlock()
 	if err := s.persistenceReady(); err != nil {
 		return err
+	}
+	if restoreDefault && strings.EqualFold(path, s.dataPath()) {
+		return nil
 	}
 	if s.session != nil || s.recoveryHold || s.exiting {
 		return fmt.Errorf("Disconnect all drives and finish setup or recovery before changing the cache.")
@@ -174,7 +244,7 @@ func (s *Service) ChangeCacheLocation(path string) error {
 	if err != nil {
 		return err
 	}
-	if pathsOverlap(path, s.dir) {
+	if pathsOverlap(path, s.dir) && !(restoreDefault && strings.EqualFold(path, filepath.Join(s.dir, "cache"))) {
 		return fmt.Errorf("Choose an empty cache directory outside the profile.")
 	}
 	for _, c := range s.store.Connections {
@@ -182,13 +252,23 @@ func (s *Service) ChangeCacheLocation(path string) error {
 			return fmt.Errorf("The cache must not overlap a mount folder.")
 		}
 	}
+	if restoreDefault {
+		if _, err := os.Lstat(path); os.IsNotExist(err) {
+			if _, err := platform.DirectoryIdentity(s.dir); err != nil {
+				return err
+			}
+			if err := os.Mkdir(path, 0700); err != nil {
+				return err
+			}
+		}
+	}
 	identity, err := platform.DirectoryIdentity(path)
 	if err != nil {
 		return err
 	}
-	entries, err := os.ReadDir(path)
-	if err != nil || len(entries) != 0 {
-		return fmt.Errorf("Choose an empty dedicated cache directory.")
+	owner, err := cacheDestinationOwner(path, restoreDefault)
+	if err != nil {
+		return err
 	}
 	free, err := platform.FreeBytes(path)
 	if err != nil || free < 5<<30 {
@@ -250,13 +330,19 @@ func (s *Service) ChangeCacheLocation(path string) error {
 	if check, e := platform.DirectoryIdentity(path); e != nil || check != identity {
 		return fmt.Errorf("The selected directory changed. Choose it again.")
 	}
-	entries, err = os.ReadDir(path)
-	if err != nil || len(entries) != 0 {
-		return fmt.Errorf("Choose an empty dedicated cache directory.")
-	}
-	location := cacheLocation{Path: path, Owner: newID(), Identity: identity}
-	if err = atomicWrite(filepath.Join(path, cacheOwnerFile), []byte(location.Owner)); err != nil {
+	checkOwner, err := cacheDestinationOwner(path, restoreDefault)
+	if err != nil {
 		return err
+	}
+	if checkOwner != owner {
+		return fmt.Errorf("The selected directory changed. Choose it again.")
+	}
+	location := cacheLocation{Path: path, Owner: owner, Identity: identity}
+	if owner == "" {
+		location.Owner = newID()
+		if err = atomicWrite(filepath.Join(path, cacheOwnerFile), []byte(location.Owner)); err != nil {
+			return err
+		}
 	}
 	if err = writeCacheLocation(s.dir, location); err != nil {
 		return err

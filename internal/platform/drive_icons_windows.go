@@ -31,7 +31,8 @@ var serviceBadges = map[string]struct {
 	"drive": {"GD", color.RGBA{38, 132, 70, 255}}, "onedrive": {"OD", color.RGBA{0, 105, 185, 255}},
 	"sharepoint": {"SP", color.RGBA{0, 115, 120, 255}}, "dropbox": {"DB", color.RGBA{0, 97, 255, 255}},
 	"box": {"BX", color.RGBA{0, 97, 170, 255}}, "pcloud": {"PC", color.RGBA{0, 125, 135, 255}},
-	"mega": {"ME", color.RGBA{190, 35, 40, 255}}, "protondrive": {"PD", color.RGBA{105, 65, 185, 255}},
+	"yandex": {"YD", color.RGBA{180, 65, 25, 255}},
+	"mega":   {"ME", color.RGBA{190, 35, 40, 255}}, "protondrive": {"PD", color.RGBA{105, 65, 185, 255}},
 	"nextcloud": {"NC", color.RGBA{0, 110, 190, 255}}, "owncloud": {"OC", color.RGBA{30, 60, 100, 255}},
 	"webdav": {"WD", color.RGBA{70, 100, 135, 255}}, "sftp": {"SF", color.RGBA{65, 100, 70, 255}},
 	"ftp": {"FT", color.RGBA{120, 75, 20, 255}}, "smb": {"SM", color.RGBA{75, 80, 135, 255}},
@@ -46,7 +47,7 @@ var badgeGlyphs = map[rune][7]byte{
 	'G': {14, 17, 16, 23, 17, 17, 14}, 'M': {17, 27, 21, 21, 17, 17, 17}, 'N': {17, 25, 25, 21, 19, 19, 17},
 	'O': {14, 17, 17, 17, 17, 17, 14}, 'P': {30, 17, 17, 30, 16, 16, 16}, 'S': {15, 16, 16, 14, 1, 1, 30},
 	'T': {31, 4, 4, 4, 4, 4, 4}, 'W': {17, 17, 17, 21, 21, 27, 17}, 'X': {17, 17, 10, 4, 10, 17, 17},
-	'Z': {31, 1, 2, 4, 8, 16, 31}, '2': {14, 17, 1, 2, 4, 8, 31}, '3': {30, 1, 1, 14, 1, 1, 30},
+	'Y': {17, 17, 10, 4, 4, 4, 4}, 'Z': {31, 1, 2, 4, 8, 16, 31}, '2': {14, 17, 1, 2, 4, 8, 31}, '3': {30, 1, 1, 14, 1, 1, 30},
 }
 
 func serviceIcon(provider string) ([]byte, error) {

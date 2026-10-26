@@ -19,6 +19,17 @@ func SetLanguageChanged(s *Service, changed func(string)) { s.languageChanged = 
 // SetAutoStart installs the desktop callback before publishing the service.
 func SetAutoStart(s *Service, update func(bool) error) { s.autoStart = update }
 
+func (s *Service) PreferenceDefaults() (Settings, error) {
+	if err := s.accessAllowed(); err != nil {
+		return Settings{}, err
+	}
+	settings := defaultStore().Settings
+	age, delay := cacheDurations(settings)
+	hours, seconds := int(age.Hours()), int(delay.Seconds())
+	settings.CacheMaxAgeHours, settings.WriteBackSeconds = &hours, &seconds
+	return settings, nil
+}
+
 func validTheme(theme string) bool { return theme == "system" || theme == "light" || theme == "dark" }
 
 func (s *Service) SaveSettings(settings Settings) error {

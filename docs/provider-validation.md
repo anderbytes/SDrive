@@ -2,7 +2,7 @@
 
 **Implemented setup** and **mocked tests** do not mean validation with a real account. Do not report third-party results without running the scenarios and recording sanitized evidence.
 
-OAuth uses the user's own application registration for Google Drive, OneDrive, SharePoint, Dropbox, Box, pCloud and Google Cloud Storage. All remain selectable in Advanced, with required application credentials and [per-service setup instructions](oauth-setup.md). GCS service-account access is a separate Basic method using the same backend. Local implementation and automated tests do not certify live service approval, cancellation or renewal.
+OAuth uses the user's own application registration for Google Drive, OneDrive, SharePoint, Dropbox, Box, pCloud, Yandex Disk and Google Cloud Storage. All remain selectable in Advanced, with required application credentials and [per-service setup instructions](oauth-setup.md). GCS service-account access is a separate Basic method using the same backend. Local implementation and automated tests do not certify live service approval, cancellation or renewal.
 
 | Profile | rclone backend | Setup and automated tests | Live service |
 | --- | --- | --- | --- |
@@ -12,6 +12,7 @@ OAuth uses the user's own application registration for Google Drive, OneDrive, S
 | Dropbox | dropbox | Yes | Not verified |
 | Box | box | Yes | Not verified |
 | pCloud | pcloud | Yes | Not verified |
+| Yandex Disk | yandex | Yes | Not verified |
 | MEGA | mega | Yes | Not verified |
 | Proton Drive | protondrive, beta | Yes | Not verified |
 | Nextcloud | webdav, nextcloud | Yes | Not verified |
@@ -25,7 +26,7 @@ OAuth uses the user's own application registration for Google Drive, OneDrive, S
 | Azure Blob | azureblob | Yes | Not verified |
 | Google Cloud Storage | google cloud storage | Yes | Not verified |
 
-Tests also compare field names for all 18 profiles against the real rclone version's catalog. Real mounting requires WinFsp and an interactive Windows session; tests without that prerequisite are reported as skipped.
+Tests also compare field names for all 19 profiles against the real rclone version's catalog. Real mounting requires WinFsp and an interactive Windows session; tests without that prerequisite are reported as skipped.
 
 The [integration suite](development.md#recovery-and-filesystem-integration-checks) uses a disposable loopback WebDAV server, synthetic files and isolated encrypted profiles. Engine-only service/configuration and content checks do not certify a live provider. Native tests cover service mounting, interrupted pending uploads at the original destination, open handles/late writes and filesystem content. Native checks require compatible WinFsp and explicit opt-in. Synthetic fixtures do not change the live-service validation status above.
 

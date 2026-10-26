@@ -45,3 +45,13 @@ The Wails smoke test also exercises portable export/import, explicit reauthentic
 Preferences separates General, Appearance, Cache, Network and Configuration settings. Appearance offers System, Light and Dark themes. System is the default for new and older profiles and follows Windows theme changes. Selecting a theme previews it immediately; Save persists it, while Cancel or Escape restores the saved choice. Failed saves leave the preview open for correction or cancellation. The saved theme also applies to the application lock screen.
 
 Portable exports include the theme. Importing it requires selecting the imported preferences checkbox; older portable files without a theme use System when those preferences are applied. Cache-directory changes and import/export actions take effect independently of Save and are not undone by Cancel.
+
+## Restore cache and proxy defaults
+
+In **Preferences → Cache**, restore the size target (**2 GiB**) or timing (**24 hours** retention, **5 seconds** upload delay) separately. These actions edit only the selected form values. **Save** persists them for the next connection; **Cancel** discards unsaved resets. Other preferences and connections are preserved.
+
+**Restore default cache location** is an explicit, immediate action independent of Save/Cancel. It resolves the default from the current profile, requires disconnected drives, finished setup/operations and verified clean cache, and preserves the old directory. It never migrates or deletes files. Only that exact profile-local destination is exempt from the usual outside-profile restriction. An existing default may contain only its valid ownership marker and empty directories; files, unknown entries, links or insufficient disk space block restoration. A failed switch leaves the previous binding authoritative. Restoring an already-active default is a no-op.
+
+In **Preferences → Network**, **Restore proxy defaults** clears the form's address, username and password. Save removes the saved credentials; Cancel leaves them intact. Per-connection proxy choices remain set, so those connections fail with a configuration message until a proxy is configured again. Already-connected workers retain their next-connection semantics; restoring does not disconnect drives or silently bypass a required proxy.
+
+New controls and safety messages are supplied in English and Brazilian Portuguese. Other interface locales currently use the English fallback for these additions.

@@ -1,5 +1,21 @@
 {
   "methods": {
+    "preferenceDefaults": {
+      "name": "PreferenceDefaults",
+      "args": [],
+      "returns": [
+        "core.Settings",
+        "error"
+      ]
+    },
+    "restoreDefaultCacheLocation": {
+      "name": "RestoreDefaultCacheLocation",
+      "args": [],
+      "returns": [
+        "string",
+        "error"
+      ]
+    },
     "about": {
       "args": [],
       "name": "About",

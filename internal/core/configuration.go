@@ -69,6 +69,7 @@ type ConfigInput struct {
 }
 type ConfigSession struct {
 	importDraftID string
+	sharedWithMe  bool
 	ID            string    `json:"id"`
 	Busy          bool      `json:"busy"`
 	Complete      bool      `json:"complete"`
@@ -219,6 +220,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 	ss := &ConfigSession{ID: newID(), Busy: true, connection: c, ConnectionID: c.ID, cancel: cancel, ctx: sessionCtx, stop: stop, rpc: s.connectionRPC(c), done: make(chan struct{}), inPlace: inPlace, guided: input.Guided}
 	s.session = ss
 	ss.importDraftID = input.ImportDraftID
+	ss.sharedWithMe = params["shared_with_me"] == "true"
 	done := ss.done
 	started := false
 	defer func() {
@@ -255,6 +257,9 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 			err := getConfig("sd_"+oldRemote, &existing)
 			if err != nil {
 				return "", fmt.Errorf("could not load access details; cancel and try again")
+			}
+			if p.ID == "drive" && existing["type"] == "drive" && params["shared_with_me"] != "true" && existing["team_drive"] != "" {
+				params["team_drive"] = existing["team_drive"]
 			}
 			if params["client_id"] == "" {
 				params["client_id"] = existing["client_id"]
@@ -304,7 +309,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 			}
 		}
 		for key, value := range params {
-			if (key == "disable_epsv" || key == "disable_mlsd") && value == "false" && existing[key] == "" {
+			if (key == "disable_epsv" || key == "disable_mlsd" || key == "shared_with_me") && value == "false" && existing[key] == "" {
 				continue
 			}
 			if key == "sas_url" {
@@ -439,6 +444,10 @@ func (s *Service) configure(ctx context.Context, id string, rpc RPC, method stri
 		p, _ := provider(ss.connection.Provider)
 		if err := validateConfiguredRemote(p, config); err != nil {
 			ss.Error = err.Error()
+			return
+		}
+		if p.ID == "drive" && ss.sharedWithMe != (config["shared_with_me"] == "true") {
+			ss.Error = "The engine did not preserve the selected Google Drive contents. Cancel and try again."
 			return
 		}
 		if ss.inPlace {
@@ -731,7 +740,7 @@ func (s *Service) ConnectionFields(id string) (ConnectionFieldsView, error) {
 		return ConnectionFieldsView{}, fmt.Errorf("connection changed; try again")
 	}
 	p, _ := provider(c.Provider)
-	if config == nil || config["type"] != p.Backend {
+	if config == nil || config["type"] != p.Backend || validateDriveContents(config) != nil {
 		return ConnectionFieldsView{}, fmt.Errorf("invalid saved access details; preserve the connection and try again")
 	}
 	values := map[string]string{}

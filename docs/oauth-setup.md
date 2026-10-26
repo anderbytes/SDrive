@@ -76,3 +76,22 @@ Reference: [rclone Google Cloud Storage](https://rclone.org/googlecloudstorage/)
 SDrive recognizes installed Edge, Chrome and Firefox, as well as the default browser. Private sign-in requires selecting a recognized browser explicitly. Private mode is never silently discarded; an unavailable browser produces an error. Browser launch is separate from account authorization, and an existing browser session can still affect account selection.
 
 Use Cancel in SDrive to stop authorization; merely closing a browser tab does not signal completion to the local callback server. Cancellation before confirmation leaves the original connection intact. If pending data exist, sign in to the original destination and wait for uploads before disconnecting. Accounts, application approval, cancellation and renewal still require per-service live validation with explicitly selected test resources.
+
+## Google Drive content selection
+
+In the access step, **Google Drive contents** selects **My Drive / selected library** or **Shared with me**. The latter lists content other users shared with the signed-in account; it is separate from organizational Shared Drives and cannot be combined with a Shared Drive. Existing explicit root folders and library selections remain unchanged when the default view is retained. Select a folder after authorization or keep the selected view's root.
+
+The choice remains in protected backend configuration and non-secret portable definitions. Imported definitions still require authorization. Recovery binds the view alongside the original root/path; changing it while recovery is pending is rejected. Read-only and provider permissions remain in force. Shared with me alone does not establish the verified destination needed for session-only access. Permission errors never select another view automatically.
+
+Reference: [rclone Shared with me](https://rclone.org/drive/#drive-shared-with-me).
+
+## Yandex Disk
+
+1. Register an application you control in [Yandex OAuth](https://oauth.yandex.com/), using the API-access application type for your own Disk data. See [Yandex application registration](https://yandex.com/dev/id/doc/en/register-client).
+2. Configure the callback `http://localhost:53682/` used by the pinned engine. Grant Disk API read access and the additional write permissions required for writable mounts; include storage-information access if you need quota reporting. Registration and available permissions depend on the provider.
+3. Select **Advanced → Yandex Disk**, enter the application's Client ID and Client Secret, then authorize your intended account. Both fields are required for new connections; shared rclone credentials are never used.
+4. Choose the destination folder and connect. Persistent secrets use the existing local encrypted storage. Use **Reconfigure account** to renew authorization; a blank secret is retained only for the same saved Client ID. Cancelled setup does not create a connection.
+
+Session-only access, proxy routing and independent bandwidth controls are unavailable for this profile. Portable files contain definitions without OAuth credentials; imports require a new sign-in. Automated tests exercise setup and credential handling, but live Yandex registration, account access, renewal and mounted read/write remain unverified.
+
+Reference: [rclone Yandex Disk](https://rclone.org/yandex/).

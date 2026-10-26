@@ -801,5 +801,20 @@
   "Try again": "Réessayer",
   "Local folder": "Dossier local",
   "Refresh": "Actualiser",
-  "Close dialog": "Fermer la boîte de dialogue"
+  "Close dialog": "Fermer la boîte de dialogue",
+  "Google Drive contents": "Google Drive contents",
+  "Shared with me": "Shared with me",
+  "My Drive / selected library": "My Drive / selected library",
+  "Shared with me is separate from Shared Drives. Existing library and root selections are preserved.": "Shared with me is separate from Shared Drives. Existing library and root selections are preserved.",
+  "Shared with me cannot be combined with a Shared Drive.": "Shared with me cannot be combined with a Shared Drive.",
+  "Select valid Google Drive contents.": "Select valid Google Drive contents.",
+  "The engine did not preserve the selected Google Drive contents. Cancel and try again.": "The engine did not preserve the selected Google Drive contents. Cancel and try again.",
+  "Restore cache size": "Restore cache size",
+  "Restore cache timing": "Restore cache timing",
+  "Restore default cache location": "Restore default cache location",
+  "Restore proxy defaults": "Restore proxy defaults",
+  "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.": "Restoring the default location applies immediately, independently of Save or Cancel. Existing files in the default directory prevent restoration; both caches are preserved.",
+  "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.": "Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.",
+  "The default cache contains files or unknown entries. Preserve it before restoring its location.": "The default cache contains files or unknown entries. Preserve it before restoring its location.",
+  "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in.": "Register your own Yandex OAuth application for Disk API access. Add http://localhost:53682/ as the redirect URI and grant Disk read permissions, plus write permissions for writable access. Enter your Client ID and Client Secret before signing in."
 }

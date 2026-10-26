@@ -48,6 +48,7 @@ func Catalog() []Provider {
 		{ID: "dropbox", Name: "Dropbox", Backend: "dropbox", Fields: oauth},
 		{ID: "box", Name: "Box", Backend: "box", Fields: oauth},
 		{ID: "pcloud", Name: "pCloud", Backend: "pcloud", Fields: append(append([]Field{}, oauth...), Field{Key: "hostname", Label: "Region", Default: "api.pcloud.com", Choices: []string{"api.pcloud.com", "eapi.pcloud.com"}})},
+		{ID: "yandex", Name: "Yandex Disk", Backend: "yandex", Fields: oauth},
 		{ID: "mega", Name: "MEGA", Backend: "mega", Fields: append(append([]Field{}, login...), field("2fa", "Two-factor code (if enabled)", true, false))},
 		{ID: "protondrive", Name: "Proton Drive", Backend: "protondrive", Experimental: true, Fields: []Field{field("username", "Username", false, true), field("password", "Password", true, true), field("2fa", "Two-factor code (if enabled)", true, false), field("mailbox_password", "Mailbox password (if separate)", true, false)}},
 		{ID: "nextcloud", Name: "Nextcloud", Backend: "webdav", Fields: webdav, Defaults: map[string]string{"vendor": "nextcloud"}},
@@ -101,7 +102,7 @@ func Catalog() []Provider {
 			p.Fields = append(p.Fields, Field{Key: "disable_epsv", Label: "Use PASV instead of EPSV", Choices: []string{"false", "true"}, Default: "false", Advanced: true}, Field{Key: "disable_mlsd", Label: "Use LIST instead of MLSD", Choices: []string{"false", "true"}, Default: "false", Advanced: true})
 		}
 		if p.ID == "drive" {
-			p.Fields = append(p.Fields, Field{Key: "root_folder_id", Label: "Root folder ID (optional)", Advanced: true})
+			p.Fields = append(p.Fields, Field{Key: "shared_with_me", Label: "Google Drive contents", Default: "false", Choices: []string{"false", "true"}, Hint: "Shared with me is separate from Shared Drives. Existing library and root selections are preserved."}, Field{Key: "root_folder_id", Label: "Root folder ID (optional)", Advanced: true})
 		}
 	}
 	return providers
@@ -195,6 +196,22 @@ func parameters(p Provider, values map[string]string, insecure bool, transport s
 		}
 	}
 	return result, nil
+}
+
+func validateDriveContents(config map[string]string) error {
+	if config["type"] != "drive" {
+		return nil
+	}
+	switch config["shared_with_me"] {
+	case "", "false":
+	case "true":
+		if config["team_drive"] != "" {
+			return &FieldError{Field: "shared_with_me", Message: "Shared with me cannot be combined with a Shared Drive."}
+		}
+	default:
+		return &FieldError{Field: "shared_with_me", Message: "Select valid Google Drive contents."}
+	}
+	return nil
 }
 
 func ftpTransport(config map[string]string) (string, error) {

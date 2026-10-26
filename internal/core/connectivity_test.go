@@ -16,7 +16,7 @@ import (
 )
 
 func TestOAuthRequiresUserApplicationOutsideGuidedSetup(t *testing.T) {
-	for _, id := range []string{"drive", "onedrive", "sharepoint", "dropbox", "box", "pcloud", "gcs"} {
+	for _, id := range []string{"drive", "onedrive", "sharepoint", "dropbox", "box", "pcloud", "gcs", "yandex"} {
 		p, _ := provider(id)
 		if !p.Available {
 			t.Fatalf("%s hidden behind project registration", id)
