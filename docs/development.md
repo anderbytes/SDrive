@@ -6,6 +6,16 @@ Portable configuration and service icons are described in [portability and deskt
 
 Application access, inactivity, process discovery and measured Windows Shell operations are described in [access and file operations](access-and-file-operations.md), including focused native test names and acceptance limits.
 
+## Interface layout and visual checks
+
+The shared `DialogLayout` retains native modal semantics through `useDialog`: right-side panels have a fixed heading/footer and a scrollable body. Short confirmations remain centered. Form buttons in fixed footers use explicit form IDs, preserving submission and native field validation across tabs. Busy setup cancellation and one-time recovery acknowledgements retain their original guards.
+
+Drive cards place the name, remote destination and state to the right of the drive letter. Their minimum height is 88 px; long paths and warnings can expand the card. Primary actions stay explicit, while the **…** menu opens the seven-topic details panel and secondary operations. State stripes always accompany text. Themes share geometry, with 44 px action targets and 48 px fields; narrow layouts preserve readable labels and allow tabs to scroll horizontally.
+
+Run `node scripts/ui-visual-smoke.mjs` for fixture-based rendering of the actual React components at 1440 × 900, 1180 × 800, 850 × 620 and 420 × 740. It checks overflow, panel footers, seven details topics, setup, preference tabs, nested import panels, access settings, diagnostics, all supported languages, dark theme and forced colors. Screenshots and the result record are written under `.tools/check-results/desktop-serene/`. The test uses an existing Edge installation, or the executable supplied through the process-scoped `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` variable. Its Vite fixture replaces only the test server's bridge module; application code and personal profiles are unchanged. These visual fixtures do not validate provider access or native mounting.
+
+Use `node scripts/ui-smoke.mjs` separately for the real Wails/WebView2 handoff with an isolated profile and local WebDAV fixture. Reader software, physical DPI and live providers require separate evidence.
+
 ## Build and verify
 
 Development prerequisite: Node.js 24 LTS or later and npm. In PowerShell, from the repository root:

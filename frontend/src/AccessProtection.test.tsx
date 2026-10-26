@@ -59,11 +59,11 @@ test("access settings validate confirmation and retain the one-time recovery cod
   await waitFor(() => expect(screen.getByRole("button",{name:"Save"}).hasAttribute("disabled")).toBe(false));
   fireEvent.change(screen.getByLabelText("New PIN"),{target:{value:"123456"}});
   fireEvent.change(screen.getByLabelText("Confirm new PIN"),{target:{value:"654321"}});
-  fireEvent.submit(screen.getByRole("button",{name:"Save"}).closest("form")!);
+  fireEvent.submit((screen.getByRole("button",{name:"Save"}) as HTMLButtonElement).form!);
   expect(screen.getByRole("alert").textContent).toBe("PIN confirmation does not match.");
   expect(api.configureAccess).not.toHaveBeenCalled();
   fireEvent.change(screen.getByLabelText("Confirm new PIN"),{target:{value:"123456"}});
-  fireEvent.submit(screen.getByRole("button",{name:"Save"}).closest("form")!);
+  fireEvent.submit((screen.getByRole("button",{name:"Save"}) as HTMLButtonElement).form!);
   await screen.findByText("SYNTHETIC-RECOVERY-CODE");
   fireEvent(screen.getByRole("dialog"),new Event("cancel",{cancelable:true}));
   expect(close).not.toHaveBeenCalled();

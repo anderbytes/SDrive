@@ -4,7 +4,7 @@ import type { Wizard } from "./useConnectionWizard";
 export function AuthenticationStep({ wizard }: { wizard: Wizard }) {
   const {
     t, sessionID, session, answer, setAnswer, busy, fieldID,
-    close, question, answerQuestion,
+    question, answerQuestion,
   } = wizard;
   return (
     <div className="auth-flow">
@@ -22,6 +22,7 @@ export function AuthenticationStep({ wizard }: { wizard: Wizard }) {
           <p role="alert">{t(question.Help)}</p>
         ) : (
           <form
+            id={`${fieldID}-question`}
             onSubmit={(e) => {
               e.preventDefault();
               void answerQuestion();
@@ -65,17 +66,19 @@ export function AuthenticationStep({ wizard }: { wizard: Wizard }) {
                 />
               )}
             </label>}
-            <button disabled={busy} className="primary">
-              {t("Continue")}
-            </button>
           </form>
         )
       ) : (
         <p>{t("Access was not completed. Cancel and try again.")}</p>
       )}
-      <button disabled={busy} onClick={close}>
-        {t("Cancel setup")}
-      </button>
     </div>
   );
+}
+
+export function AuthenticationActions({ wizard }: { wizard: Wizard }) {
+  const { t, busy, close, question, fieldID, session } = wizard;
+  return <>
+    <button disabled={busy} onClick={close}>{t("Cancel setup")}</button>
+    {session && !session.busy && question && !question.Unsupported && <button form={`${fieldID}-question`} disabled={busy} className="primary">{t("Continue")}</button>}
+  </>;
 }

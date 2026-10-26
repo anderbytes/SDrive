@@ -3,11 +3,11 @@ import type { Wizard } from "./useConnectionWizard";
 
 export function FolderStep({ wizard }: { wizard: Wizard }) {
   const {
-    initial, data, t, connection, busy, loading, fieldError,
+    initial, data, t, busy, loading, fieldError,
     setFieldError, fieldID, folderError, filter, setFilter, folders, path,
-    directPath, setDirectPath, savedID, operation, close, noLetters,
+    directPath, setDirectPath, savedID,
     destinationLocked, visibleFolders, navigate, validationProps, fieldFeedback,
-    setFolderLoad, setFolderRequest, connect,
+    setFolderLoad, setFolderRequest,
   } = wizard;
   return (
     <div>
@@ -105,20 +105,6 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
       )}
       {directPath !== path && <p role="status">{t("Destination not applied. Choose Open destination before connecting.")}</p>}
       <MountDestination wizard={wizard} />
-      <div className="modal-actions">
-        <button disabled={busy} onClick={close}>
-          {savedID ? t("Close") : t("Cancel")}
-        </button>
-        <button
-          className="primary"
-          disabled={busy || loading || directPath !== path || fieldError?.field === "path" || !data.winFsp || noLetters || (connection.letter !== "" && !savedID && !initial.id && !data.letters.includes(connection.letter))}
-          onClick={() =>
-            void connect()
-          }
-        >
-          {busy ? t(operation === "mounting" ? "Mounting drive…" : "Validating destination…") : savedID ? t("Retry connection") : t("Connect drive")}
-        </button>
-      </div>
       {!data.winFsp && (
         <p role="alert">
           {t("Run the SDrive installer again to prepare drive mounting.")}
@@ -126,4 +112,13 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
       )}
     </div>
   );
+}
+
+export function FolderActions({ wizard }: { wizard: Wizard }) {
+  const { t, busy, loading, directPath, path, fieldError, data, noLetters, connection, savedID, initial, connect, close, operation } = wizard;
+  return <>
+    <button disabled={busy} onClick={close}>{savedID ? t("Close") : t("Cancel")}</button>
+    <button className="primary" disabled={busy || loading || directPath !== path || fieldError?.field === "path" || !data.winFsp || noLetters || (connection.letter !== "" && !savedID && !initial.id && !data.letters.includes(connection.letter))}
+      onClick={() => void connect()}>{busy ? t(operation === "mounting" ? "Mounting drive…" : "Validating destination…") : savedID ? t("Retry connection") : t("Connect drive")}</button>
+  </>;
 }

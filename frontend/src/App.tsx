@@ -7,6 +7,7 @@ import { formatBytes as bytes } from "./formatBytes";
 import { AccessBoundary, AccessSettings } from "./AccessProtection";
 import { ConnectionEditor } from "./connection/ConnectionEditor";
 import { useDialog } from "./useDialog";
+import { DialogLayout } from "./DialogLayout";
 import { LanguageProvider, isLanguage, useLanguage } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -497,8 +498,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       if (active.current) setCopying(false);
     }
   };
-  return <dialog ref={dialog} className="modal small" role="dialog" aria-modal="true" aria-labelledby="about-title">
-    <h2 id="about-title">{t("About SDrive")}</h2>
+  return <DialogLayout dialogRef={dialog} titleID="about-title" title={t("About SDrive")} onClose={onClose} footer={<button onClick={onClose}>{t("Close")}</button>}>
     <p>{t("Open source · GPLv3")}</p>
     {error && <p role="alert" className="alert error">{t(error)}</p>}
     {!info && !error && <p role="status">{t("Loading component versions…")}</p>}
@@ -517,8 +517,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       <button disabled={copying || loadingReport} onClick={() => void copyReport()}>{t("Copy report")}</button>
     </>}
     {copied && <p role="status">{t("Report copied.")}</p>}
-    <div className="modal-actions"><button onClick={onClose}>{t("Close")}</button></div>
-  </dialog>;
+  </DialogLayout>;
 }
 
 function RestoreSettingsDialog({
@@ -534,23 +533,13 @@ function RestoreSettingsDialog({
     if (!busy) onClose();
   });
   return (
-    <dialog
-        ref={dialog}
-        className="modal small"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="restore-title"
-      >
-        <h2 id="restore-title">{t("Restore settings backup?")}</h2>
+    <DialogLayout dialogRef={dialog} titleID="restore-title" title={t("Restore settings backup?")} onClose={onClose} closeDisabled={busy} centered
+      footer={<><button disabled={busy} onClick={onClose}>{t("Cancel")}</button><button disabled={busy} className="primary" onClick={onConfirm}>{t("Confirm restoration")}</button></>}>
         {error && <div className="alert error" role="alert">{t(error)}</div>}
         <p>
           {t("The backup may omit newer connections. Damaged settings will be archived; credentials and cache will be preserved. Automatic connection and cleanup will remain suspended until recovery is verified.")}
         </p>
-        <div className="modal-actions">
-          <button disabled={busy} onClick={onClose}>{t("Cancel")}</button>
-          <button disabled={busy} className="primary" onClick={onConfirm}>{t("Confirm restoration")}</button>
-        </div>
-    </dialog>
+    </DialogLayout>
   );
 }
 
@@ -575,6 +564,7 @@ function Drive({
 }) {
   const { t } = useLanguage();
   const [fileAccess, setFileAccess] = useState(false);
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const outside = (event: PointerEvent) => {
@@ -588,17 +578,21 @@ function Drive({
     menu.current.open = false;
     menu.current.querySelector("summary")?.focus();
   };
+  const needsAttention = c.pending === null || c.pending > 0 || (c.recovery && !c.mounted) || (c.mounted && c.transportSecurity?.state !== "encrypted");
+  const statusClass = busy ? "operating" : c.error || c.cache.error || c.uploads?.cacheErrors ? "failed" : needsAttention ? "attention" : c.mounted ? "connected" : "disconnected";
   return (
-    <article className="drive">
+    <article className={`drive ${statusClass}`}>
       {fileAccess && <FileAccessDialog connectionID={c.id} onClose={() => setFileAccess(false)} />}
+      {detailSelection?.connectionID === c.id && <DriveDetails connection={c} provider={p} selection={detailSelection} onSelect={onDetailSelect} />}
+      {confirmRemoval && <RemoveConnectionDialog name={c.name} unavailable={busy || c.mounted || c.recovery} onClose={() => setConfirmRemoval(false)} onConfirm={() => { setConfirmRemoval(false); onAction(api.remove); }} />}
       <div className={`letter ${c.mounted ? "connected" : ""}`}>
         {c.mountFolder ? "▱" : <>{c.letter}<span>:</span></>}
       </div>
       <div className="drive-info">
         <h2>{c.name}</h2>
-        {c.mountFolder && <p>{c.mountFolder}</p>}
+        <div className="drive-metadata">
         <p>
-          {t(p.name)}
+          {t(p.name)} · {c.path || t("Root")}
           {p.experimental ? ` · ${t("Experimental")}` : ""}
         </p>
         <div className="state">
@@ -614,13 +608,15 @@ function Drive({
                   ? t("Recovery required")
                   : t("Disconnected")}
         </div>
+        </div>
+        {c.mountFolder && <p className="mount-folder">{c.mountFolder}</p>}
         {c.recovery && !c.mounted && (busy || c.pending === null) && <p className="inline-error">{t("Recovery required")}</p>}
         {!!c.error && <p className="inline-error">{t("Connection needs attention.")}</p>}
         {(!!c.cache.error || !!c.uploads?.cacheErrors) && <p className="inline-error">{t("Local cache needs attention.")}</p>}
         {c.mounted && c.transportSecurity?.state !== "encrypted" && <p className="inline-error">{t(c.transportSecurity?.state === "unencrypted" ? "Traffic unencrypted" : "Traffic encryption could not be verified")}</p>}
-        <DriveDetails connection={c} provider={p} selection={detailSelection} onSelect={onDetailSelect} />
       </div>
       <div className="actions">
+        {c.mounted && <button disabled={busy} onClick={() => onAction(api.open)}>{t("Open in Explorer")}</button>}
         <button
           disabled={busy}
           className={c.mounted ? "" : "primary"}
@@ -632,12 +628,6 @@ function Drive({
               ? t("Recover")
               : t("Connect")}
         </button>
-        {c.mounted && (
-          <button disabled={busy} onClick={() => onAction(api.open)}>
-            {" "}
-            Explorer ↗{" "}
-          </button>
-        )}
         <details ref={menu}
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false;
@@ -650,11 +640,12 @@ function Drive({
             }
           }}>
           <summary aria-label={t("More actions for {name}", { name: c.name })}>
-            •••
+            ...
           </summary>
           <div className="dropdown" onClickCapture={(event) => {
             if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMenu();
           }}>
+            <button onClick={() => { closeMenu(); onDetailSelect({ connectionID: c.id, topic: "destination" }); }}>{t("Drive details")}</button>
             <button disabled={busy || !c.mounted} onClick={() => { closeMenu(); setFileAccess(true); }}>{t("Applications using a file")}</button>
           <button disabled={busy || !c.mounted} onClick={() => onAction(api.refreshDirectoryCache, "Refreshing directory metadata…", "Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.")}>{t("Refresh files in Explorer")}</button>
             <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>
@@ -672,17 +663,7 @@ function Drive({
             <button
               disabled={busy || c.mounted || c.recovery}
               className="danger"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    t(
-                      "Remove connection {name}? Remote files will be preserved.",
-                      { name: c.name },
-                    ),
-                  )
-                )
-                  onAction(api.remove);
-              }}
+              onClick={() => setConfirmRemoval(true)}
             >
               {t("Remove connection")}
             </button>
@@ -691,4 +672,13 @@ function Drive({
       </div>
     </article>
   );
+}
+
+function RemoveConnectionDialog({ name, unavailable, onClose, onConfirm }: { name: string; unavailable: boolean; onClose: () => void; onConfirm: () => void }) {
+  const { t } = useLanguage();
+  const dialog = useDialog(onClose);
+  return <DialogLayout dialogRef={dialog} titleID="remove-title" title={t("Remove connection")} onClose={onClose} centered
+    footer={<><button onClick={onClose}>{t("Cancel")}</button><button className="primary" disabled={unavailable} onClick={onConfirm}>{t("Remove connection")}</button></>}>
+    <p>{t("Remove connection {name}? Remote files will be preserved.", { name })}</p>
+  </DialogLayout>;
 }

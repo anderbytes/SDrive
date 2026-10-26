@@ -1,5 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useId, type ReactNode } from "react";
+import { DialogLayout } from "./DialogLayout";
+import { useDialog } from "./useDialog";
 import type { ConnectionView, Provider } from "./api";
 import { useLanguage } from "./i18n";
 import { TransportStatus } from "./TransportSecurity";
@@ -7,15 +8,7 @@ import { formatBytes as bytes } from "./formatBytes";
 
 export interface DriveDetailSelection { connectionID: string; topic: string }
 
-const icons = {
-  destination: "M3 7V5h6l2 2h10v12H3Z",
-  options: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6",
-  uploads: "M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5",
-  cache: "M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8M8 17h5",
-  capacity: "M5 4h14l3 13H2ZM2 17v4h20v-4M16 19h3",
-  security: "M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6ZM8 12l3 3 5-6",
-  alerts: "M12 3 2 21h20ZM12 9v5M12 17v1",
-};
+type DetailTopic = "destination" | "options" | "uploads" | "cache" | "capacity" | "security" | "alerts";
 
 export function DriveDetails({ connection: c, provider: p, selection, onSelect }: {
   connection: ConnectionView;
@@ -25,15 +18,12 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
 }) {
   const { t } = useLanguage();
   const id = useId();
-  const strip = useRef<HTMLDivElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const hovered = useRef(false);
-  const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const topic = selection?.connectionID === c.id ? selection.topic : undefined;
+  const topic = selection?.topic || "destination";
+  const dialog = useDialog(() => onSelect(undefined));
   const needsRecovery = c.recovery && !c.mounted;
   const hasAlerts = !!(c.error || c.cache.error || needsRecovery || c.pending === null || c.uploads?.cacheErrors ||
     (c.mounted && c.transportSecurity?.state !== "encrypted"));
-  const items: { key: keyof typeof icons; title: string; attention?: boolean; content: ReactNode }[] = [
+  const items: { key: DetailTopic; title: string; attention?: boolean; content: ReactNode }[] = [
     { key: "destination", title: "Remote destination", content: <p>{t(p.name)} · {c.path || t("Root")}</p> },
     { key: "options", title: "Connection options", content: <ul aria-label={t("Connection options")}>
       {[
@@ -77,70 +67,25 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
       {c.mounted && c.transportSecurity?.state !== "encrypted" && <TransportStatus connection={c} />}
     </> },
   ];
-  const item = items.find((entry) => entry.key === topic);
-  const cancelLeave = () => clearTimeout(leaveTimer.current);
-  const enter = () => { hovered.current = true; cancelLeave(); };
-  const leave = () => {
-    hovered.current = false;
-    cancelLeave();
-    if (!topic) return;
-    leaveTimer.current = setTimeout(() => {
-      if (!strip.current?.contains(document.activeElement)) onSelect(undefined);
-    }, 120);
-  };
-  useEffect(() => () => clearTimeout(leaveTimer.current), []);
-  useEffect(() => {
-    if (!topic) return;
-    const outside = (event: Event) => {
-      const target = event.target as Node;
-      if (!strip.current?.contains(target) && !panel.current?.contains(target)) onSelect(undefined);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { cancelLeave(); onSelect(undefined); }
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("focusin", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("focusin", outside);
-      document.removeEventListener("keydown", escape);
-      cancelLeave();
-    };
-  }, [topic, onSelect]);
-  useLayoutEffect(() => {
-    if (!topic) return;
-    const position = () => {
-      const trigger = strip.current?.querySelector(`[data-topic="${topic}"]`);
-      const tooltip = panel.current;
-      if (!trigger || !tooltip) return;
-      const rect = trigger.getBoundingClientRect();
-      const { width, height } = tooltip.getBoundingClientRect();
-      tooltip.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-      const top = rect.bottom + 8 + height <= window.innerHeight - 8 ? rect.bottom + 8 : rect.top - height - 8;
-      tooltip.style.top = `${Math.max(8, Math.min(top, window.innerHeight - height - 8))}px`;
-    };
-    position();
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    return () => { window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); };
-  });
-  return <div ref={strip} className="drive-details" role="group" aria-label={t("Drive details")} onMouseLeave={leave} onMouseEnter={enter}
-    onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null) && !hovered.current) onSelect(undefined);
-    }}>
-    {items.map((entry) => <button key={entry.key} type="button" data-topic={entry.key}
-      className={`drive-detail-icon${entry.attention ? " attention" : ""}`}
-      aria-label={t(entry.title)} aria-describedby={topic === entry.key ? `${id}-tooltip` : undefined}
-      onMouseEnter={() => { cancelLeave(); onSelect({ connectionID: c.id, topic: entry.key }); }}
-      onFocus={() => { cancelLeave(); onSelect({ connectionID: c.id, topic: entry.key }); }}
-      onClick={() => { cancelLeave(); onSelect({ connectionID: c.id, topic: entry.key }); }}>
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d={icons[entry.key]} /></svg>
-      {entry.attention && <span className="detail-attention" aria-hidden="true">!</span>}
-    </button>)}
-    {item && createPortal(<div ref={panel} id={`${id}-tooltip`} role="tooltip" className="drive-tooltip"
-      onMouseEnter={enter} onMouseLeave={leave}>
-      <strong>{t(item.title)}</strong>{item.content}
-    </div>, document.body)}
-  </div>;
+  const item = items.find((entry) => entry.key === topic) || items[0];
+  return <DialogLayout dialogRef={dialog} titleID={id} title={t("Drive details") + " · " + c.name} onClose={() => onSelect(undefined)}
+    footer={<button onClick={() => onSelect(undefined)}>{t("Close")}</button>}>
+    <div className="edit-tabs detail-tabs" role="tablist" aria-label={t("Drive details")}>
+      {items.map((entry, index) => <button key={entry.key} type="button" role="tab" id={id + "-" + entry.key}
+        aria-selected={item.key === entry.key} aria-controls={id + "-content"} tabIndex={item.key === entry.key ? 0 : -1}
+        className={entry.attention ? "attention" : undefined}
+        onClick={() => onSelect({ connectionID: c.id, topic: entry.key })}
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
+          const next = event.key === "Home" ? items[0] : event.key === "End" ? items[items.length - 1]
+            : items[(index + (event.key === "ArrowRight" ? 1 : items.length - 1)) % items.length];
+          onSelect({ connectionID: c.id, topic: next.key });
+          document.getElementById(id + "-" + next.key)?.focus();
+        }}>{t(entry.title)}{entry.attention && <span aria-hidden="true"> !</span>}</button>)}
+    </div>
+    <section id={id + "-content"} role="tabpanel" aria-labelledby={id + "-" + item.key} tabIndex={0}>
+      <h3>{t(item.title)}</h3>{item.content}
+    </section>
+  </DialogLayout>;
 }

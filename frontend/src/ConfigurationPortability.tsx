@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type ImportPreview, type Snapshot } from "./api";
 import { useDialog } from "./useDialog";
+import { DialogLayout } from "./DialogLayout";
 import { useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
 
@@ -51,8 +52,8 @@ export function ImportConfigurationDialog({ preview, data, onClose, onSaved }: {
     catch (e) { setError(t(errorMessage(e))); } finally { setBusy(false); }
   };
   const patch = (index: number, values: Partial<typeof document.connections[number]>) => setDocument((d) => ({ ...d, connections: d.connections.map((c, i) => i === index ? { ...c, ...values } : c) }));
-  return <dialog ref={dialog} className="modal" aria-labelledby="import-title">
-    <h2 id="import-title">{t("Review imported configuration")}</h2>
+  return <DialogLayout dialogRef={dialog} titleID="import-title" title={t("Review imported configuration")} onClose={onClose} closeDisabled={busy}
+    footer={<><button disabled={busy} onClick={onClose}>{t("Cancel")}</button><button className="primary" disabled={busy || invalid.some(Boolean) || (!definitions.length && !preferences)} onClick={() => void save()}>{t("Save imported drafts")}</button></>}>
     <p>{t("Selected entries are saved as drafts. Supply application credentials and authenticate each draft before connecting. Existing recovery data stays in its original profile.")}</p>
     {document.connections.map((entry, index) => <fieldset key={index} disabled={busy}>
       <legend><label><input type="checkbox" checked={selected[index]} onChange={(e) => setSelected((s) => s.map((value, i) => i === index ? e.target.checked : value))} />{entry.name || t("Imported connection")}</label></legend>
@@ -71,6 +72,5 @@ export function ImportConfigurationDialog({ preview, data, onClose, onSaved }: {
     <p>{t("Open Explorer after connecting")}: {t(document.preferences.openExplorerAfterConnect ? "Enabled" : "Disabled")} · {t("Show service icons for drive letters")}: {t(document.preferences.showServiceIcons ? "Enabled" : "Disabled")}</p>
     <p>{t("Windows startup, proxy credentials and cache location stay local.")}</p>
     {error && <p role="alert">{error}</p>}
-    <div className="modal-actions"><button disabled={busy} onClick={onClose}>{t("Cancel")}</button><button className="primary" disabled={busy || invalid.some(Boolean) || (!definitions.length && !preferences)} onClick={() => void save()}>{t("Save imported drafts")}</button></div>
-  </dialog>;
+  </DialogLayout>;
 }

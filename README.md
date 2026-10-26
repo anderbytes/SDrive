@@ -23,7 +23,9 @@ The tray shows connected-drive counts and distinguishes uploads, recovery, unkno
 
 Window position, size and maximization are remembered and adjusted to available monitors. **About SDrive** lists application, running rclone, Windows and installed WinFsp/WebView2 versions; unavailable components are shown explicitly.
 
-**Preferences → Configuration → Portable configuration** exports credential-free connection definitions and reviews imports as drafts requiring authentication. Optional Explorer opening and per-user service icons default off. Connection cards show configured options alongside upload/recovery status. See [configuration portability and desktop preferences](docs/portability-and-desktop.md).
+The interface uses a restrained desktop layout with labeled navigation, compact two-line drive cards, explicit primary actions and a **…** menu for secondary actions. **… → Drive details** opens seven topics in a right-side panel. Forms and preferences use the same panel layout with scrollable content and fixed actions. Light, dark and system themes retain your saved preference.
+
+**Preferences → Configuration → Portable configuration** exports credential-free connection definitions and reviews imports as drafts requiring authentication. Optional Explorer opening and per-user service icons default off. See [configuration portability and desktop preferences](docs/portability-and-desktop.md).
 
 ## Update, repair and collect diagnostics
 

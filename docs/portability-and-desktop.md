@@ -28,7 +28,7 @@ Connected network drives display their configured connection title and drive let
 
 Native Windows Shell resolution has been checked with disposable network-letter and local-disk-letter mounts. Icons and their removal were resolved through the Shell's own APIs. This is not a guarantee of immediate refresh in every third-party file manager.
 
-Connection cards show accessible text badges for read-only access, automatic mounting, session-only credentials, mount presentation, requested proxy routing and directional bandwidth limits. These describe configured options; upload, error and recovery messages remain separate. In particular, **Proxy requested** does not certify a reachable proxy.
+Connection cards show the provider, remote path and upload/recovery state to the right of the drive letter. **… → Drive details → Connection options** lists read-only access, automatic mounting, session-only credentials, mount presentation, requested proxy routing and directional bandwidth limits. These describe configured options; upload, error and recovery messages remain separate. In particular, **Proxy requested** does not certify a reachable proxy. The same details panel exposes remote destination, uploads, local cache, remote capacity, transport security and alerts in keyboard-accessible tabs.
 
 ## Focused verification
 

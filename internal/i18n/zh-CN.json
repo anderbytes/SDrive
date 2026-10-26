@@ -800,5 +800,6 @@
   "Apply imported theme, language, cache timing and desktop preferences": "应用导入的主题、语言、缓存时间和桌面首选项",
   "Try again": "重试",
   "Local folder": "本地文件夹",
-  "Refresh": "刷新"
+  "Refresh": "刷新",
+  "Close dialog": "关闭对话框"
 }

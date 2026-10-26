@@ -1,10 +1,11 @@
 import { useTheme, type Theme } from "./theme";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { api, type AccessPolicy, type AccessStatus } from "./api";
 import { isLanguage, useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
 import { SecretInput } from "./connection/SecretInput";
 import { useDialog } from "./useDialog";
+import { DialogLayout } from "./DialogLayout";
 
 const lockLimit = "The lock protects SDrive management controls. Drives that remain connected are still accessible in Explorer.";
 
@@ -82,13 +83,14 @@ function Unlock({ status, onUnlocked }: { status: AccessStatus; onUnlocked: () =
   </main>;
 }
 
-function RecoveryCode({ code, onDone }: { code: string; onDone: () => void }) {
+function RecoveryCode({ code, onDone, hideButton = false }: { code: string; onDone: () => void; hideButton?: boolean }) {
   const { t } = useLanguage();
-  return <section><h2>{t("Save your recovery code")}</h2><p>{t("This code is shown only once. Keep it outside SDrive. It resets your PIN without deleting connections or pending files.")}</p><pre data-sensitive aria-label={t("Recovery code")}>{code}</pre><button type="button" onClick={onDone}>{t("I saved the recovery code")}</button></section>;
+  return <section><h2>{t("Save your recovery code")}</h2><p>{t("This code is shown only once. Keep it outside SDrive. It resets your PIN without deleting connections or pending files.")}</p><pre data-sensitive aria-label={t("Recovery code")}>{code}</pre>{!hideButton && <button type="button" onClick={onDone}>{t("I saved the recovery code")}</button>}</section>;
 }
 
 export function AccessSettings({ onClose }: { onClose: () => void }) {
   const { t } = useLanguage();
+  const formID = useId();
   const [status, setStatus] = useState<AccessStatus>();
   const [policy, setPolicy] = useState<AccessPolicy>({ idleMinutes: 15, disconnectIdle: false, reconnect: false });
   const [current, setCurrent] = useState("");
@@ -104,9 +106,14 @@ export function AccessSettings({ onClose }: { onClose: () => void }) {
     void api.accessStatus().then((next) => { if (active.current) { setStatus(next); setPolicy(next.policy); } }).catch((e) => { if (active.current) setError(t(errorMessage(e))); });
     return () => { active.current = false; };
   }, []);
-  return <dialog className="modal" ref={dialog} aria-labelledby="access-settings-title"><h2 id="access-settings-title">{t("Application lock")}</h2><p>{t(lockLimit)}</p>
+  return <DialogLayout dialogRef={dialog} titleID="access-settings-title" title={t("Application lock")} onClose={onClose} closeDisabled={busy || !!code}
+    footer={code ? <button onClick={onClose}>{t("I saved the recovery code")}</button> : <>
+      {status?.enabled && <button disabled={busy} type="button" onClick={async () => { setBusy(true); setError(""); try { await api.disableAccess(current); if (active.current) onClose(); } catch (e) { if (active.current) setError(t(errorMessage(e))); } finally { if (active.current) setBusy(false); } }}>{t("Disable application lock")}</button>}
+      <button disabled={busy} type="button" onClick={onClose}>{t("Cancel")}</button>
+      <button disabled={busy || !status} className="primary" type="submit" form={formID}>{t("Save")}</button>
+    </>}><p>{t(lockLimit)}</p>
     {error && <p role="alert">{error}</p>}
-    {code ? <RecoveryCode code={code} onDone={onClose} /> : <form onSubmit={async (event) => {
+    {code ? <RecoveryCode code={code} onDone={onClose} hideButton /> : <form id={formID} onSubmit={async (event) => {
       event.preventDefault();
       if (pin !== confirmation) { setError(t("PIN confirmation does not match.")); return; }
       setBusy(true); setError("");
@@ -128,9 +135,6 @@ export function AccessSettings({ onClose }: { onClose: () => void }) {
       <label className="check"><input type="checkbox" disabled={!policy.idleMinutes} checked={policy.disconnectIdle} onChange={(e) => setPolicy({ ...policy, disconnectIdle: e.target.checked, reconnect: e.target.checked && policy.reconnect })} />{t("Disconnect safely after inactivity")}</label>
       <label className="check"><input type="checkbox" disabled={!policy.disconnectIdle} checked={policy.reconnect} onChange={(e) => setPolicy({ ...policy, reconnect: e.target.checked })} />{t("Reconnect idle-disconnected drives after unlock")}</label>
       <p>{t("Open files, pending uploads or unknown cache state may prevent disconnection. Sign-in or recovery may be required after unlocking.")}</p>
-      <div className="actions"><button className="primary" type="submit">{t("Save")}</button>
-        {status?.enabled && <button type="button" onClick={async () => { setBusy(true); setError(""); try { await api.disableAccess(current); if (active.current) onClose(); } catch (e) { if (active.current) setError(t(errorMessage(e))); } finally { if (active.current) setBusy(false); } }}>{t("Disable application lock")}</button>}
-        <button type="button" onClick={onClose}>{t("Cancel")}</button></div>
     </fieldset></form>}
-  </dialog>;
+  </DialogLayout>;
 }

@@ -6,8 +6,9 @@ import { ConnectionOptions, DirectoryCacheOptions, NetworkOptions } from "./Conn
 import { api } from "../api";
 import { useConnectionWizard, type EditorProps } from "./useConnectionWizard";
 import { AccessFields } from "./AccessFields";
-import { AuthenticationStep } from "./AuthenticationStep";
-import { FolderStep } from "./FolderStep";
+import { AuthenticationActions, AuthenticationStep } from "./AuthenticationStep";
+import { FolderActions, FolderStep } from "./FolderStep";
+import { DialogLayout } from "../DialogLayout";
 
 export function ConnectionEditor(props: EditorProps) {
   const wizard = useConnectionWizard(props);
@@ -16,37 +17,23 @@ export function ConnectionEditor(props: EditorProps) {
     values, step, transport, setTransport, insecure, setInsecure, identity,
     setIdentity, trusted, setTrusted, session, busy, loading, error,
     fieldID, savedID, p, change, action, close, dialog,
-    unavailable, noLetters, validationProps, fieldFeedback, begin, dispatch, setValues,
+    unavailable, noLetters, validationProps, fieldFeedback, begin, dispatch,
     fieldsLoaded, editTab, setEditTab,
   } = wizard;
+  const formID = `${fieldID}-form`;
+  const footer = step === "folder" ? <FolderActions wizard={wizard} /> : step === "auth" ? <AuthenticationActions wizard={wizard} /> : step === "complete" ? <>
+    <button onClick={close}>{t("Done")}</button><button className="primary" disabled={busy} onClick={() => void action(() => api.open(savedID))}>{t("Open in Explorer")}</button>
+  </> : <>
+    <button type="button" disabled={busy} onClick={() => step === "access" && !initial.id ? dispatch({ type: "service" }) : close()}>{step === "access" && !initial.id ? t("Back") : t("Cancel")}</button>
+    <button form={formID} className="primary" disabled={step === "service"
+      ? !wizard.serviceMethods.some((m) => m.key === methodKey(connection, data.providers) && m.advanced === (wizard.category === "advanced"))
+      : step === "access" ? busy || loading || !fieldsLoaded || noLetters || unavailable || (p.id === "sftp" && !trusted) : busy}>
+      {step === "edit" ? t("Save changes") : busy || loading ? t("Preparing…") : step === "access" && p.oauth && !values.service_account_file ? t("Sign in with {provider}", { provider: p.name }) : t("Continue")}
+    </button>
+  </>;
   return (
-    <dialog
-        ref={dialog}
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="editor-title"
-      >
-        <div className="modal-heading">
-          <div>
-            <div className="eyebrow">
-              {auth
-                ? t("SERVICE → ACCESS → FOLDER → CONNECT")
-                : t("CONFIGURE DRIVE")}
-            </div>
-            <h2 id="editor-title">
-              {initial.id
-                ? auth
-                  ? t("Reconfigure account")
-                  : t("Edit drive")
-                : t("New connection")}
-            </h2>
-          </div>
-          <button aria-label={t("Close setup")} disabled={busy} onClick={close}>
-            {" "}
-            ×{" "}
-          </button>
-        </div>
+    <DialogLayout dialogRef={dialog} titleID="editor-title" title={initial.id ? auth ? t("Reconfigure account") : t("Edit drive") : t("New connection")}
+      eyebrow={auth ? t("SERVICE → ACCESS → FOLDER → CONNECT") : t("CONFIGURE DRIVE")} onClose={close} closeDisabled={busy} closeLabel={t("Close setup")} footer={footer}>
         {(error || session?.error) && (
           <div role="alert" className="alert error">
             {t(error || session?.error || "")}
@@ -65,6 +52,7 @@ export function ConnectionEditor(props: EditorProps) {
         )}
         {step === "service" && (
           <form
+            id={formID}
             onSubmit={(e) => {
               e.preventDefault();
               advance();
@@ -98,16 +86,11 @@ export function ConnectionEditor(props: EditorProps) {
             {fieldFeedback("name")}
             {unavailable && <p role="status">{t(p.notice || "")}</p>}
             <MountDestination wizard={wizard} />
-            <div className="modal-actions">
-              <button type="button" onClick={close}>
-                {t("Cancel")}
-              </button>
-              <button className="primary" disabled={!wizard.serviceMethods.some((m) => m.key === methodKey(connection, data.providers) && m.advanced === (wizard.category === "advanced"))}>{t("Continue")}</button>
-            </div>
           </form>
         )}
         {step === "access" && (
           <form
+            id={formID}
             onSubmit={(e) => {
               e.preventDefault();
               void begin();
@@ -252,32 +235,6 @@ export function ConnectionEditor(props: EditorProps) {
                 <small id={`${fieldID}-automount-help`}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</small>
               </details>
             </fieldset>
-            <div className="modal-actions">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => (initial.id ? close() : dispatch({ type: "service" }))}
-              >
-                {initial.id ? t("Cancel") : t("Back")}
-              </button>
-              <button
-                className="primary"
-                disabled={
-                  busy ||
-                  loading ||
-                  !fieldsLoaded ||
-                  noLetters ||
-                  unavailable ||
-                  (p.id === "sftp" && !trusted)
-                }
-              >
-                {busy || loading
-                  ? t("Preparing…")
-                  : p.oauth && !values.service_account_file
-                    ? t("Sign in with {provider}", { provider: p.name })
-                    : t("Continue")}
-              </button>
-            </div>
           </form>
         )}
         {step === "auth" && <AuthenticationStep wizard={wizard} />}
@@ -289,20 +246,11 @@ export function ConnectionEditor(props: EditorProps) {
             <p>
               {t("Your files are available at {target}.", { target: connection.mountFolder || `${connection.letter}:` })}
             </p>
-            <div className="modal-actions">
-              <button onClick={close}>{t("Done")}</button>
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() => void action(() => api.open(savedID))}
-              >
-                {t("Open in Explorer")}
-              </button>
-            </div>
           </div>
         )}
         {step === "edit" && (
           <form
+            id={formID}
             onInvalidCapture={(e) => {
               const firstInvalid = e.currentTarget.querySelector("input:invalid, select:invalid, textarea:invalid");
               if (e.target !== firstInvalid) {
@@ -386,16 +334,8 @@ export function ConnectionEditor(props: EditorProps) {
             <div id={`${fieldID}-edit-network-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-network-tab`} data-edit-tab="network" hidden={editTab !== "network"}>
               <NetworkOptions wizard={wizard} />
             </div>
-            <div className="modal-actions">
-              <button type="button" disabled={busy} onClick={close}>
-                {t("Cancel")}
-              </button>
-              <button className="primary" disabled={busy}>
-                {t("Save changes")}
-              </button>
-            </div>
           </form>
         )}
-    </dialog>
+    </DialogLayout>
   );
 }

@@ -800,5 +800,6 @@
   "Apply imported theme, language, cache timing and desktop preferences": "Applica temi, lingua, tempistica della cache e preferenze del desktop importati",
   "Try again": "Riprova",
   "Local folder": "Cartella locale",
-  "Refresh": "Aggiorna"
+  "Refresh": "Aggiorna",
+  "Close dialog": "Chiudi finestra di dialogo"
 }

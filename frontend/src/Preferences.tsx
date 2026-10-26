@@ -6,6 +6,7 @@ import { errorMessage as message, type LocalizedMessage } from "./messages";
 import { SecretInput } from "./connection/SecretInput";
 import { ConfigurationPortability } from "./ConfigurationPortability";
 import { useDialog } from "./useDialog";
+import { DialogLayout } from "./DialogLayout";
 import { useTheme, type Theme } from "./theme";
 
 const tabs = ["General", "Appearance", "Cache", "Network", "Configuration"] as const;
@@ -39,14 +40,8 @@ export function Preferences({
     if (!busy) onClose();
   });
   return (
-    <dialog
-        ref={dialog}
-        className="modal small"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="preferences-title"
-      >
-        <h2 id="preferences-title">{t("Preferences")}</h2>
+    <DialogLayout dialogRef={dialog} titleID="preferences-title" title={t("Preferences")} onClose={onClose} closeDisabled={busy}
+      footer={<><button type="button" disabled={busy} onClick={onClose}>{t("Cancel")}</button><button form={`${helpID}-form`} className="primary" disabled={busy}>{t("Save")}</button></>}>
         {error && (
           <div role="alert" className="alert error">
             {t(error)}
@@ -176,14 +171,6 @@ export function Preferences({
           <div id={`${helpID}-Configuration-panel`} role="tabpanel" aria-labelledby={`${helpID}-Configuration-tab`} data-preference-tab="Configuration" hidden={tab !== "Configuration"}>
             <ConfigurationPortability data={data} onRefresh={async () => { onClose(); await onRefresh(); }} />
           </div>
-          <div className="modal-actions">
-            <button type="button" disabled={busy} onClick={onClose}>
-              {t("Cancel")}
-            </button>
-            <button form={`${helpID}-form`} className="primary" disabled={busy}>
-              {t("Save")}
-            </button>
-          </div>
-    </dialog>
+    </DialogLayout>
   );
 }

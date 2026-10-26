@@ -3,6 +3,7 @@ import { api, type FileAccessView } from "./api";
 import { useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
 import { useDialog } from "./useDialog";
+import { DialogLayout } from "./DialogLayout";
 
 export function FileAccessDialog({ connectionID, onClose }: { connectionID: string; onClose: () => void }) {
   const { t } = useLanguage();
@@ -20,7 +21,7 @@ export function FileAccessDialog({ connectionID, onClose }: { connectionID: stri
     } catch (e) { if (active.current) setError(t(errorMessage(e))); }
     finally { if (active.current) setBusy(false); }
   };
-  return <dialog className="modal" ref={dialog} aria-labelledby="file-access-title"><h2 id="file-access-title">{t("Applications using a file")}</h2>
+  return <DialogLayout dialogRef={dialog} titleID="file-access-title" title={t("Applications using a file")} onClose={onClose} footer={<button onClick={onClose}>{t("Close")}</button>}>
     <p>{t("Select one file in this connected drive. Windows reports applications using that file; reading or writing activity is unknown. This is not a scan of the entire drive.")}</p>
     <button disabled={busy} onClick={() => void query("")}>{t("Select mounted file")}</button>
     {busy && <p role="status">{t("Checking file access…")}</p>}
@@ -30,6 +31,5 @@ export function FileAccessDialog({ connectionID, onClose }: { connectionID: stri
       <button disabled={busy} onClick={() => void query(result.path)}>{t("Refresh")}</button>
     </section>}
     <p>{t("Queued remote uploads are separate from local file access. This query never closes files or stops applications.")}</p>
-    <button onClick={onClose}>{t("Close")}</button>
-  </dialog>;
+  </DialogLayout>;
 }
