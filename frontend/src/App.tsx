@@ -1,3 +1,4 @@
+import { DriveIcon, DriveAppearanceDialog } from "./DriveAppearance";
 import { Preferences } from "./Preferences";
 import { ThemeProvider, useTheme } from "./theme";
 import { errorMessage as message, type LocalizedMessage } from "./messages";
@@ -353,7 +354,8 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
         )}
         <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
         <section aria-label={t("Drives")} className="drives">
-          {data?.importDrafts?.map((draft) => <article className="drive" key={draft.id}>
+          {data?.importDrafts?.map((draft) => <article className="drive" data-card-style={draft.definition.cardStyle || ""} key={draft.id}>
+            <DriveIcon connection={draft.definition} />
             <div className="drive-info"><h2>{draft.definition.name}</h2>
               <p>{data.providers.find((p) => p.id === draft.definition.provider)?.name} · {draft.definition.mountFolder || `${draft.definition.letter}:`}</p>
               <p role="status">{t("Authentication required for imported configuration")}</p>
@@ -375,6 +377,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
               operation={operationText[c.operation] || working[c.id] || ""}
               onAction={(action, operation, success) => void run(c.id, () => action(c.id), success, operation)}
               onEdit={(auth) => setEditor({ connection: c, auth })}
+              onAppearanceSaved={() => void refresh()}
             />
           ))}
         </section>
@@ -552,6 +555,7 @@ function Drive({
   operation,
   onAction,
   onEdit,
+  onAppearanceSaved,
 }: {
   connection: ConnectionView;
   provider: Provider;
@@ -561,9 +565,11 @@ function Drive({
   operation: string;
   onAction: (action: (id: string) => Promise<void>, operation?: string, success?: string) => void;
   onEdit: (auth: boolean) => void;
+  onAppearanceSaved: () => void;
 }) {
   const { t } = useLanguage();
   const [fileAccess, setFileAccess] = useState(false);
+  const [appearance, setAppearance] = useState(false);
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -581,21 +587,15 @@ function Drive({
   const needsAttention = c.pending === null || c.pending > 0 || (c.recovery && !c.mounted) || (c.mounted && c.transportSecurity?.state !== "encrypted");
   const statusClass = busy ? "operating" : c.error || c.cache.error || c.uploads?.cacheErrors ? "failed" : needsAttention ? "attention" : c.mounted ? "connected" : "disconnected";
   return (
-    <article className={`drive ${statusClass}`}>
+    <article className={`drive ${statusClass}`} data-card-style={c.cardStyle || ""}>
+      {appearance && <DriveAppearanceDialog connection={c} unavailable={busy} onClose={() => setAppearance(false)} onSave={onAppearanceSaved} />}
       {fileAccess && <FileAccessDialog connectionID={c.id} onClose={() => setFileAccess(false)} />}
       {detailSelection?.connectionID === c.id && <DriveDetails connection={c} provider={p} selection={detailSelection} onSelect={onDetailSelect} />}
       {confirmRemoval && <RemoveConnectionDialog name={c.name} unavailable={busy || c.mounted || c.recovery} onClose={() => setConfirmRemoval(false)} onConfirm={() => { setConfirmRemoval(false); onAction(api.remove); }} />}
-      <div className={`letter ${c.mounted ? "connected" : ""}`}>
-        {c.mountFolder ? "▱" : <>{c.letter}<span>:</span></>}
-      </div>
+      <DriveIcon connection={c} />
       <div className="drive-info">
-        <h2>{c.name}</h2>
-        <div className="drive-metadata">
-        <p>
-          {t(p.name)} · {c.path || t("Root")}
-          {p.experimental ? ` · ${t("Experimental")}` : ""}
-        </p>
-        <div className="state">
+        <div className="drive-heading"><h2>{c.name}</h2>
+        <div className={`state status-tag ${busy ? "operating" : c.pending === null || c.recovery && !c.mounted || !!c.pending ? "attention" : c.mounted ? "connected" : "disconnected"}`}>
           {busy
             ? t(operation || "Operation in progress…")
             : c.pending === null
@@ -607,8 +607,9 @@ function Drive({
                 : c.recovery
                   ? t("Recovery required")
                   : t("Disconnected")}
-        </div>
-        </div>
+        </div></div>
+        <div className="drive-metadata"><span className={`type-tag type-${["smb", "sftp", "ftp"].includes(p.id) ? "network" : ["webdav", "nextcloud", "owncloud"].includes(p.id) ? "webdav" : ["s3", "b2", "azureblob", "gcs"].includes(p.id) ? "object" : "cloud"}`}>{t(p.name)}</span><span className="server-path">{c.serverPath || c.path || t("Root")}</span></div>
+        {p.experimental && <p className="drive-secondary">{t("Experimental")}</p>}
         {c.mountFolder && <p className="mount-folder">{c.mountFolder}</p>}
         {c.recovery && !c.mounted && (busy || c.pending === null) && <p className="inline-error">{t("Recovery required")}</p>}
         {!!c.error && <p className="inline-error">{t("Connection needs attention.")}</p>}
@@ -646,6 +647,7 @@ function Drive({
             if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMenu();
           }}>
             <button onClick={() => { closeMenu(); onDetailSelect({ connectionID: c.id, topic: "destination" }); }}>{t("Drive details")}</button>
+            <button disabled={busy} onClick={() => { closeMenu(); setAppearance(true); }}>{t("Customize appearance")}</button>
             <button disabled={busy || !c.mounted} onClick={() => { closeMenu(); setFileAccess(true); }}>{t("Applications using a file")}</button>
           <button disabled={busy || !c.mounted} onClick={() => onAction(api.refreshDirectoryCache, "Refreshing directory metadata…", "Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.")}>{t("Refresh files in Explorer")}</button>
             <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>

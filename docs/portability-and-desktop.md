@@ -55,3 +55,13 @@ In **Preferences → Cache**, restore the size target (**2 GiB**) or timing (**2
 In **Preferences → Network**, **Restore proxy defaults** clears the form's address, username and password. Save removes the saved credentials; Cancel leaves them intact. Per-connection proxy choices remain set, so those connections fail with a configuration message until a proxy is configured again. Already-connected workers retain their next-connection semantics; restoring does not disconnect drives or silently bypass a required proxy.
 
 New controls and safety messages are supplied in English and Brazilian Portuguese. Other interface locales currently use the English fallback for these additions.
+
+## Drive card appearance
+
+Drive cards show a status tag beside the title, followed by a colored connection-type tag and the server/folder destination. Local mount folders, experimental status and warnings appear below these primary details. Folder mounts use a folder icon instead of a drive letter.
+
+Choose **… → Customize appearance** to select Default, Blue, Violet, Teal or Amber and optionally replace the letter/folder icon with a local PNG, JPEG or WebP image (up to 5 MiB). SDrive stores a normalized PNG copy up to 128 × 128 pixels and 128 KiB, so moving the original image has no effect. Remove image restores the generated icon. Save persists the preview; Cancel and Escape discard it. These choices are included in portable configurations and imported drafts; older configurations use the default appearance.
+
+Appearance can be changed while mounted or awaiting recovery, without restarting the connection or changing credentials, destination or pending files. Active operations, setup for that connection, application lock and invalid settings block the save. Custom card backgrounds follow the application theme; high contrast retains system colors.
+
+Server summaries are read from local configuration, cached per destination and sanitized before reaching the interface. They omit URL credentials, query parameters and fragments. Providers without an available endpoint show only the remote folder or Root. Reading a summary does not contact the storage server; an existing per-drive configuration reader may be started to access its encrypted local settings.

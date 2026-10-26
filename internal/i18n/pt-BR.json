@@ -837,5 +837,19 @@
   "Additional access settings": "Configurações adicionais de acesso",
   "Drive behavior": "Comportamento da unidade",
   "Files and cache": "Arquivos e cache",
-  "Sign-in options": "Opções de autenticação"
+  "Sign-in options": "Opções de autenticação",
+  "Customize appearance": "Personalizar aparência",
+  "Card background": "Fundo do card",
+  "Drive image": "Imagem da unidade",
+  "Remove image": "Remover imagem",
+  "Default": "Padrão",
+  "Blue": "Azul",
+  "Violet": "Violeta",
+  "Teal": "Verde-azulado",
+  "Amber": "Âmbar",
+  "PNG, JPEG or WebP, up to 5 MiB. A small copy is saved in SDrive.": "PNG, JPEG ou WebP, até 5 MiB. Uma cópia pequena é salva no SDrive.",
+  "Choose a PNG, JPEG or WebP image up to 5 MiB.": "Escolha uma imagem PNG, JPEG ou WebP de até 5 MiB.",
+  "The image could not be read.": "Não foi possível ler a imagem.",
+  "Select a supported card style.": "Selecione um estilo de card compatível.",
+  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "Escolha uma imagem válida de até 128 × 128 pixels e 128 KiB."
 }

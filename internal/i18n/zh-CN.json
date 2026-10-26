@@ -837,5 +837,19 @@
   "Additional access settings": "其他访问设置",
   "Drive behavior": "驱动器行为",
   "Files and cache": "文件与缓存",
-  "Sign-in options": "登录选项"
+  "Sign-in options": "登录选项",
+  "Customize appearance": "自定义外观",
+  "Card background": "卡片背景",
+  "Drive image": "驱动器图片",
+  "Remove image": "移除图片",
+  "Default": "默认",
+  "Blue": "蓝色",
+  "Violet": "紫色",
+  "Teal": "蓝绿色",
+  "Amber": "琥珀色",
+  "PNG, JPEG or WebP, up to 5 MiB. A small copy is saved in SDrive.": "PNG、JPEG 或 WebP，最大 5 MiB。小尺寸副本将保存在 SDrive 中。",
+  "Choose a PNG, JPEG or WebP image up to 5 MiB.": "请选择不超过 5 MiB 的 PNG、JPEG 或 WebP 图片。",
+  "The image could not be read.": "无法读取图片。",
+  "Select a supported card style.": "请选择受支持的卡片样式。",
+  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "请选择不超过 128 × 128 像素和 128 KiB 的有效图片。"
 }

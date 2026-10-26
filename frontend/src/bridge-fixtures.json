@@ -394,6 +394,16 @@
       "returns": [
         "error"
       ]
+    },
+    "updateDriveAppearance": {
+      "args": [
+        "string",
+        "core.DriveAppearance"
+      ],
+      "name": "UpdateDriveAppearance",
+      "returns": [
+        "error"
+      ]
     }
   },
   "samples": {
@@ -449,7 +459,9 @@
         "resourceID": "synthetic-resource",
         "primaryURL": "https://example.test/dav",
         "binding": "{}",
-        "virtualCapacityGiB": 256
+        "virtualCapacityGiB": 256,
+        "cardStyle": "blue",
+        "iconImage": "data:image/png;base64,synthetic"
       },
       "values": {
         "host": "example.test"
@@ -569,7 +581,9 @@
         "alternateURL": "https://alternate.example.test/dav",
         "transport": "",
         "values": {},
-        "virtualCapacityGiB": 256
+        "virtualCapacityGiB": 256,
+        "cardStyle": "blue",
+        "iconImage": "data:image/png;base64,synthetic"
       }
     },
     "importPreview": {
@@ -600,7 +614,9 @@
             "alternateURL": "https://alternate.example.test/dav",
             "transport": "",
             "values": {},
-            "virtualCapacityGiB": 256
+            "virtualCapacityGiB": 256,
+            "cardStyle": "blue",
+            "iconImage": "data:image/png;base64,synthetic"
           }
         ],
         "preferences": {
@@ -832,7 +848,10 @@
             "source": "",
             "checkedAt": null
           },
-          "virtualCapacityGiB": 256
+          "virtualCapacityGiB": 256,
+          "cardStyle": "blue",
+          "iconImage": "data:image/png;base64,synthetic",
+          "serverPath": "example.test/folder"
         }
       ],
       "settings": {

@@ -11,7 +11,7 @@ const artifacts = path.join(root, ".tools/check-results/desktop-serene");
 const fixtures = JSON.parse(await readFile(path.join(root, "frontend/src/bridge-fixtures.json"), "utf8")).samples;
 const access = { ...fixtures.accessStatus, setupPending: false, enabled: false, locked: false, error: "", warning: "", language: "en", theme: "light" };
 const field = (key, label, secret = false) => ({ key, label, secret, required: true, advanced: false, default: "", file: false });
-const connection = { ...fixtures.connectionUnknown, id: "visual-first", name: "Documents", provider: "webdav", letter: "S", path: "Documents", mounted: true, busy: false, recovery: false, pending: 0, error: "", operation: "",
+const connection = { ...fixtures.connectionUnknown, id: "visual-first", name: "Documents", provider: "webdav", letter: "S", serverPath: "https://files.example.test/dav/Documents", path: "Documents", mounted: true, busy: false, recovery: false, pending: 0, error: "", operation: "",
   uploads: { active: 0, queued: 0, cacheErrors: 0 }, cache: { usedBytes: 1024, pendingBytes: 0, checkedAt: null, error: "" },
   transportSecurity: { state: "encrypted", protocol: "https", source: "configuration", checkedAt: null } };
 const snapshot = { ...fixtures.snapshotEmpty, access, settings: { ...fixtures.snapshotEmpty.settings, theme: "light", language: "en" },
@@ -20,8 +20,8 @@ const snapshot = { ...fixtures.snapshotEmpty, access, settings: { ...fixtures.sn
     fields: [field("url", "WebDAV HTTPS URL"), field("user", "Username"), field("pass", "Password / app password", true)] },
     { ...fixtures.providerEmpty, id: "gcs", name: "Google Cloud Storage", backend: "google cloud storage", transportEncryption: "required", available: true, oauth: true,
       fields: [{ ...field("service_account_file", "Service account JSON file (optional)"), file: true }] }],
-  connections: [connection, { ...connection, id: "visual-second", name: "Team library", letter: "T", path: "Projects", mounted: false },
-    { ...connection, id: "visual-long", name: "Shared documents and administrative projects with a deliberately long name", letter: "U", path: "Long remote directory/".repeat(8), pending: null, recovery: true }],
+  connections: [connection, { ...connection, id: "visual-second", name: "Team library", letter: "", mountFolder: "C:\\Synthetic\\Team", cardStyle: "violet", serverPath: "https://files.example.test/dav/Projects", path: "Projects", mounted: false },
+    { ...connection, id: "visual-long", name: "Shared documents and administrative projects with a deliberately long name", letter: "U", serverPath: "https://files.example.test/dav/" + "Long remote directory/".repeat(8), path: "Long remote directory/".repeat(8), pending: null, recovery: true }],
   importDrafts: [], letters: ["V", "W"], winFsp: true, engineError: "", settingsError: "", desktopWarning: "", startupWarning: "", maintenanceError: "", recoveryHold: false };
 const apiSource = `window.visualSnapshot = ${JSON.stringify(snapshot)};
 const current = () => window.visualSnapshot;
@@ -30,6 +30,7 @@ export const api = {
   onDesktopVisibility: cb => { window.visualVisibility = cb; return () => {}; }, onAccessChanged: cb => {window.visualAccess = cb; return () => {};},
   preferenceDefaults: async () => ({ ...current().settings, cacheGiB: 2, cacheMaxAgeHours: 24, writeBackSeconds: 5 }), restoreDefaultCacheLocation: async () => current().cacheLocation,
   proxy: async () => ({ address: '', username: '', password: '', hasPassword: false }), browsers: async () => [{ id: '', name: 'Default browser' }],
+  updateDriveAppearance: async (id, appearance) => { Object.assign(current().connections.find(c => c.id === id), appearance); },
   fields: async () => ({ values: {}, transport: '' }), settings: async settings => { current().settings = settings; },
   begin: async () => 'synthetic-draft', status: async () => ({busy:false,authenticated:true,complete:false,error:''}), folders: async () => [{name:'Documents',path:'Documents'}], end: async () => {},
   selectDirectory: async () => 'C:\\\\Synthetic\\\\NewCache', selectFile: async () => ${JSON.stringify("C:\\Synthetic\\Credentials\\" + "long-directory\\".repeat(8) + "account.json")},
@@ -87,6 +88,33 @@ try {
     await page.locator(".drive > .actions > details > summary").first().click();
     await page.getByRole("button", { name: "Drive details", exact: true }).click();
   };
+  const firstCard = page.locator(".drive").first();
+  assert.equal(await firstCard.locator(".status-tag.connected").textContent(), "Connected");
+  assert(await firstCard.locator(".status-tag, .type-tag").evaluateAll(tags => tags.every(tag => {
+    const style = getComputedStyle(tag);
+    return style.borderTopWidth === "1px" && style.borderTopStyle === "solid" && style.borderTopColor !== "rgba(0, 0, 0, 0)";
+  })), "Tags need a subtle visible border");
+  assert.equal(await page.locator(".drive").nth(1).locator(".letter svg").count(), 1);
+  assert.equal(await firstCard.locator(".drive-metadata .type-tag + .server-path").textContent(), "https://files.example.test/dav/Documents");
+  const appearance = async () => {
+    await firstCard.locator("summary").click();
+    await page.getByRole("button", { name: "Customize appearance", exact: true }).click();
+  };
+  await appearance();
+  await page.getByLabel("Teal", { exact: true }).check();
+  const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAQAAAABACAYAAAD1Xam+AAAA3klEQVR4nO3UoQEAIAzAME7jND4fZ0w0Ir6q574ZoOlsBwB7DADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCPlFxikI+oz1nAAAAAElFTkSuQmCC", "base64");
+  await page.getByLabel("Drive image", { exact: true }).setInputFiles({ name: "icon.png", mimeType: "image/png", buffer: image });
+  await page.locator(".appearance-preview img").waitFor();
+  assert(await page.locator(".appearance-preview img").evaluate(img => img.complete && img.naturalWidth === 128 && img.naturalHeight === 32));
+  await bounds(); await capture("appearance-preview");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await page.waitForFunction(() => document.querySelector(".drive").dataset.cardStyle === "teal");
+  assert(await firstCard.locator(".letter img").evaluate(img => img.complete && img.naturalWidth > 0));
+  await appearance();
+  await page.getByLabel("Amber", { exact: true }).check();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await firstCard.getAttribute("data-card-style"), "teal");
   for (const viewport of [{ width: 1440, height: 900 }, { width: 1180, height: 800 }, { width: 850, height: 620 }, { width: 420, height: 740 }]) {
     await page.setViewportSize(viewport);
     await bounds();
@@ -178,8 +206,8 @@ try {
     assert.equal(await page.locator(".dropdown").first().evaluate(element => getComputedStyle(element).animationName), "none", "Closing must reset the menu animation");
   }
   const cardAnimations = await page.evaluate(() => window.visualMotion.filter(event => event.target.startsWith("drive ")).length);
-  await page.evaluate(() => { window.visualSnapshot.connections[0].path = "Refreshed library"; window.visualVisibility(false); window.visualVisibility(true); });
-  await page.getByText("WebDAV · Refreshed library", { exact: true }).waitFor();
+  await page.evaluate(() => { window.visualSnapshot.connections[0].path = "Refreshed library"; window.visualSnapshot.connections[0].serverPath = "https://files.example.test/dav/Refreshed library"; window.visualVisibility(false); window.visualVisibility(true); });
+  await page.getByText("https://files.example.test/dav/Refreshed library", { exact: true }).waitFor();
   await settle();
   assert.equal(await page.evaluate(() => window.visualMotion.filter(event => event.target.startsWith("drive ")).length), cardAnimations, "Status refreshes must not animate existing cards");
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -258,7 +286,7 @@ try {
   await page.emulateMedia({ forcedColors: "none" });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

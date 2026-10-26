@@ -72,6 +72,7 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
 type BridgeKey = Exclude<keyof typeof api, "copyDiagnostics" | "onDesktopVisibility" | "onAccessChanged">;
 type Calls = { [K in BridgeKey]: Parameters<(typeof api)[K]> };
 type Results = {
+  updateDriveAppearance: void;
   inspectFileAccess: FileAccessView; accessStatus: AccessStatus; configureAccess: string; disableAccess: void; lock: void; unlockAccess: void; recoverAccess: string;
   exportConfiguration: void; previewImport: ImportPreview | null; commitImport: void; removeImportDraft: void;
   preferenceDefaults: Settings; restoreDefaultCacheLocation: string;
@@ -85,6 +86,7 @@ type Results = {
   restoreSettings: void; verifyRecovery: void; retryCleanup: void;
 };
 const calls = {
+  updateDriveAppearance: ["connection", { cardStyle: "blue", iconImage: "" }],
   inspectFileAccess: ["connection", "file.txt"], accessStatus: [], configureAccess: ["", "123456", { idleMinutes: 15, disconnectIdle: false, reconnect: false }], disableAccess: ["123456"], lock: [], unlockAccess: ["123456"], recoverAccess: ["synthetic", "123456"],
   exportConfiguration: [], previewImport: [], commitImport: ["preview", { ...samples.importPreview.document, preferences: { ...samples.importPreview.document.preferences, theme: "system", language: "en" } }, false], removeImportDraft: ["draft"],
   preferenceDefaults: [], restoreDefaultCacheLocation: [],

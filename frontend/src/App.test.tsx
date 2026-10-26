@@ -71,6 +71,7 @@ vi.mock("./api", async (importOriginal) => ({
     mount: vi.fn(),
     test: vi.fn(),
     update: vi.fn(),
+    updateDriveAppearance: vi.fn(),
     unmount: vi.fn(),
     open: vi.fn(),
     fields: vi.fn(),
@@ -844,7 +845,9 @@ test.each(["en", "pt-BR"])("drive labels and experimental text follow %s without
   render(<App />);
   await screen.findByRole("region", { name: language === "en" ? "Drives" : "Unidades" });
   expect(await screen.findByRole("heading", { name: "Root" })).toBeDefined();
-  expect(screen.getByText("Google Drive · My drives · Experimental")).toBeDefined();
+  expect(document.querySelector(".type-tag")?.textContent).toBe("Google Drive");
+  expect(document.querySelector(".server-path")?.textContent).toBe("My drives");
+  expect(screen.getByText("Experimental", { exact: true })).toBeDefined();
   await selectDriveDetail(language === "en" ? "Remote destination" : "Destino remoto");
   expect(screen.getByRole("tabpanel").textContent).toContain("Google Drive · My drives");
   cancelDialog();
@@ -1437,7 +1440,7 @@ test("Portuguese drive UI keeps user labels and CSS state unchanged", async () =
   const view = render(<App />);
   await screen.findByRole("heading", { name: "Minhas unidades" });
   expect(screen.getByRole("heading", { name: "Root" })).toBeDefined();
-  expect(view.container.querySelector(".letter.connected")).not.toBeNull();
+  expect(view.container.querySelector(".status-tag.connected")).not.toBeNull();
   expect(screen.getByRole("button", { name: "Desconectar" })).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: /Preferências/ }));
   fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));

@@ -39,6 +39,7 @@ type View struct {
 }
 type ConnectionView struct {
 	Connection
+	ServerPath        string                `json:"serverPath,omitempty"`
 	TransportSecurity TransportSecurityView `json:"transportSecurity"`
 	Mounted           bool                  `json:"mounted"`
 	Pending           *int                  `json:"pending"`
@@ -51,6 +52,7 @@ type ConnectionView struct {
 	Capacity          CapacityView          `json:"capacity"`
 }
 type Service struct {
+	serverPaths          map[string]*serverPathInspection
 	pickAccessFile       func(string) (string, error)
 	fileAccessBusy       bool
 	access               accessProtection
@@ -263,6 +265,7 @@ func (s *Service) Snapshot() (v View) {
 		go func(i int) {
 			defer checks.Done()
 			cv := &v.Connections[i]
+			cv.ServerPath = s.connectionServerPath(ctx, cv.Connection)
 			s.mu.Lock()
 			connectionRPC := s.connectionRPC(cv.Connection)
 			hasWorker := s.workers[cv.Remote] != nil
@@ -418,6 +421,7 @@ func (s *Service) updateConnection(c Connection) error {
 		return fmt.Errorf("connection not found")
 	}
 	old := s.store.Connections[i]
+	c.CardStyle, c.IconImage = old.CardStyle, old.IconImage
 	if s.exiting {
 		return fmt.Errorf("connection operation in progress")
 	}

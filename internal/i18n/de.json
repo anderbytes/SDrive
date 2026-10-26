@@ -837,5 +837,19 @@
   "Additional access settings": "Weitere Zugriffseinstellungen",
   "Drive behavior": "Laufwerksverhalten",
   "Files and cache": "Dateien und Cache",
-  "Sign-in options": "Anmeldeoptionen"
+  "Sign-in options": "Anmeldeoptionen",
+  "Customize appearance": "Darstellung anpassen",
+  "Card background": "Kartenhintergrund",
+  "Drive image": "Laufwerksbild",
+  "Remove image": "Bild entfernen",
+  "Default": "Standard",
+  "Blue": "Blau",
+  "Violet": "Violett",
+  "Teal": "Blaugrün",
+  "Amber": "Bernstein",
+  "PNG, JPEG or WebP, up to 5 MiB. A small copy is saved in SDrive.": "PNG, JPEG oder WebP, bis zu 5 MiB. Eine kleine Kopie wird in SDrive gespeichert.",
+  "Choose a PNG, JPEG or WebP image up to 5 MiB.": "Wählen Sie ein PNG-, JPEG- oder WebP-Bild bis zu 5 MiB.",
+  "The image could not be read.": "Das Bild konnte nicht gelesen werden.",
+  "Select a supported card style.": "Wählen Sie einen unterstützten Kartenstil.",
+  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "Wählen Sie ein gültiges Bild bis zu 128 × 128 Pixel und 128 KiB."
 }

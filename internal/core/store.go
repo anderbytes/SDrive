@@ -15,6 +15,8 @@ import (
 )
 
 type Connection struct {
+	CardStyle             string `json:"cardStyle,omitempty"`
+	IconImage             string `json:"iconImage,omitempty"`
 	ID                    string `json:"id"`
 	Remote                string `json:"remote"`
 	Name                  string `json:"name"`
@@ -203,6 +205,9 @@ func saveStore(dir string, s Store) error {
 func atomicWrite(path string, data []byte) error { return platform.AtomicWrite(path, data) }
 
 func validateConnection(c *Connection) error {
+	if err := validateDriveAppearance(DriveAppearance{c.CardStyle, c.IconImage}); err != nil {
+		return err
+	}
 	if err := validateNetwork(*c); err != nil {
 		return err
 	}

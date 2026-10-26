@@ -38,7 +38,8 @@ export interface Provider {
   available: boolean;
   notice?: string;
 }
-export interface Connection {
+export interface DriveAppearance { cardStyle?: string; iconImage?: string }
+export interface Connection extends DriveAppearance {
   id: string;
   remote: string;
   name: string;
@@ -68,6 +69,7 @@ export interface Connection {
   binding?: string;
 }
 export interface ConnectionView extends Connection {
+  serverPath?: string;
 	transportSecurity: TransportSecurityView;
   mounted: boolean;
   busy: boolean;
@@ -176,6 +178,7 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }
 export const api = {
+  updateDriveAppearance: (id: string, appearance: DriveAppearance) => invoke<void>("UpdateDriveAppearance", id, appearance),
   inspectFileAccess: (id: string, path: string) => invoke<FileAccessView>("InspectFileAccess", id, path),
   accessStatus: () => invoke<AccessStatus>("AccessStatus"),
   configureAccess: (currentPIN: string, newPIN: string, policy: AccessPolicy) => invoke<string>("ConfigureAccess", currentPIN, newPIN, policy),

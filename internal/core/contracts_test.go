@@ -13,7 +13,7 @@ import (
 
 // Samples are synthetic; no service operation, profile or credential is used.
 func bridgeSamples() map[string]any {
-	connection := Connection{ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S", AuthMethod: "oauth", SessionOnly: true, UploadLimit: 1024, DownloadLimit: 2048, UseProxy: true, Browser: "edge", PrivateBrowser: true, ConnectTimeout: 30, IdleTimeout: 60, AlternateURL: "https://alternate.example.test/dav", ResourceID: "synthetic-resource", PrimaryURL: "https://example.test/dav", Binding: "{}", MountMode: "local", MountFolder: `C:\Synthetic\Mount`, DirectoryCacheSeconds: 300, VirtualCapacityGiB: 256}
+	connection := Connection{CardStyle: "blue", IconImage: "data:image/png;base64,synthetic", ID: "connection", Remote: "remote", Name: "Café 😀", Provider: "sftp", Path: "folder", Letter: "S", AuthMethod: "oauth", SessionOnly: true, UploadLimit: 1024, DownloadLimit: 2048, UseProxy: true, Browser: "edge", PrivateBrowser: true, ConnectTimeout: 30, IdleTimeout: 60, AlternateURL: "https://alternate.example.test/dav", ResourceID: "synthetic-resource", PrimaryURL: "https://example.test/dav", Binding: "{}", MountMode: "local", MountFolder: `C:\Synthetic\Mount`, DirectoryCacheSeconds: 300, VirtualCapacityGiB: 256}
 	age, delay := 24, 5
 	settings := Settings{Theme: "system", Language: "en", CacheGiB: 2, CacheMaxAgeHours: &age, WriteBackSeconds: &delay}
 	field := Field{Key: "host", Label: "Server", Required: true, Choices: []string{"example.test"}, Hint: "Server hostname"}
@@ -28,7 +28,7 @@ func bridgeSamples() map[string]any {
 	filled.Providers = []Provider{provider}
 	filled.Letters = []string{"T"}
 	filled.FreeBytes = &size
-	filled.Connections = []ConnectionView{{Connection: connection, Pending: &count, Operation: "mounting", Error: message.Message, ErrorMessage: message, Uploads: &UploadView{Active: 1, Queued: 1}, Cache: CacheView{CheckedAt: &checked, PendingBytes: &pending, UsedBytes: &size}}}
+	filled.Connections = []ConnectionView{{ServerPath: "example.test/folder", Connection: connection, Pending: &count, Operation: "mounting", Error: message.Message, ErrorMessage: message, Uploads: &UploadView{Active: 1, Queued: 1}, Cache: CacheView{CheckedAt: &checked, PendingBytes: &pending, UsedBytes: &size}}}
 	return map[string]any{
 		"accessStatus":  AccessStatus{Theme: "system", Enabled: true, Locked: true, Language: "en", Policy: AccessPolicy{IdleMinutes: 15}, RetryAt: checked},
 		"fileAccess":    FileAccessView{Path: "document.txt", FileAccess: platform.FileAccess{State: "reported", CheckedAt: checked, Processes: []platform.FileProcess{{PID: 42, Name: "Synthetic editor", StartedAt: checked}}}},
@@ -52,7 +52,8 @@ func bridgeSamples() map[string]any {
 
 func bridgeMethods() map[string]any {
 	names := map[string]string{
-		"inspectFileAccess": "InspectFileAccess", "accessStatus": "AccessStatus", "configureAccess": "ConfigureAccess", "disableAccess": "DisableAccess", "lock": "Lock", "unlockAccess": "UnlockAccess", "recoverAccess": "RecoverAccess",
+		"updateDriveAppearance": "UpdateDriveAppearance",
+		"inspectFileAccess":     "InspectFileAccess", "accessStatus": "AccessStatus", "configureAccess": "ConfigureAccess", "disableAccess": "DisableAccess", "lock": "Lock", "unlockAccess": "UnlockAccess", "recoverAccess": "RecoverAccess",
 		"exportConfiguration": "ExportConfiguration", "previewImport": "PreviewImport", "commitImport": "CommitImport", "removeImportDraft": "RemoveImportDraft",
 		"preferenceDefaults": "PreferenceDefaults", "restoreDefaultCacheLocation": "RestoreDefaultCacheLocation",
 		"selectDirectory": "SelectDirectory", "changeCacheLocation": "ChangeCacheLocation", "refreshDirectoryCache": "RefreshDirectoryCache",

@@ -123,6 +123,27 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     await page.getByRole("button", { name: "Done", exact: true }).click();
     const drive = page.locator(".drive");
     await drive.getByText("Connected", { exact: true }).waitFor();
+    assert.equal(await drive.locator(".letter svg").count(), 1);
+    await drive.locator("summary").click();
+    await drive.getByRole("button", { name: "Customize appearance", exact: true }).click();
+    await page.getByLabel("Amber", { exact: true }).check();
+    await page.getByLabel("Drive image", { exact: true }).setInputFiles({ name: "drive.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAQAAAABACAYAAAD1Xam+AAAA3klEQVR4nO3UoQEAIAzAME7jND4fZ0w0Ir6q574ZoOlsBwB7DADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCPlFxikI+oz1nAAAAAElFTkSuQmCC", "base64") });
+    await page.locator(".appearance-preview img").waitFor();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    await page.waitForFunction(() => document.querySelector(".drive").dataset.cardStyle === "amber");
+    assert(await drive.locator(".letter img").evaluate(img => img.complete && img.naturalWidth === 128 && img.naturalHeight === 32));
+    await drive.getByText("Connected", { exact: true }).waitFor();
+    await page.waitForFunction(() => document.querySelector(".server-path").textContent.includes("127.0.0.1"));
+    const persisted = JSON.parse(await readFile(path.join(profile, "SDrive", "settings.json"), "utf8"));
+    assert.equal(persisted.connections[0].cardStyle, "amber");
+    assert(persisted.connections[0].iconImage.startsWith("data:image/png;base64,"));
+    await drive.locator("summary").click();
+    await drive.getByRole("button", { name: "Customize appearance", exact: true }).click();
+    await page.getByLabel("Violet", { exact: true }).check();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    assert.equal(await drive.getAttribute("data-card-style"), "amber");
+    await page.screenshot({ path: path.join(artifacts, "drive-appearance.png") });
     await drive.locator("summary").click();
     await drive.getByRole("button", { name: "Refresh files in Explorer", exact: true }).click();
     await page.getByText("Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.", { exact: true }).waitFor();
@@ -275,6 +296,10 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   const portable = JSON.parse(await readFile(portablePath, "utf8"));
   assert.equal(portable.format, "sdrive-portable");
   assert.equal(portable.version, 1);
+  if (process.env.SDRIVE_TEST_MOUNT === "1") {
+    assert.equal(portable.connections[0].cardStyle, "amber");
+    assert(portable.connections[0].iconImage.startsWith("data:image/png;base64,"));
+  }
   assert.equal(portable.preferences.theme, "light");
   assert.equal("autoStart" in portable.preferences, false);
   await page.getByRole("dialog", { name: "Review imported configuration" }).getByRole("button", { name: "Cancel", exact: true }).click();
