@@ -169,7 +169,7 @@ export function Preferences({
           </div>
           <div id={`${helpID}-Network-panel`} role="tabpanel" aria-labelledby={`${helpID}-Network-tab`} data-preference-tab="Network" hidden={tab !== "Network"}>
             <fieldset disabled={!proxyReady || busy}><legend>{t("Connection proxy")}</legend>
-              {(["address", "username"] as const).map((key) => <label key={key}>{t(key === "address" ? "Proxy HTTP/HTTPS address" : "Proxy username")}
+              {(["address", "username"] as const).map((key) => <label key={key}>{t(key === "address" ? "Proxy HTTP/HTTPS/SOCKS5 address" : "Proxy username")}
                 <input type="text" autoComplete="off" value={proxy[key]} onChange={(e) => { setProxy({ ...proxy, [key]: e.target.value }); setProxyDirty(true); }} />
               </label>)}
               <SecretInput label={t("Proxy password")} value={proxy.password} required={false} onChange={(value) => { setProxy({ ...proxy, password: value }); setProxyDirty(true); }} />
@@ -177,6 +177,7 @@ export function Preferences({
               <p>{t("Save removes the proxy address and saved credentials. Connections that require a proxy keep that choice and cannot connect until a proxy is configured.")}</p>
               {proxy.hasPassword && <p>{t("A proxy password is saved. Leave blank to keep it for the same address and username.")}</p>}
               <p>{t("Choose Use proxy separately for each connection. Changes apply on the next connection; the local engine API always stays direct.")}</p>
+              <p>{t("SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings.")}</p>
             </fieldset>
           </div>
         </form>

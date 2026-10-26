@@ -529,7 +529,7 @@
   "Remove this connection's saved credentials when setup is confirmed": "确认设置后删除此连接已保存的凭据",
   "FTP uses passive transfers only. Active mode, Mode Z compression and legacy filename charsets are not supported.": "FTP 仅使用被动传输。不支持活动模式、Mode Z 压缩和旧文件名字符集。",
   "Connection proxy": "连接代理",
-  "Proxy HTTP/HTTPS address": "代理HTTP/HTTPS地址",
+  "Proxy HTTP/HTTPS/SOCKS5 address": "HTTP/HTTPS/SOCKS5 代理地址",
   "Proxy username": "代理用户名",
   "Proxy password": "代理密码",
   "A proxy password is saved. Leave blank to keep it for the same address and username.": "保存代理密码。留空以保留相同的地址和用户名。",
@@ -546,7 +546,7 @@
   "Enter an HTTPS WebDAV address without credentials, query or fragment.": "输入不带凭据、查询或片段的 HTTPS WebDAV 地址。",
   "Invalid verified destination identity.": "已验证的目标身份无效。",
   "Could not unlock proxy settings.": "无法解锁代理设置。",
-  "Enter an HTTP or HTTPS proxy address without embedded credentials.": "输入不带嵌入式凭据的 HTTP 或 HTTPS 代理地址。",
+  "Enter an HTTP, HTTPS or SOCKS5 proxy address without embedded credentials.": "请输入不含嵌入式凭据的 HTTP、HTTPS 或 SOCKS5 代理地址。",
   "Configure a proxy before using it for this connection.": "在将其用于此连接之前配置代理。",
   "Connection engine stopped. Reconnect to recover your files.": "连接引擎已停止。重新连接以恢复您的文件。",
   "Could not verify isolated credentials. Preserve the original profile.": "无法验证隔离的凭据。保留原始配置文件。",
@@ -825,5 +825,7 @@
   "Virtual capacity in Explorer (GiB)": "资源管理器中的虚拟容量 (GiB)",
   "Virtual capacity must be between 0 and 8388607 GiB.": "虚拟容量必须介于 0 到 8388607 GiB 之间。",
   "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "零使用提供商默认值。重新连接后更改显示的总容量；不会预留空间、强制配额或更改提供商配额及本地缓存可用空间。",
-  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "保留时间为 1–4320 小时（180 天）。控制上次访问后的清理，不保证离线可用；待上传文件仍受保护。"
+  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "保留时间为 1–4320 小时（180 天）。控制上次访问后的清理，不保证离线可用；待上传文件仍受保护。",
+  "SOCKS5 authentication requires both username and password, each at most 255 bytes.": "SOCKS5 身份验证需要用户名和密码，每项最多 255 字节。",
+  "SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings.": "SOCKS5 通过代理解析目标名称。浏览器登录使用浏览器自身的网络设置。"
 }

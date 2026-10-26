@@ -259,11 +259,11 @@ Focused connection checks:
 npm --prefix frontend test
 npm --prefix frontend run build
 $env:SDRIVE_TEST_ENGINE = '1'
-try { ./.tools/go/bin/go.exe test . ./internal/engine -run '^Test(ConnectionEngine|SessionOnlyEngine|ProviderProxy)' -count=1 -v }
+try { ./.tools/go/bin/go.exe test . ./internal/core ./internal/engine -run '^Test(ConnectionEngine|SessionOnlyEngine|ProviderProxy|SOCKSProxy)' -count=1 -v }
 finally { Remove-Item Env:SDRIVE_TEST_ENGINE }
 ```
 
-These real-engine tests create disposable loopback WebDAV storage, independent limited client processes, an authenticated rejecting proxy, encrypted isolated profiles and in-memory credential workers. They check transfer contents/timing, proxy/RPC separation, legacy import and reopening. They do not access real provider accounts, launch a personal browser or mount drives. Use the existing native UI smoke harness separately. Live OAuth setup, cancellation and renewal require provider-specific validation. Legacy charset conversion is unsupported by the pinned engine.
+These real-engine tests create disposable loopback WebDAV storage, independent limited client processes, an authenticated rejecting HTTP proxy, disposable loopback SOCKS5 proxies, encrypted isolated profiles and in-memory credential workers. They check transfer contents/timing, proxy/RPC separation, legacy import and reopening. SOCKS5 checks cover both URL schemes, optional authentication, proxy-side destination DNS, failed credentials, unavailable proxies without direct fallback, reconnected transfers, HTTPS WebDAV identity verification and credential redaction. The fixtures need no external proxy or provider account. They do not access real provider accounts, launch a personal browser or mount drives. Use the existing native UI smoke harness separately. Live OAuth setup, cancellation and renewal require provider-specific validation. Legacy charset conversion is unsupported by the pinned engine.
 
 ## Online and offline installers
 

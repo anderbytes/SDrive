@@ -2252,6 +2252,25 @@ test.each(["en", "pt-BR"] as const)("cache and proxy defaults stay isolated and 
   expect(api.saveProxy).toHaveBeenCalledExactlyOnceWith({ address: "", username: "", password: "", hasPassword: false });
 });
 
+test.each(["en", "pt-BR"] as const)("SOCKS5 proxy preferences reopen and save without returning the password in %s", async (language) => {
+  const t = (source: string) => translate(language, source);
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, language });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language } });
+  vi.mocked(api.proxy).mockResolvedValue({ address: "socks5://127.0.0.1:1080", username: "synthetic", password: "", hasPassword: true });
+  render(<App />);
+  const preferences = await screen.findByRole("button", { name: new RegExp(t("Preferences")) });
+  await waitFor(() => expect((preferences as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(preferences);
+  fireEvent.click(screen.getByRole("tab", { name: t("Network") }));
+  const address = await screen.findByLabelText(t("Proxy HTTP/HTTPS/SOCKS5 address"));
+  await waitFor(() => expect((address as HTMLInputElement).value).toBe("socks5://127.0.0.1:1080"));
+  expect((screen.getByLabelText(t("Proxy password")) as HTMLInputElement).value).toBe("");
+  expect(screen.getByText(t("SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings."))).toBeDefined();
+  fireEvent.change(address, { target: { value: "socks5h://127.0.0.1:1081" } });
+  fireEvent.click(screen.getByRole("button", { name: t("Save") }));
+  await waitFor(() => expect(api.saveProxy).toHaveBeenCalledExactlyOnceWith({ address: "socks5h://127.0.0.1:1081", username: "synthetic", password: "", hasPassword: true }));
+});
+
 test("Cancel discards restored settings and proxy credentials", async () => {
   render(<App />); await openPreferences();
   fireEvent.click(screen.getByRole("tab", { name: "Cache" }));

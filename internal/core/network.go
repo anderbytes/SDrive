@@ -165,8 +165,8 @@ func (s *Service) SaveProxy(p ProxyConfig) error {
 	}
 	if p.Address != "" {
 		u, err := url.Parse(p.Address)
-		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || strings.ContainsAny(p.Address+p.Username+p.Password, "\x00\r\n") || len(p.Address+p.Username+p.Password) > 32768 {
-			return fmt.Errorf("Enter an HTTP or HTTPS proxy address without embedded credentials.")
+		if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "socks5" && u.Scheme != "socks5h") || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || strings.ContainsAny(p.Address+p.Username+p.Password, "\x00\r\n") || len(p.Address+p.Username+p.Password) > 32768 {
+			return fmt.Errorf("Enter an HTTP, HTTPS or SOCKS5 proxy address without embedded credentials.")
 		}
 		if p.Password == "" && p.HasPassword {
 			old, err := s.readProxy()
@@ -176,6 +176,9 @@ func (s *Service) SaveProxy(p ProxyConfig) error {
 			if old.Address == p.Address && old.Username == p.Username {
 				p.Password = old.Password
 			}
+		}
+		if (u.Scheme == "socks5" || u.Scheme == "socks5h") && (len(p.Username) > 255 || len(p.Password) > 255 || (p.Password != "" && p.Username == "") || (p.Username != "" && p.Password == "")) {
+			return fmt.Errorf("SOCKS5 authentication requires both username and password, each at most 255 bytes.")
 		}
 	} else {
 		p.Username = ""

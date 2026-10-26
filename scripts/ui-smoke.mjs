@@ -171,7 +171,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   assert.equal(await page.getByLabel("Upload delay after last use (seconds)").inputValue(), "5");
   await page.getByRole("tab", { name: "Network", exact: true }).click();
   await page.getByRole("button", { name: "Restore proxy defaults", exact: true }).click();
-  assert.equal(await page.getByLabel("Proxy HTTP/HTTPS address").inputValue(), "");
+  assert.equal(await page.getByLabel("Proxy HTTP/HTTPS/SOCKS5 address").inputValue(), "");
   await page.getByRole("tab", { name: "Cache", exact: true }).click();
   await page.getByLabel("Cache target per connection (GiB)").fill("3");
   await page.getByLabel("Cache retention after last access (hours)").fill("48");

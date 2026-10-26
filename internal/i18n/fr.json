@@ -529,7 +529,7 @@
   "Remove this connection's saved credentials when setup is confirmed": "Supprimez les informations d'identification enregistrées pour cette connexion lorsque la configuration est confirmée",
   "FTP uses passive transfers only. Active mode, Mode Z compression and legacy filename charsets are not supported.": "FTP utilise uniquement des transferts passifs. Le mode actif, la compression Mode Z et les anciens jeux de caractères de nom de fichier ne sont pas pris en charge.",
   "Connection proxy": "Proxy de connexion",
-  "Proxy HTTP/HTTPS address": "Adresse du proxy HTTP/HTTPS",
+  "Proxy HTTP/HTTPS/SOCKS5 address": "Adresse du proxy HTTP/HTTPS/SOCKS5",
   "Proxy username": "Nom d'utilisateur du proxy",
   "Proxy password": "Mot de passe proxy",
   "A proxy password is saved. Leave blank to keep it for the same address and username.": "Un mot de passe proxy est enregistré. Laissez vide pour le conserver pour la même adresse et le même nom d'utilisateur.",
@@ -546,7 +546,7 @@
   "Enter an HTTPS WebDAV address without credentials, query or fragment.": "Saisissez une adresse WebDAV HTTPS sans informations d'identification, requête ou fragment.",
   "Invalid verified destination identity.": "Identité de destination vérifiée invalide.",
   "Could not unlock proxy settings.": "Impossible de déverrouiller les paramètres du proxy.",
-  "Enter an HTTP or HTTPS proxy address without embedded credentials.": "Entrez une adresse proxy HTTP ou HTTPS sans informations d'identification intégrées.",
+  "Enter an HTTP, HTTPS or SOCKS5 proxy address without embedded credentials.": "Saisissez une adresse de proxy HTTP, HTTPS ou SOCKS5 sans identifiants intégrés.",
   "Configure a proxy before using it for this connection.": "Configurez un proxy avant de l'utiliser pour cette connexion.",
   "Connection engine stopped. Reconnect to recover your files.": "Moteur de connexion arrêté. Reconnectez-vous pour récupérer vos fichiers.",
   "Could not verify isolated credentials. Preserve the original profile.": "Impossible de vérifier les informations d'identification isolées. Conservez le profil d'origine.",
@@ -825,5 +825,7 @@
   "Virtual capacity in Explorer (GiB)": "Capacité virtuelle dans l’Explorateur (GiB)",
   "Virtual capacity must be between 0 and 8388607 GiB.": "La capacité virtuelle doit être comprise entre 0 et 8388607 GiB.",
   "Zero uses the provider default. This changes the displayed total after reconnecting; it does not reserve space, enforce a quota or change provider quota or local cache free space.": "Zéro utilise la valeur du fournisseur. Modifie le total affiché après reconnexion ; ne réserve pas d’espace, n’impose pas de quota et ne modifie ni le quota du fournisseur ni l’espace libre du cache local.",
-  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "La conservation accepte de 1 à 4320 heures (180 jours). Elle contrôle l’éviction après le dernier accès, pas la disponibilité hors ligne ; les envois en attente restent protégés."
+  "Retention accepts 1–4320 hours (180 days). It controls eviction after last access, not offline availability; pending uploads remain protected.": "La conservation accepte de 1 à 4320 heures (180 jours). Elle contrôle l’éviction après le dernier accès, pas la disponibilité hors ligne ; les envois en attente restent protégés.",
+  "SOCKS5 authentication requires both username and password, each at most 255 bytes.": "L’authentification SOCKS5 exige un nom d’utilisateur et un mot de passe de 255 octets maximum chacun.",
+  "SOCKS5 resolves destination names through the proxy. Browser sign-in uses the browser's own network settings.": "SOCKS5 résout les noms de destination via le proxy. La connexion dans le navigateur utilise ses propres paramètres réseau."
 }
