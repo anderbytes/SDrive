@@ -5,6 +5,7 @@ Push-Location $projectRoot
 try {
     & "$PSScriptRoot/bootstrap.ps1"
     $go = Join-Path $projectRoot '.tools/go/bin/go.exe'
+    & "$PSScriptRoot/windows-resources.ps1"
     Push-Location frontend
     try {
         npm ci
@@ -35,5 +36,6 @@ try {
     if ($Installer) {
         & "$PSScriptRoot/package.ps1"
     }
+    & "$PSScriptRoot/test-windows-resources.ps1" -IncludeInstallers:$Installer
     Write-Output "Build ready at $projectRoot/bin"
 } finally { Pop-Location }

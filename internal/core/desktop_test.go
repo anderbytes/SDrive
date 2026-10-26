@@ -21,13 +21,13 @@ func TestAboutUsesRunningEngineAndHandlesUnavailableVersions(t *testing.T) {
 			return map[string]any{}, nil
 		}}
 		s := testService(t, rpc)
-		SetDesktopStatus(s, func() bool { return false }, nil, "0.1.0")
+		SetDesktopStatus(s, func() bool { return false }, nil, "1.0.0")
 		info := s.About()
 		want := "v-running-test"
 		if unavailable {
 			want = ""
 		}
-		if info.AppVersion != "0.1.0" || info.RcloneVersion != want || info.WindowsVersion == "" || info.Architecture == "" || s.DesktopVisible() {
+		if info.AppVersion != "1.0.0" || info.RcloneVersion != want || info.WindowsVersion == "" || info.Architecture == "" || s.DesktopVisible() {
 			t.Fatalf("invalid diagnostics: %+v", info)
 		}
 	}
@@ -46,7 +46,7 @@ func TestSnapshotObserverRunsOutsideServiceMutex(t *testing.T) {
 			t.Error("incomplete snapshot")
 		}
 		delivered <- sequence
-	}, "0.1.0")
+	}, "1.0.0")
 	go s.Snapshot()
 	if receive(t, delivered) == 0 {
 		t.Fatal("snapshot generation absent")

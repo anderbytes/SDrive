@@ -52,8 +52,8 @@ jobs:
         with:
           name: SDrive-windows-x64
           path: |
-            bin/SDrive-0.1.0-setup.exe
-            bin/SDrive-0.1.0-offline-setup.exe
+            bin/SDrive-1.0.0-setup.exe
+            bin/SDrive-1.0.0-offline-setup.exe
             bin/SDrive-source.zip
             bin/rclone-source.zip
             bin/SHA256SUMS

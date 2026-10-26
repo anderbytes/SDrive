@@ -440,12 +440,13 @@ test("structured field errors keep their field association and translate by code
 });
 
 test("About shows actual versions and unavailable components, and returns focus on close", async () => {
-  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "v-running", windowsVersion: "10.0.26100", winFspVersion: "", webView2Version: "123.4", architecture: "amd64" });
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "1.0.0", rcloneVersion: "v-running", windowsVersion: "10.0.26100", winFspVersion: "", webView2Version: "123.4", architecture: "amd64" });
   render(<App />);
   const button = await screen.findByRole("button", { name: "About SDrive" });
   button.focus();
   fireEvent.click(button);
   await screen.findByText("v-running");
+  expect(screen.getByRole("dialog").textContent).toContain("1.0.0");
   expect(screen.getByRole("dialog").textContent).toContain("Unavailable or not installed");
   cancelDialog();
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -483,7 +484,7 @@ test("diagnostics previews and copies exactly the reviewed report during setting
 });
 
 test("diagnostics offers retry and manual selection when loading or copying fails", async () => {
-  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "1.0.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
   vi.mocked(api.diagnostics).mockRejectedValueOnce(new Error("private backend error")).mockResolvedValue("safe report");
   vi.mocked(api.copyDiagnostics).mockRejectedValue(new Error("private clipboard error"));
   render(<App />);
@@ -502,7 +503,7 @@ test("diagnostics offers retry and manual selection when loading or copying fail
 
 test("diagnostics controls and clipboard feedback use Portuguese", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" } });
-  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "1.0.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
   vi.mocked(api.diagnostics).mockResolvedValue("SDrive diagnostic report v1");
   vi.mocked(api.copyDiagnostics).mockResolvedValue();
   render(<App />);
@@ -514,7 +515,7 @@ test("diagnostics controls and clipboard feedback use Portuguese", async () => {
 });
 
 test("closing About ignores a late diagnostic response", async () => {
-  vi.mocked(api.about).mockResolvedValue({ appVersion: "0.1.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "1.0.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
   let resolve!: (report: string) => void;
   vi.mocked(api.diagnostics).mockImplementation(() => new Promise((done) => { resolve = done; }));
   render(<App />);

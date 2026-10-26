@@ -5,3 +5,4 @@ frontend/dist/
 *.log
 .env
 coverage*
+resource_windows_amd64.syso

@@ -17,7 +17,7 @@ func TestDiagnosticReportOmitsProfileAndUntrustedVersions(t *testing.T) {
 		}
 		return map[string]any{}, nil
 	}})
-	s.appVersion = "0.1.0"
+	s.appVersion = "1.0.0"
 	s.store.Connections = []Connection{{ID: "private-id", Remote: "private-remote", Name: "private-name", Path: "private-path", Recovery: true}}
 	s.settingsError = "private settings error"
 	s.engineError = "private engine error"

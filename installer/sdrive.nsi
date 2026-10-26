@@ -4,11 +4,21 @@ Unicode true
 !include "x64.nsh"
 !include "uninstall-retry.nsh"
 Name "SDrive"
+!ifndef APP_VERSION
+  !error "APP_VERSION must be supplied by scripts/package.ps1"
+!endif
+VIProductVersion "${APP_VERSION}.0"
+VIAddVersionKey /LANG=1033 "ProductName" "SDrive"
+VIAddVersionKey /LANG=1033 "FileDescription" "SDrive installer"
+VIAddVersionKey /LANG=1033 "FileVersion" "${APP_VERSION}"
+VIAddVersionKey /LANG=1033 "ProductVersion" "${APP_VERSION}"
+!define MUI_ICON "..\assets\sdrive.ico"
+!define MUI_UNICON "..\assets\sdrive.ico"
 !ifdef OFFLINE
-  OutFile "..\bin\SDrive-0.1.0-offline-setup.exe"
+  OutFile "..\bin\SDrive-${APP_VERSION}-offline-setup.exe"
   !define MUI_WELCOMEPAGE_TEXT "$(WelcomeOffline)"
 !else
-  OutFile "..\bin\SDrive-0.1.0-setup.exe"
+  OutFile "..\bin\SDrive-${APP_VERSION}-setup.exe"
   !define MUI_WELCOMEPAGE_TEXT "$(WelcomeOnline)"
 !endif
 InstallDir "$LOCALAPPDATA\Programs\SDrive"
@@ -203,7 +213,8 @@ Section "SDrive"
   CreateShortcut "$SMPROGRAMS\SDrive.lnk" "$INSTDIR\SDrive.exe"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "DisplayName" "SDrive"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "DisplayVersion" "0.1.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "DisplayIcon" '"$INSTDIR\SDrive.exe",0'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "NoModify" 1
