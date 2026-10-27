@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 // Fixtures exercise the actual React UI without calling the desktop bridge or personal providers.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const artifacts = path.join(root, ".tools/check-results/desktop-serene");
+const palette = JSON.parse(await readFile(path.join(root, "internal/core/drive_palette.json"), "utf8"));
 const fixtures = JSON.parse(await readFile(path.join(root, "frontend/src/bridge-fixtures.json"), "utf8")).samples;
 const access = { ...fixtures.accessStatus, setupPending: false, enabled: false, locked: false, error: "", warning: "", language: "en", theme: "light" };
 const field = (key, label, secret = false) => ({ key, label, secret, required: true, advanced: false, default: "", file: false });
@@ -83,7 +84,7 @@ try {
     const dialog = page.getByRole("dialog").last();
     if (await dialog.count()) {
       assert(await dialog.evaluate(e => e.scrollWidth <= e.clientWidth + 1), "Dialog horizontal overflow");
-      assert(await dialog.evaluate(e => { const b = e.getBoundingClientRect(); return Math.abs(b.right - innerWidth) <= 1 && b.width <= (e.classList.contains("with-navigation") ? 800 : 640) && b.top >= (innerWidth < 640 ? 8 : 16) && b.bottom <= innerHeight - (innerWidth < 640 ? 8 : 16) + 1; }), "Drawer must align to the right edge");
+      assert(await dialog.evaluate(e => { const b = e.getBoundingClientRect(); return (e.classList.contains("confirmation") ? Math.abs((b.left + b.right) / 2 - innerWidth / 2) <= 1 : Math.abs(b.right - innerWidth) <= 1) && b.width <= (e.classList.contains("with-navigation") ? 800 : 640) && b.top >= (innerWidth < 640 ? 8 : 16) && b.bottom <= innerHeight - (innerWidth < 640 ? 8 : 16) + 1; }), "Drawer must align to the right edge");
       assert(await dialog.locator(".dialog-footer").evaluate(e => { const b = e.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight + 1; }), "Drawer actions clipped");
     }
     for (const row of await page.locator(".field-action:visible").all()) {
@@ -162,12 +163,39 @@ try {
   })), "Tags need a subtle visible border");
   assert.equal(await page.locator(".drive").nth(1).locator(".letter svg").count(), 1);
   assert.equal(await firstCard.locator(".drive-metadata .type-tag + .server-path").textContent(), "https://files.example.test/dav/Documents");
+  if (process.argv.includes("--capture-overview")) {
+    const original = await page.evaluate(() => structuredClone(window.visualSnapshot));
+    await page.evaluate(() => {
+      const current = window.visualSnapshot;
+      current.mountAvailable = true;
+      current.connections = [
+        { ...current.connections[0], cardStyle: "teal", cache: { ...current.connections[0].cache, checkedAt: "2026-10-27T12:03:00Z" } },
+        { ...current.connections[1], name: "Team files", letter: "T", mountFolder: "", cardStyle: "violet", serverPath: "https://files.example.test/dav/Team", pending: 0, recovery: false,
+          cache: { usedBytes: 0, pendingBytes: 0, checkedAt: "2026-10-27T12:03:00Z", error: "" }, network: null, transportSecurity: null },
+      ];
+      window.visualVisibility(false); window.visualVisibility(true);
+    });
+    await page.waitForFunction(() => document.querySelectorAll(".drive").length === 2 && document.querySelector(".drive").dataset.cardStyle === "teal");
+    await page.evaluate(() => document.fonts.ready);
+    assert.equal(await page.getByText("Installation needs repair", { exact: true }).count(), 0);
+    await page.getByRole("heading", { name: "My drives", exact: true }).click();
+    await page.mouse.move(5, 5);
+    await bounds(); await settle();
+    await page.screenshot({ path: path.join(root, "assets/screenshots/overview.png"), fullPage: true });
+    await page.evaluate(original => { window.visualSnapshot = original; window.visualVisibility(false); window.visualVisibility(true); }, original);
+    await page.waitForFunction(() => document.querySelectorAll(".drive").length === 3);
+  }
+  const chooseColor = async label => {
+    await page.getByRole("button", { name: "Choose color…", exact: true }).click();
+    await page.getByLabel(label, { exact: true }).check();
+    await page.getByRole("button", { name: "Use color", exact: true }).click();
+  };
   const appearance = async () => {
     await firstCard.locator("summary").click();
     await page.getByRole("button", { name: "Customize appearance", exact: true }).click();
   };
   await appearance();
-  await page.getByLabel("Teal", { exact: true }).check();
+  await chooseColor("Teal");
   const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAQAAAABACAYAAAD1Xam+AAAA3klEQVR4nO3UoQEAIAzAME7jND4fZ0w0Ir6q574ZoOlsBwB7DADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCPlFxikI+oz1nAAAAAElFTkSuQmCC", "base64");
   await page.getByLabel("Drive image", { exact: true }).setInputFiles({ name: "icon.png", mimeType: "image/png", buffer: image });
   await page.locator(".appearance-preview img").waitFor();
@@ -178,9 +206,90 @@ try {
   await page.waitForFunction(() => document.querySelector(".drive").dataset.cardStyle === "teal");
   assert(await firstCard.locator(".letter img").evaluate(img => img.complete && img.naturalWidth > 0));
   await appearance();
-  await page.getByLabel("Amber", { exact: true }).check();
+  await chooseColor("Amber");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(await firstCard.getAttribute("data-card-style"), "teal");
+  await appearance();
+  assert.equal(await page.getByRole("dialog").getByText("Documents", { exact: true }).count(), 0);
+  assert(await page.locator(".dialog-body").evaluate(element => element.lastElementChild.classList.contains("appearance-preview-section")));
+  assert.equal(await page.getByRole("radio").count(), 0, "Palette must stay in its own modal");
+  await chooseColor("Rose");
+  assert.equal(await firstCard.getAttribute("data-card-style"), "teal", "Palette confirmation must not persist");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".drive").dataset.cardStyle === "rose");
+  const appearanceColors = palette.map(([id]) => id);
+  for (const theme of ["light", "dark"]) {
+    for (const color of appearanceColors) {
+      await page.evaluate(({ theme, color }) => {
+        window.visualSnapshot.settings.theme = theme;
+        window.visualSnapshot.connections[0].cardStyle = color;
+        window.visualSnapshot.connections[0].mountFolder = "C:/Synthetic/Palette";
+        window.visualVisibility(false); window.visualVisibility(true);
+      }, { theme, color });
+      await page.waitForFunction(({ theme, color }) => document.documentElement.dataset.theme === theme && document.querySelector(".drive").dataset.cardStyle === color, { theme, color });
+      const failures = await firstCard.evaluate(card => {
+        const rgb = value => {
+          const channels = value.match(/[\d.]+/g).slice(0, 3).map(Number);
+          return value.startsWith("color(srgb") ? channels.map(channel => channel * 255) : channels;
+        };
+        const luminance = value => rgb(value).map(c => c / 255).map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+        const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+        const background = element => {
+          for (let current = element; current; current = current.parentElement) {
+            const value = getComputedStyle(current).backgroundColor;
+            if (value !== "rgba(0, 0, 0, 0)" && value !== "transparent") return value;
+          }
+        };
+        const failures = [];
+        const selectors = ":scope > .letter, :scope > .drive-info h2, :scope > .drive-info .server-path, :scope > .drive-info p, :scope > .drive-info .state, :scope > .drive-info .type-tag, :scope > .drive-controls button:not(:disabled), :scope > .drive-controls summary";
+        for (const element of card.querySelectorAll(selectors)) {
+          if (!element.getBoundingClientRect().width) continue;
+          const style = getComputedStyle(element);
+          const minimum = element.classList.contains("drive-detail-icon") ? 3 : 4.5;
+          const ratio = contrast(style.color, background(element));
+          if (ratio < minimum) failures.push({ element: element.textContent || element.ariaLabel, ratio, foreground: style.color, background: background(element) });
+        }
+        const style = getComputedStyle(card);
+        if (contrast(style.borderLeftColor, style.backgroundColor) < 3) failures.push({ element: "stripe" });
+        return failures;
+      });
+      assert.deepEqual(failures, [], `Rendered contrast: ${theme}/${color || "default"}`);
+    }
+    for (const language of ["en", "pt-BR"]) {
+      const translations = JSON.parse(await readFile(path.join(root, "internal/i18n", language === "en" ? "pt-BR.json" : language + ".json"), "utf8"));
+      const t = source => language === "en" ? source : translations[source] || source;
+      await page.evaluate(language => { window.visualSnapshot.settings.language = language; window.visualVisibility(false); window.visualVisibility(true); }, language);
+      await page.waitForFunction(language => document.documentElement.lang === language, language);
+      await page.setViewportSize({ width: 420, height: 740 });
+      await firstCard.locator("summary").click();
+      await page.getByRole("button", { name: t("Customize appearance"), exact: true }).click();
+      await bounds();
+      const remove = page.getByRole("button", { name: t("Remove image"), exact: true });
+      await remove.scrollIntoViewIfNeeded();
+      assert(await remove.evaluate(element => {
+        const row = element.parentElement.getBoundingClientRect(), button = element.getBoundingClientRect();
+        return Math.abs(row.right - button.right) < 2 && button.height >= 44;
+      }), "Removal action belongs at the right of the preview");
+      await capture(`appearance-${theme}-${language}`);
+      await page.getByRole("button", { name: t("Choose color…"), exact: true }).click();
+      assert.equal(await page.getByRole("dialog").count(), 2);
+      assert.equal(await page.getByRole("radio").count(), 16);
+      await bounds(); await capture(`appearance-palette-${theme}-${language}`);
+      await page.emulateMedia({ forcedColors: "active" }); await bounds(); await capture(`appearance-high-contrast-${theme}-${language}`);
+      await page.emulateMedia({ forcedColors: "none" });
+      await page.keyboard.press("Escape");
+      assert(await page.getByRole("button", { name: t("Choose color…"), exact: true }).evaluate(element => document.activeElement === element));
+      await page.keyboard.press("Escape");
+    }
+  }
+  await page.evaluate(() => {
+    window.visualSnapshot.settings.language = "en";
+    window.visualSnapshot.settings.theme = "light";
+    window.visualSnapshot.connections[0].cardStyle = "teal";
+    window.visualSnapshot.connections[0].mountFolder = "";
+    window.visualVisibility(false); window.visualVisibility(true);
+  });
+  await page.waitForFunction(() => document.documentElement.lang === "en" && document.querySelector(".drive").dataset.cardStyle === "teal");
   for (const viewport of [{ width: 1440, height: 900 }, { width: 1180, height: 800 }, { width: 850, height: 620 }, { width: 420, height: 740 }]) {
     await page.setViewportSize(viewport);
     await bounds();
@@ -405,16 +514,8 @@ try {
     await page.getByRole("tab", { name: tab, exact: true }).click(); await bounds(); await capture("preferences-" + tab.toLowerCase());
   }
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
-  assert.equal(await page.getByLabel("Drive card stripe").inputValue(), "theme");
-  assert(await firstCard.evaluate(element => getComputedStyle(element).borderLeftColor === getComputedStyle(document.querySelector(".primary")).backgroundColor), "Default stripe must follow the theme");
-  await page.getByLabel("Drive card stripe").selectOption("drive");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".drives").dataset.stripeSource === "drive");
-  assert.equal(await firstCard.evaluate(element => getComputedStyle(element).borderLeftColor), "rgb(50, 183, 165)");
-  assert(await page.locator(".drive").last().evaluate(element => getComputedStyle(element).borderLeftColor === getComputedStyle(document.querySelector(".primary")).backgroundColor), "Missing custom color must fall back to the theme");
-  await page.getByRole("button", { name: /Preferences/ }).click();
-  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
-  assert.equal(await page.getByLabel("Drive card stripe").inputValue(), "drive");
+  assert.equal(await page.getByLabel("Drive card stripe").count(), 0);
+  assert.equal(await page.locator(".drives").getAttribute("data-stripe-source"), null);
   await page.getByRole("tab", { name: "Configuration", exact: true }).click();
   await page.getByRole("button", { name: "Import configuration", exact: true }).click();
   assert.equal(await page.getByRole("dialog").count(), 2, "Import opens above Preferences");
@@ -493,7 +594,7 @@ try {
   await page.getByRole("button", { name: /Preferences/ }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, theme/custom stripes and fallback, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, per-drive soft colors, neutral defaults, rendered text/icon/stripe contrast across all 16 presets, dedicated palette modal and draft save/cancel, preview layout in both languages/themes, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

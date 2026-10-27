@@ -2602,27 +2602,18 @@ test.each(["en", "pt-BR"] as const)("hidden file visibility follows the system a
   await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ hiddenFileVisibility: "hide" })));
 });
 
-test("drive stripe preference saves explicitly and Cancel leaves the saved mode intact", async () => {
-  vi.mocked(api.settings).mockResolvedValue();
+test("stripe follows each drive without a global appearance preference", async () => {
   render(<App />);
   await openPreferences();
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
-  expect((screen.getByLabelText("Drive card stripe") as HTMLSelectElement).value).toBe("theme");
-  fireEvent.change(screen.getByLabelText("Drive card stripe"), { target: { value: "drive" } });
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  expect(document.querySelector(".drives")?.getAttribute("data-stripe-source")).toBe("theme");
-  expect(api.settings).not.toHaveBeenCalled();
-  await openPreferences();
-  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
-  fireEvent.change(screen.getByLabelText("Drive card stripe"), { target: { value: "drive" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(api.settings).toHaveBeenCalledWith(expect.objectContaining({ driveStripeColorSource: "drive" })));
+  expect(screen.queryByLabelText("Drive card stripe")).toBeNull();
+  expect(document.querySelector(".drives")?.hasAttribute("data-stripe-source")).toBe(false);
 });
 
 test.each(["en", "pt-BR"] as const)("cards keep full paths, a bold mount prefix and a short Open action in %s", async (language) => {
   const t = (source: string) => translate(language, source);
   const mounted = { ...connection, mounted: true, mountFolder: "C:\\Synthetic\\" + "long-folder\\".repeat(15), serverPath: "https://example.test/" + "long-path/".repeat(20) };
-  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [mounted], settings: { ...snapshot.settings, language, driveStripeColorSource: "drive" } });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [mounted], settings: { ...snapshot.settings, language } });
   vi.mocked(api.open).mockResolvedValue();
   render(<App />);
   const open = await screen.findByRole("button", { name: t("Open") });
@@ -2632,7 +2623,7 @@ test.each(["en", "pt-BR"] as const)("cards keep full paths, a bold mount prefix 
   expect(document.querySelector(".mount-folder span")?.textContent).toBe(mounted.mountFolder);
   expect(document.querySelector(".drive-credits")?.textContent).toContain("Go + rclone");
   expect(document.querySelector("aside footer")?.textContent).not.toContain("Go + rclone");
-  expect(document.querySelector(".drives")?.getAttribute("data-stripe-source")).toBe("drive");
+  expect(document.querySelector(".drives")?.hasAttribute("data-stripe-source")).toBe(false);
   fireEvent.click(open);
   await waitFor(() => expect(api.open).toHaveBeenCalledWith(mounted.id));
 });

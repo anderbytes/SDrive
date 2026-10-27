@@ -81,7 +81,7 @@ Recording does not wait for disk I/O: a 64-event queue feeds a background writer
 
 **About SDrive → View diagnostics** generates a plain-text report from validated numeric component versions, aggregate state and allowlisted events. It works without a running engine or readable settings; unavailable versions are explicit. Opening the report does not copy, save or transmit it. The report opens in a separate modal. **Copy report** copies exactly the displayed preview only after your action; **Export report** saves the same reviewed text as a local UTF-8 `.txt` file through a native Save dialog. Review it before sharing, and remember that clipboard contents are available to other applications and may be synchronized by your Windows clipboard settings. There is no automatic upload, support submission, analytics or telemetry.
 
-For safe manual updates, repair and incompatible settings, follow the [user instructions](../README.md#update-repair-and-collect-diagnostics). Preserve the full profile privately if manual recovery is needed; share the sanitized report rather than the profile, raw stderr or configuration dumps. Installer rollback/transactionality and compatible-version support still require their own release validation.
+For safe manual updates, repair and incompatible settings, follow the [user instructions](usage.md#update-or-repair). Preserve the full profile privately if manual recovery is needed; share the sanitized report rather than the profile, raw stderr or configuration dumps. Installer rollback/transactionality and compatible-version support still require their own release validation.
 
 ## Distribution and reporting
 

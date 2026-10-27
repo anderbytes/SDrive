@@ -48,14 +48,13 @@ type Connection struct {
 	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
-	DriveStripeColorSource string `json:"driveStripeColorSource,omitempty"`
-	Theme                  string `json:"theme"`
-	ShowServiceIcons       bool   `json:"showServiceIcons"`
-	Language               string `json:"language"`
-	AutoStart              bool   `json:"autoStart"`
-	CacheGiB               int    `json:"cacheGiB"`
-	CacheMaxAgeHours       *int   `json:"cacheMaxAgeHours,omitempty"`
-	WriteBackSeconds       *int   `json:"writeBackSeconds,omitempty"`
+	Theme            string `json:"theme"`
+	ShowServiceIcons bool   `json:"showServiceIcons"`
+	Language         string `json:"language"`
+	AutoStart        bool   `json:"autoStart"`
+	CacheGiB         int    `json:"cacheGiB"`
+	CacheMaxAgeHours *int   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds *int   `json:"writeBackSeconds,omitempty"`
 }
 type Store struct {
 	AccessProtected bool          `json:"accessProtected,omitempty"`
@@ -67,7 +66,7 @@ type Store struct {
 var errSettingsVersion = errors.New("unsupported settings format; preserve the data directory and use a compatible SDrive version")
 
 func defaultStore() Store {
-	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en", Theme: "system", DriveStripeColorSource: "theme"}}
+	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en", Theme: "system"}}
 }
 
 func loadStore(dir string) (Store, error) {
@@ -116,9 +115,6 @@ func decodeStore(b []byte) (Store, error) {
 		return s, invalid
 	}
 	var err error
-	if !validDriveStripeColorSource(s.Settings.DriveStripeColorSource) || s.Settings.DriveStripeColorSource == "" {
-		s.Settings.DriveStripeColorSource = "theme"
-	}
 	if !validTheme(s.Settings.Theme) {
 		s.Settings.Theme = "system"
 	}
@@ -135,6 +131,7 @@ func decodeStore(b []byte) (Store, error) {
 	destinations := map[string]bool{}
 	for i := range s.Connections {
 		c := &s.Connections[i]
+		c.CardStyle = normalizeLegacyCardStyle(c.CardStyle)
 		if err = validateConnection(c); err != nil {
 			return s, fmt.Errorf("invalid connection in settings: %w", err)
 		}
@@ -156,7 +153,9 @@ func decodeStore(b []byte) (Store, error) {
 			}
 		}
 	}
-	for _, draft := range s.ImportDrafts {
+	for i := range s.ImportDrafts {
+		draft := &s.ImportDrafts[i]
+		draft.Definition.CardStyle = normalizeLegacyCardStyle(draft.Definition.CardStyle)
 		if len(draft.ID) != 32 || ids[draft.ID] {
 			return s, invalid
 		}

@@ -670,7 +670,6 @@
           }
         ],
         "preferences": {
-          "driveStripeColorSource": "theme",
           "theme": "system",
           "language": "en",
           "cacheGiB": 2,
@@ -773,7 +772,6 @@
       "providers": [],
       "connections": [],
       "settings": {
-        "driveStripeColorSource": "theme",
         "theme": "system",
         "showServiceIcons": false,
         "language": "en",
@@ -925,7 +923,6 @@
         }
       ],
       "settings": {
-        "driveStripeColorSource": "theme",
         "theme": "system",
         "showServiceIcons": false,
         "language": "en",

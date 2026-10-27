@@ -48,13 +48,24 @@ type PortableConnection struct {
 }
 
 type PortablePreferences struct {
-	DriveStripeColorSource string `json:"driveStripeColorSource,omitempty"`
-	Theme                  string `json:"theme"`
-	Language               string `json:"language"`
-	CacheGiB               int    `json:"cacheGiB"`
-	CacheMaxAgeHours       *int   `json:"cacheMaxAgeHours,omitempty"`
-	WriteBackSeconds       *int   `json:"writeBackSeconds,omitempty"`
-	ShowServiceIcons       bool   `json:"showServiceIcons"`
+	Theme            string `json:"theme"`
+	Language         string `json:"language"`
+	CacheGiB         int    `json:"cacheGiB"`
+	CacheMaxAgeHours *int   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds *int   `json:"writeBackSeconds,omitempty"`
+	ShowServiceIcons bool   `json:"showServiceIcons"`
+}
+
+// Read the retired stripe preference without exporting it or relaxing other fields.
+func (p *PortablePreferences) UnmarshalJSON(data []byte) error {
+	type preferences PortablePreferences
+	value := struct {
+		*preferences
+		LegacyStripe json.RawMessage `json:"driveStripeColorSource"`
+	}{preferences: (*preferences)(p)}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(&value)
 }
 
 type PortableFile struct {
@@ -83,14 +94,10 @@ func portableDefinition(c Connection) PortableConnection {
 }
 
 func portablePreferences(settings Settings) PortablePreferences {
-	return PortablePreferences{settings.DriveStripeColorSource, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.ShowServiceIcons}
+	return PortablePreferences{settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.ShowServiceIcons}
 }
 
 func (p PortablePreferences) settings(local Settings) Settings {
-	local.DriveStripeColorSource = p.DriveStripeColorSource
-	if local.DriveStripeColorSource == "" {
-		local.DriveStripeColorSource = "theme"
-	}
 	local.Theme = p.Theme
 	if local.Theme == "" {
 		local.Theme = "system"
@@ -203,7 +210,7 @@ func validatePortableDocument(d PortableFile) error {
 		return fmt.Errorf("Unsupported or invalid portable configuration.")
 	}
 	s := d.Preferences.settings(defaultStore().Settings)
-	if !validDriveStripeColorSource(s.DriveStripeColorSource) || !validTheme(s.Theme) || !i18n.Valid(s.Language) || s.CacheGiB < 1 || s.CacheGiB > 1024 {
+	if !validTheme(s.Theme) || !i18n.Valid(s.Language) || s.CacheGiB < 1 || s.CacheGiB > 1024 {
 		return fmt.Errorf("Invalid portable preferences.")
 	}
 	if err := validateCacheDurations(s); err != nil {
@@ -218,14 +225,12 @@ func validatePortableDocument(d PortableFile) error {
 }
 
 func normalizePortableDocument(d *PortableFile) {
-	if d.Preferences.DriveStripeColorSource == "" {
-		d.Preferences.DriveStripeColorSource = "theme"
-	}
 	if d.Preferences.Theme == "" {
 		d.Preferences.Theme = "system"
 	}
 	for i := range d.Connections {
 		entry := &d.Connections[i]
+		entry.CardStyle = normalizeLegacyCardStyle(entry.CardStyle)
 		entry.Name = strings.TrimSpace(entry.Name)
 		if entry.MountFolder == "" {
 			entry.Letter = strings.ToUpper(strings.TrimSpace(entry.Letter))

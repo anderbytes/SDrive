@@ -24,12 +24,13 @@ func driveTestImage(t *testing.T, width int) string {
 
 func TestDriveAppearanceValidatesImageContentAndStyle(t *testing.T) {
 	valid := driveTestImage(t, 128)
-	for _, style := range []string{"", "blue", "violet", "teal", "amber"} {
+	for _, entry := range drivePalette {
+		style := entry[0]
 		if err := validateDriveAppearance(DriveAppearance{style, valid}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, a := range []DriveAppearance{{"red", ""}, {"", "https://example.test/image.png"}, {"", "data:image/svg+xml;base64,PHN2Zy8+"}, {"", valid[:len(valid)-8]}, {"", driveTestImage(t, 129)}, {"", strings.Repeat("x", 128<<10+1)}} {
+	for _, a := range []DriveAppearance{{"#000000", ""}, {"#FFFFFF", ""}, {"#Ab23fF", ""}, {"unsupported", ""}, {"#123", ""}, {"#12345678", ""}, {"#gg0000", ""}, {"red; color: white", ""}, {"", "https://example.test/image.png"}, {"", "data:image/svg+xml;base64,PHN2Zy8+"}, {"", valid[:len(valid)-8]}, {"", driveTestImage(t, 129)}, {"", strings.Repeat("x", 128<<10+1)}} {
 		if validateDriveAppearance(a) == nil {
 			t.Fatal("invalid appearance accepted")
 		}
@@ -92,5 +93,61 @@ func TestDriveAppearanceRejectsActiveOperationsAndRollsBackFailedSave(t *testing
 				t.Fatal("blocked save changed the connection")
 			}
 		})
+	}
+}
+
+func TestLegacyCardStylesNormalizeWithoutChangingFilesOrRuntime(t *testing.T) {
+	for _, test := range []struct{ old, want string }{
+		{"#FF0000", "red"}, {"#000000", "gray"}, {"#FFFFFF", "gray"}, {"#7a83bb", "indigo"}, {"teal", "teal"}, {"invalid", "invalid"}, {"#invalid", "#invalid"},
+	} {
+		if got := normalizeLegacyCardStyle(test.old); got != test.want {
+			t.Fatalf("%s: got %s, want %s", test.old, got, test.want)
+		}
+	}
+	store := defaultStore()
+	c := testConnection()
+	c.CardStyle = "#7A83BB"
+	store.Connections = []Connection{c}
+	store.ImportDrafts = []ImportDraft{{ID: strings.Repeat("b", 32), Definition: portableDefinition(c)}}
+	raw, _ := json.Marshal(store)
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(filename, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadStore(dir)
+	if err != nil || loaded.Connections[0].CardStyle != "indigo" || loaded.ImportDrafts[0].Definition.CardStyle != "indigo" {
+		t.Fatal("legacy appearance did not load", err)
+	}
+	original, _ := os.ReadFile(filename)
+	if !bytes.Equal(original, raw) {
+		t.Fatal("reading changed the original settings")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.backup.json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	backup, err := (&Service{dir: dir}).backupStore()
+	if err != nil || backup.Connections[0].CardStyle != "indigo" {
+		t.Fatal("legacy backup did not normalize", err)
+	}
+	originalBackup, _ := os.ReadFile(filepath.Join(dir, "settings.backup.json"))
+	if !bytes.Equal(originalBackup, raw) {
+		t.Fatal("reading changed the backup")
+	}
+	saved, err := encodeStore(loaded)
+	if err != nil || bytes.Contains(saved, []byte("#7A83BB")) {
+		t.Fatal("new settings retained RGB", err)
+	}
+	document := portableFixture()
+	document.Connections[0].CardStyle = "#7A83BB"
+	raw, _ = json.Marshal(document)
+	portable, err := decodePortable(raw)
+	if err != nil || portable.Connections[0].CardStyle != "indigo" {
+		t.Fatal("legacy portable appearance did not normalize", err)
+	}
+	s := testService(t, &fakeRPC{})
+	s.store.Connections = []Connection{c}
+	if s.UpdateDriveAppearance(c.ID, DriveAppearance{CardStyle: "#7A83BB"}) == nil {
+		t.Fatal("new RGB update accepted")
 	}
 }

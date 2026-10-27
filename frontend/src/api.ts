@@ -107,7 +107,6 @@ export interface NetworkView {
   filesReceived: number | null;
 }
 export interface Settings {
-  driveStripeColorSource?: "theme" | "drive";
   theme: Theme;
 	showServiceIcons: boolean;
   language: Language;

@@ -2,7 +2,10 @@ package core
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"image/png"
 	"strings"
@@ -13,10 +16,56 @@ type DriveAppearance struct {
 	IconImage string `json:"iconImage,omitempty"`
 }
 
+//go:embed drive_palette.json
+var drivePaletteJSON []byte
+
+var drivePalette [][3]string
+
+func init() {
+	if err := json.Unmarshal(drivePaletteJSON, &drivePalette); err != nil {
+		panic(err)
+	}
+}
+
+// Legacy RGB values are converted only while reading existing configuration.
+func normalizeLegacyCardStyle(style string) string {
+	if len(style) != 7 || style[0] != '#' {
+		return style
+	}
+	rgb, err := hex.DecodeString(style[1:])
+	if err != nil {
+		return style
+	}
+	if max(rgb[0], rgb[1], rgb[2])-min(rgb[0], rgb[1], rgb[2]) <= 24 {
+		return "gray"
+	}
+	nearest, distance := "", 3*255*255+1
+	for _, entry := range drivePalette {
+		if entry[2] == "" {
+			continue
+		}
+		candidate, _ := hex.DecodeString(entry[2][1:])
+		squared := 0
+		for channel, value := range rgb {
+			delta := int(value) - int(candidate[channel])
+			squared += delta * delta
+		}
+		if squared < distance {
+			nearest, distance = entry[0], squared
+		}
+	}
+	return nearest
+}
+
 func validateDriveAppearance(a DriveAppearance) error {
-	switch a.CardStyle {
-	case "", "blue", "violet", "teal", "amber":
-	default:
+	valid := false
+	for _, entry := range drivePalette {
+		if entry[0] == a.CardStyle {
+			valid = true
+			break
+		}
+	}
+	if !valid {
 		return &FieldError{Field: "cardStyle", Message: "Select a supported card style."}
 	}
 	if a.IconImage == "" {

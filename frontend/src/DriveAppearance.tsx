@@ -6,7 +6,7 @@ import { useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
 import { LoadingStatus } from "./Spinner";
 
-const styles = [["", "Default"], ["blue", "Blue"], ["violet", "Violet"], ["teal", "Teal"], ["amber", "Amber"]] as const;
+import { driveColors, driveColorStyle } from "./driveColors";
 
 export function DriveIcon({ connection: c }: { connection: Pick<Connection, "iconImage" | "mountFolder" | "letter"> }) {
   const { t } = useLanguage();
@@ -57,11 +57,12 @@ export function DriveAppearanceDialog({ connection, unavailable, onClose, onSave
 }) {
   const { t } = useLanguage();
   const [appearance, setAppearance] = useState<Appearance>({ cardStyle: connection.cardStyle || "", iconImage: connection.iconImage || "" });
+  const [choosingColor, setChoosingColor] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
-  const close = () => { if (!busy) onClose(); };
+  const close = () => { if (!busy && !choosingColor) onClose(); };
   const dialog = useDialog(close);
   const save = async () => {
     setBusy(true); setError("");
@@ -73,16 +74,14 @@ export function DriveAppearanceDialog({ connection, unavailable, onClose, onSave
     finally { if (active.current) setBusy(false); }
   };
   return <DialogLayout dialogRef={dialog} titleID="appearance-title" title={t("Customize appearance")} onClose={close} closeDisabled={busy}
-    footer={<><button disabled={busy} onClick={close}>{t("Cancel")}</button><button className="primary" disabled={busy || unavailable} onClick={() => void save()}>{t("Save changes")}</button></>}>
-    <p>{connection.name}</p>
+    footer={<><button disabled={busy || choosingColor} onClick={close}>{t("Cancel")}</button><button className="primary" disabled={busy || unavailable || choosingColor} onClick={() => void save()}>{t("Save changes")}</button></>}>
+    {choosingColor && <DriveColorDialog selected={appearance.cardStyle || ""} unavailable={unavailable || busy}
+      onClose={() => setChoosingColor(false)} onChoose={cardStyle => { setAppearance({ ...appearance, cardStyle }); setChoosingColor(false); }} />}
     {busy && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
-    <fieldset disabled={busy || unavailable} className="appearance-styles"><legend>{t("Card background")}</legend>
-      {styles.map(([value, label]) => <label key={value} className="appearance-swatch" data-card-style={value}>
-        <input type="radio" name="card-style" checked={appearance.cardStyle === value} onChange={() => setAppearance({ ...appearance, cardStyle: value })} />{t(label)}
-      </label>)}
-    </fieldset>
-    <div className="appearance-preview" data-card-style={appearance.cardStyle}>
-      <DriveIcon connection={{ ...connection, iconImage: appearance.iconImage }} /><strong>{connection.name}</strong>
+    <div className="appearance-color-field">
+      <span>{t("Card background")}</span>
+      <span className="appearance-color-selection"><span className="appearance-color-chip" aria-hidden="true" style={driveColorStyle(appearance.cardStyle)} />{t(driveColors.find(([id]) => id === appearance.cardStyle)?.[1] || "Default")}</span>
+      <button disabled={busy || unavailable} onClick={() => setChoosingColor(true)}>{t("Choose color…")}</button>
     </div>
     <label>{t("Drive image")}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy || unavailable}
       onChange={async (event) => {
@@ -95,7 +94,34 @@ export function DriveAppearanceDialog({ connection, unavailable, onClose, onSave
         finally { if (active.current) setBusy(false); }
       }} /></label>
     <p className="hint">{t("PNG, JPEG or WebP, up to 5 MiB. A small copy is saved in SDrive.")}</p>
-    <button disabled={busy || unavailable || !appearance.iconImage} onClick={() => setAppearance({ ...appearance, iconImage: "" })}>{t("Remove image")}</button>
     {error && <p role="alert" className="alert error">{t(error)}</p>}
+    <section className="appearance-preview-section" aria-label={t("Preview")}>
+      <div className="appearance-preview-heading"><strong>{t("Preview")}</strong>
+        <button className="text-button" disabled={busy || unavailable || !appearance.iconImage} onClick={() => setAppearance({ ...appearance, iconImage: "" })}>{t("Remove image")}</button>
+      </div>
+      <div className="appearance-preview" data-card-style={appearance.cardStyle} style={driveColorStyle(appearance.cardStyle)}>
+        <DriveIcon connection={{ ...connection, iconImage: appearance.iconImage }} /><span>{t("Preview")}</span>
+      </div>
+    </section>
+  </DialogLayout>;
+}
+
+
+function DriveColorDialog({ selected, unavailable, onClose, onChoose }: {
+  selected: string;
+  unavailable: boolean;
+  onClose: () => void;
+  onChoose: (style: string) => void;
+}) {
+  const { t } = useLanguage();
+  const [color, setColor] = useState(selected);
+  const dialog = useDialog(onClose);
+  return <DialogLayout centered dialogRef={dialog} titleID="drive-color-title" title={t("Choose card color")} onClose={onClose}
+    footer={<><button onClick={onClose}>{t("Cancel")}</button><button className="primary" disabled={unavailable} onClick={() => onChoose(color)}>{t("Use color")}</button></>}>
+    <fieldset className="appearance-styles" disabled={unavailable}><legend>{t("Card background")}</legend>
+      {driveColors.map(([id, label]) => <label key={id} className="appearance-swatch" style={driveColorStyle(id)}>
+        <input type="radio" name="card-style" value={id} checked={color === id} onChange={() => setColor(id)} />{t(label)}
+      </label>)}
+    </fieldset>
   </DialogLayout>;
 }

@@ -1,3 +1,4 @@
+import { driveColorStyle } from "./driveColors";
 import { DriveIcon, DriveAppearanceDialog } from "./DriveAppearance";
 import { Preferences } from "./Preferences";
 import { ThemeProvider, useTheme } from "./theme";
@@ -362,8 +363,8 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
           </p>
         )}
         <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
-        <section aria-label={t("Drives")} className="drives" data-stripe-source={data?.settings.driveStripeColorSource || "theme"}>
-          {data?.importDrafts?.map((draft) => <article className="drive" data-card-style={draft.definition.cardStyle || ""} key={draft.id}>
+        <section aria-label={t("Drives")} className="drives">
+          {data?.importDrafts?.map((draft) => <article className="drive" data-card-style={draft.definition.cardStyle || ""} style={driveColorStyle(draft.definition.cardStyle)} key={draft.id}>
             <DriveIcon connection={draft.definition} />
             <div className="drive-info"><h2>{draft.definition.name}</h2>
               <p className="server-path" title={draft.definition.mountFolder || `${draft.definition.letter}:`}>{data.providers.find((p) => p.id === draft.definition.provider)?.name} · {draft.definition.mountFolder || `${draft.definition.letter}:`}</p>
@@ -571,7 +572,7 @@ function Drive({
   const needsAttention = c.pending === null || c.pending > 0 || (c.recovery && !c.mounted) || (c.mounted && c.transportSecurity?.state !== "encrypted");
   const statusClass = busy ? "operating" : c.error || c.cache.error || c.uploads?.cacheErrors ? "failed" : needsAttention ? "attention" : c.mounted ? "connected" : "disconnected";
   return (
-    <article className={`drive ${statusClass}`} data-card-style={c.cardStyle || ""}>
+    <article className={`drive ${statusClass}`} data-card-style={c.cardStyle || ""} style={driveColorStyle(c.cardStyle)}>
       {appearance && <DriveAppearanceDialog connection={c} unavailable={busy} onClose={() => setAppearance(false)} onSave={onAppearanceSaved} />}
       {diagnostics && <DriveDiagnostics connection={c} busy={busy} onRun={onDiagnostic} onClose={() => setDiagnostics(false)} />}
       {confirmRemoval && <RemoveConnectionDialog name={c.name} unavailable={busy || c.mounted || c.recovery} onClose={() => setConfirmRemoval(false)} onConfirm={() => { setConfirmRemoval(false); onAction(api.remove); }} />}

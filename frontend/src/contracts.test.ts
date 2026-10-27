@@ -23,7 +23,7 @@ test("portable definitions and update status preserve the Go wire shape", () => 
 });
 
 test("Go wire samples satisfy the TypeScript bridge, including nested keys and nulls", () => {
-  const settings: Settings = { ...filled.settings, theme: "system", language: "en", driveStripeColorSource: "theme" };
+  const settings: Settings = { ...filled.settings, theme: "system", language: "en" };
   const snapshot: Snapshot = { ...filled, settings, connections: [{ ...connection, operation: "mounting" }] };
   const empty: Snapshot = { ...samples.snapshotEmpty, settings };
   const unknown: ConnectionView = { ...samples.connectionUnknown, operation: "" };
@@ -92,7 +92,7 @@ const calls = {
   reorderConnections: [["connection"]], connectionDetails: ["connection"], exportDiagnosticReport: ["SDrive diagnostic report v1\n"],
   updateDriveAppearance: ["connection", { cardStyle: "blue", iconImage: "" }],
   inspectFileAccess: ["connection", "file.txt"], accessStatus: [], configureAccess: ["", "123456", { idleMinutes: 15, disconnectIdle: false, reconnect: false }], disableAccess: ["123456"], lock: [], unlockAccess: ["123456"], recoverAccess: ["synthetic", "123456"],
-  exportConfiguration: [], previewImport: [], commitImport: ["preview", { ...samples.importPreview.document, preferences: { ...samples.importPreview.document.preferences, theme: "system", language: "en", driveStripeColorSource: "theme" } }, false], removeImportDraft: ["draft"],
+  exportConfiguration: [], previewImport: [], commitImport: ["preview", { ...samples.importPreview.document, preferences: { ...samples.importPreview.document.preferences, theme: "system", language: "en" } }, false], removeImportDraft: ["draft"],
   preferenceDefaults: [], restoreDefaultCacheLocation: [],
   selectDirectory: [], changeCacheLocation: ["C:\\Synthetic\\Cache"], refreshDirectoryCache: ["connection"],
   browsers: [], proxy: [], saveProxy: [{ address: "", username: "", password: "", hasPassword: false }],
@@ -101,7 +101,7 @@ const calls = {
   folders: ["session", "folder"], confirm: ["session", "folder", { letter: "S", folder: "", mode: "" }], selectFile: ["service_account_file"],
   mount: ["connection"], unmount: ["connection"], test: ["connection"], remove: ["connection"],
   update: [samples.configInput.connection], fields: ["connection"],
-  settings: [{ ...filled.settings, theme: "system", language: "en", driveStripeColorSource: "theme" }], open: ["connection"], prerequisite: ["winfsp"],
+  settings: [{ ...filled.settings, theme: "system", language: "en" }], open: ["connection"], prerequisite: ["winfsp"],
   probe: ["example.test", "22"], exit: [], restart: [], restoreSettings: [], verifyRecovery: [], retryCleanup: [],
 } satisfies Calls;
 

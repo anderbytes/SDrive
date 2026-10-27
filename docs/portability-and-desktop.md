@@ -70,8 +70,14 @@ New controls and safety messages are supplied in English and Brazilian Portugues
 
 Drive cards show a status tag beside the title, followed by a colored connection-type tag and the server/folder destination. Local mount folders, experimental status and warnings appear below these primary details. Folder mounts use a folder icon instead of a drive letter.
 
-Choose **… → Customize appearance** to select Default, Blue, Violet, Teal or Amber and optionally replace the letter/folder icon with a local PNG, JPEG or WebP image (up to 5 MiB). SDrive stores a normalized PNG copy up to 128 × 128 pixels and 128 KiB, so moving the original image has no effect. Remove image restores the generated icon. Save persists the preview; Cancel and Escape discard it. These choices are included in portable configurations and imported drafts; older configurations use the default appearance.
+Choose **… → Customize appearance → Choose color…** to open the dedicated card-color modal. It offers a neutral Default and fifteen soft colors: Blue, Violet, Teal, Amber, Red, Orange, Yellow, Green, Cyan, Pink, Gray, Indigo, Rose, Lime and Brown. The selected color gently tints the card surface in both themes, and its left stripe follows the same palette. There is no global stripe setting or custom RGB input. High contrast retains system colors.
 
-Appearance can be changed while mounted or awaiting recovery, without restarting the connection or changing credentials, destination or pending files. Active operations, setup for that connection, application lock and invalid settings block the save. Custom card backgrounds follow the application theme; high contrast retains system colors.
+Use color updates only the appearance draft. Cancel or Escape in the color modal discards that selection and returns focus to Choose color…; Save changes in Customize appearance persists the draft. The preview is the last section, omits the drive name and has a discreet Remove image action on its right.
+
+Optionally replace the letter/folder icon with a local PNG, JPEG or WebP image up to 5 MiB. SDrive stores a normalized PNG copy up to 128 × 128 pixels and 128 KiB, so moving the original image has no effect. Remove image restores the generated icon. Appearance travels with portable configurations and imported drafts and survives editing and reauthentication.
+
+Older RGB values are converted to the nearest named palette color while reading settings, backups or portable configurations; nearly neutral RGB values become Gray. Reading does not rewrite the original file. The next save or export uses palette identifiers. The retired global stripe preference remains importable and is omitted from new exports.
+
+Appearance can be changed while mounted or awaiting recovery, without restarting the connection or changing credentials, destination or pending files. Active operations, setup for that connection, application lock and invalid settings block the save.
 
 Server summaries are read from local configuration, cached per destination and sanitized before reaching the interface. They omit URL credentials, query parameters and fragments. Providers without an available endpoint show only the remote folder or Root. Reading a summary does not contact the storage server; an existing per-drive configuration reader may be started to access its encrypted local settings.

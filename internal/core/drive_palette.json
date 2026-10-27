@@ -1,0 +1,18 @@
+[
+  ["", "Default", ""],
+  ["blue", "Blue", "#448bea"],
+  ["violet", "Violet", "#a36ee0"],
+  ["teal", "Teal", "#32b7a5"],
+  ["amber", "Amber", "#d9a441"],
+  ["red", "Red", "#c96b70"],
+  ["orange", "Orange", "#d58a51"],
+  ["yellow", "Yellow", "#c6b552"],
+  ["green", "Green", "#6ba57a"],
+  ["cyan", "Cyan", "#5dabbc"],
+  ["pink", "Pink", "#c77cab"],
+  ["gray", "Gray", "#87909b"],
+  ["indigo", "Indigo", "#7a83bb"],
+  ["rose", "Rose", "#bc7c91"],
+  ["lime", "Lime", "#9da85f"],
+  ["brown", "Brown", "#ad8c72"]
+]

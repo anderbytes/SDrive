@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"path/filepath"
@@ -50,7 +51,6 @@ func TestDriveDisplayOptionsPersistAndTravelWithPortableConfiguration(t *testing
 		c := testConnection()
 		c.HiddenFileVisibility = visibility
 		store.Connections = []Connection{c}
-		store.Settings.DriveStripeColorSource = "drive"
 		raw, err := encodeStore(store)
 		if err != nil {
 			t.Fatal(err)
@@ -64,30 +64,43 @@ func TestDriveDisplayOptionsPersistAndTravelWithPortableConfiguration(t *testing
 		document.Preferences = portablePreferences(store.Settings)
 		raw, _ = json.Marshal(document)
 		portable, err := decodePortable(raw)
-		if err != nil || hiddenFileVisibility(portable.Connections[0].connection()) != hiddenFileVisibility(c) || portable.Preferences.settings(defaultStore().Settings).DriveStripeColorSource != "drive" {
+		if err != nil || hiddenFileVisibility(portable.Connections[0].connection()) != hiddenFileVisibility(c) {
 			t.Fatal("portable configuration lost drive display options", err)
 		}
 	}
-	legacy, err := decodeStore([]byte(`{"connections":[],"settings":{"autoStart":false,"cacheGiB":2}}`))
-	if err != nil || legacy.Settings.DriveStripeColorSource != "theme" || hiddenFileVisibility(Connection{}) != "system" {
+	legacy, err := decodeStore([]byte(`{"connections":[],"settings":{"autoStart":false,"cacheGiB":2,"driveStripeColorSource":"theme"}}`))
+	if err != nil || legacy.Settings.Theme != "system" || hiddenFileVisibility(Connection{}) != "system" {
 		t.Fatal("legacy display defaults changed", err)
+	}
+	raw, _ := encodeStore(legacy)
+	if bytes.Contains(raw, []byte("driveStripeColorSource")) {
+		t.Fatal("retired local preference persisted")
 	}
 }
 
-func TestDriveStripeSourceValidatesSavedAndPortablePreferences(t *testing.T) {
-	s := testService(t, nil)
-	SetAutoStart(s, func(bool) error { return nil })
-	for _, source := range []string{"", "theme", "drive", "unsupported"} {
-		settings := defaultStore().Settings
-		settings.DriveStripeColorSource = source
-		err := s.SaveSettings(settings)
-		if (err != nil) != (source == "unsupported") {
-			t.Fatalf("source=%q: save validation differs: %v", source, err)
+func TestPortablePreferencesDiscardOnlyRetiredStripeSource(t *testing.T) {
+	for _, field := range []string{"driveStripeColorSource", "unknownPreference"} {
+		raw, _ := json.Marshal(portableFixture())
+		var document map[string]json.RawMessage
+		json.Unmarshal(raw, &document)
+		var preferences map[string]json.RawMessage
+		json.Unmarshal(document["preferences"], &preferences)
+		preferences[field] = json.RawMessage(`"theme"`)
+		document["preferences"], _ = json.Marshal(preferences)
+		raw, _ = json.Marshal(document)
+		portable, err := decodePortable(raw)
+		if field == "unknownPreference" {
+			if err == nil {
+				t.Fatal("unknown preference accepted")
+			}
+			continue
 		}
-		document := portableFixture()
-		document.Preferences.DriveStripeColorSource = source
-		if (validatePortableDocument(document) != nil) != (source == "unsupported") {
-			t.Fatalf("source=%q: portable validation differs", source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exported, _ := json.Marshal(portable)
+		if bytes.Contains(exported, []byte(field)) {
+			t.Fatal("retired preference exported")
 		}
 	}
 }

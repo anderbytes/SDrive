@@ -979,5 +979,20 @@
   "Could not load additional connection details.": "Não foi possível carregar os detalhes adicionais da conexão.",
   "Authentication": "Autenticação",
   "Service account": "Conta de serviço",
-  "OAuth": "OAuth"
+  "OAuth": "OAuth",
+  "Use color": "Usar cor",
+  "Preview": "Prévia",
+  "Red": "Vermelho",
+  "Orange": "Laranja",
+  "Yellow": "Amarelo",
+  "Green": "Verde",
+  "Cyan": "Ciano",
+  "Pink": "Rosa",
+  "Gray": "Cinza",
+  "Choose color…": "Escolher cor…",
+  "Choose card color": "Escolher cor do card",
+  "Indigo": "Índigo",
+  "Rose": "Rosa antigo",
+  "Lime": "Verde-lima",
+  "Brown": "Marrom"
 }

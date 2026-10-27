@@ -143,7 +143,12 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     assert.equal(await drive.locator(".letter svg").count(), 1);
     await drive.locator("summary").click();
     await drive.getByRole("button", { name: "Customize appearance", exact: true }).click();
-    await page.getByLabel("Amber", { exact: true }).check();
+    const chooseColor = async label => {
+      await page.getByRole("button", { name: "Choose color…", exact: true }).click();
+      await page.getByLabel(label, { exact: true }).check();
+      await page.getByRole("button", { name: "Use color", exact: true }).click();
+    };
+    await chooseColor("Amber");
     await page.getByLabel("Drive image", { exact: true }).setInputFiles({ name: "drive.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAQAAAABACAYAAAD1Xam+AAAA3klEQVR4nO3UoQEAIAzAME7jND4fZ0w0Ir6q574ZoOlsBwB7DADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCDADCPlFxikI+oz1nAAAAAElFTkSuQmCC", "base64") });
     await page.locator(".appearance-preview img").waitFor();
     await page.getByRole("button", { name: "Save changes", exact: true }).click();
@@ -157,7 +162,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     assert(persisted.connections[0].iconImage.startsWith("data:image/png;base64,"));
     await drive.locator("summary").click();
     await drive.getByRole("button", { name: "Customize appearance", exact: true }).click();
-    await page.getByLabel("Violet", { exact: true }).check();
+    await chooseColor("Violet");
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     assert.equal(await drive.getAttribute("data-card-style"), "amber");
     await page.screenshot({ path: path.join(artifacts, "drive-appearance.png") });
