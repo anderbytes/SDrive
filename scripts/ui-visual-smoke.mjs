@@ -126,10 +126,50 @@ try {
   await page.getByRole("button", { name: "Filter drives", exact: true }).click();
   await page.getByLabel("Search drives", { exact: true }).fill("Team library");
   await bounds(); await capture("drive-filters");
-  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+
   assert.equal(await page.locator(".drive").count(), 1);
   await page.getByRole("button", { name: "Clear filters", exact: true }).click();
   assert.equal(await page.locator(".drive").count(), 3);
+  for (const language of ["en", "pt-BR"]) {
+    const catalog = language === "en" ? {} : JSON.parse(await readFile(path.join(root, "internal/i18n/pt-BR.json"), "utf8"));
+    const t = source => catalog[source] || source;
+    await page.evaluate(language => { window.visualSnapshot.settings.language = language; window.visualVisibility(false); window.visualVisibility(true); }, language);
+    await page.waitForFunction(language => document.documentElement.lang === language, language);
+    for (const width of [1440, 1180, 850, 420]) {
+      await page.setViewportSize({ width, height: 900 });
+      const toggle = page.getByRole("button", { name: t("Filter drives"), exact: true });
+      if (await toggle.getAttribute("aria-expanded") === "true") await toggle.click();
+      await bounds();
+      assert(await page.locator(".drive-filter-actions").evaluate(element => {
+        const actions = element.getBoundingClientRect();
+        const slot = element.closest(".drive-toolbar-slot").getBoundingClientRect();
+        const metrics = document.querySelector(".summary-metrics").getBoundingClientRect();
+        const create = document.querySelector("main > header > .primary").getBoundingClientRect();
+        return Math.abs(actions.right - slot.right) <= 1 && Math.abs(actions.right - create.right) <= 1 && actions.left >= metrics.right && Math.abs(actions.top - metrics.top) <= 1;
+      }), "Collapsed filters align with indicators at the far right");
+      await toggle.click();
+      assert.equal(await page.getByRole("dialog").count(), 0, "Filters expand inline");
+      await bounds();
+      assert(await page.locator(".drive-filter-fields > *").evaluateAll(elements => elements.every(element => {
+        const box = element.getBoundingClientRect();
+        const slot = element.closest(".drive-toolbar-slot").getBoundingClientRect();
+        return box.left >= slot.left - 1 && box.right <= slot.right + 1;
+      })), "Expanded controls stay inside the region after pending uploads");
+      await page.locator(".drive-filter-group > summary").first().click();
+      await bounds();
+      assert(await page.locator(".drive-filter-group[open] > fieldset").evaluate(element => {
+        const box = element.getBoundingClientRect(), slot = element.closest(".drive-toolbar-slot").getBoundingClientRect();
+        return box.left >= slot.left - 1 && box.right <= slot.right + 1;
+      }), "Dropdown options must not cross the indicators");
+      await capture(`inline-filters-${language}-${width}`);
+      await page.locator(".drive-filter-group[open] > summary").press("Escape");
+      assert.equal(await page.locator(".drive-filter-group[open]").count(), 0);
+      await toggle.click();
+    }
+  }
+  await page.evaluate(() => { window.visualSnapshot.settings.language = "en"; window.visualVisibility(false); window.visualVisibility(true); });
+  await page.waitForFunction(() => document.documentElement.lang === "en");
+  await page.setViewportSize({ width: 1440, height: 900 });
   const grip = page.getByRole("button", { name: "Reorder Documents", exact: true });
   await grip.scrollIntoViewIfNeeded();
   const gripBox = await grip.boundingBox();
@@ -652,7 +692,7 @@ try {
   await page.getByRole("button", { name: /Preferences/ }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, per-drive soft colors, neutral defaults, rendered text/icon/stripe contrast across all 16 presets, dedicated palette modal and draft save/cancel, preview layout in both languages/themes, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Inline immediate filters, right-aligned summary controls, bounded wrapping and dropdowns in English and Portuguese at four widths, Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, per-drive soft colors, neutral defaults, rendered text/icon/stripe contrast across all 16 presets, dedicated palette modal and draft save/cancel, preview layout in both languages/themes, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

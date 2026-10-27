@@ -5,10 +5,6 @@ import { LanguageProvider } from "./i18n";
 import type { ConnectionView } from "./api";
 import fixtures from "./bridge-fixtures.json";
 
-Object.defineProperties(HTMLDialogElement.prototype, {
-  showModal: { configurable: true, value() { this.setAttribute("open", ""); } },
-  close: { configurable: true, value() { this.removeAttribute("open"); } },
-});
 afterEach(cleanup);
 const connections: ConnectionView[] = [
   { ...fixtures.samples.connectionUnknown, operation: "", id: "a", name: "Alpha", provider: "sftp", pending: 0, readOnly: true, mountMode: "network", serverPath: "server.test/documents" },
@@ -33,18 +29,31 @@ test("filtered moves preserve hidden slots in both directions", () => {
   expect(moveVisibleDrive(["a", "b", "c", "d", "e"], ["a", "c", "e"], "e", "a")).toEqual(["e", "b", "a", "d", "c"]);
 });
 
-test("filter dialog applies, cancels, clears and resets on a fresh session", () => {
+test("inline filters apply immediately, survive collapse, clear and reset on a fresh session", () => {
   const view = show();
-  fireEvent.click(screen.getByRole("button", { name: "Filter drives" }));
-  fireEvent.change(screen.getByLabelText("Search drives"), { target: { value: "Alpha" } });
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  expect(screen.getAllByRole("article")).toHaveLength(3);
-  fireEvent.click(screen.getByRole("button", { name: "Filter drives" }));
-  expect((screen.getByLabelText("Search drives") as HTMLInputElement).value).toBe("");
+  const toggle = screen.getByRole("button", { name: "Filter drives" });
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(toggle);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search drives" }), { target: { value: "Alpha" } });
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  fireEvent.click(toggle);
+  expect(screen.queryByRole("searchbox")).toBeNull();
+  expect(screen.getByText("Showing 1 of 3 drives")).toBeDefined();
+  fireEvent.click(toggle);
+  expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("Alpha");
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  fireEvent.click(screen.getByText("Connection Type", { selector: "summary" }));
   fireEvent.click(screen.getByLabelText("SFTP"));
-  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
   expect(screen.getAllByRole("heading").map(h => h.textContent)).toEqual(["Alpha", "Gamma"]);
   expect(screen.getByText("Showing 2 of 3 drives")).toBeDefined();
+  fireEvent.click(screen.getByLabelText("WebDAV"));
+  expect(screen.getAllByRole("article")).toHaveLength(3);
+  const option = screen.getByLabelText("WebDAV");
+  fireEvent.keyDown(option, { key: "Escape" });
+  expect(option.closest("details")?.open).toBe(false);
+  expect(document.activeElement?.tagName).toBe("SUMMARY");
   fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
   expect(screen.getAllByRole("article")).toHaveLength(3);
   view.unmount(); show();
@@ -54,15 +63,19 @@ test("filter dialog applies, cancels, clears and resets on a fresh session", () 
 test("keyboard drag saves a filtered order and Escape cancels without saving", async () => {
   const { onReorder } = show();
   fireEvent.click(screen.getByRole("button", { name: "Filter drives" }));
+  fireEvent.click(screen.getByText("Connection Type", { selector: "summary" }));
   fireEvent.click(screen.getByLabelText("SFTP"));
-  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
   const handle = screen.getByRole("button", { name: "Reorder Alpha" });
   handle.focus();
   fireEvent.keyDown(handle, { key: " " });
+  expect((screen.getByRole("button", { name: "Filter drives" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("searchbox") as HTMLInputElement).disabled).toBe(true);
+  expect(screen.getByText("Connection Type (1)", { selector: "summary" }).getAttribute("aria-disabled")).toBe("true");
   fireEvent.keyDown(handle, { key: "ArrowDown" });
   expect(screen.getAllByRole("heading").map(h => h.textContent)).toEqual(["Gamma", "Alpha"]);
   expect(document.activeElement).toBe(handle);
   fireEvent.keyDown(handle, { key: "Escape" });
+  expect((screen.getByRole("button", { name: "Filter drives" }) as HTMLButtonElement).disabled).toBe(false);
   expect(onReorder).not.toHaveBeenCalled();
   expect(screen.getAllByRole("heading").map(h => h.textContent)).toEqual(["Alpha", "Gamma"]);
   fireEvent.keyDown(handle, { key: " " });

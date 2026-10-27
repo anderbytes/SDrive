@@ -70,6 +70,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
   }>();
   const [working, setWorking] = useState<Record<string, string>>({});
   const [driveDetail, setDriveDetail] = useState<DriveDetailSelection>();
+  const [driveToolbar, setDriveToolbar] = useState<HTMLDivElement | null>(null);
   const [settings, setSettings] = useState(false);
   const [accessSettings, setAccessSettings] = useState(false);
   const [about, setAbout] = useState(false);
@@ -334,26 +335,29 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
         )}
         {data && !data.settingsError && (
           <div className="summary">
-            <div>
-              <strong>{data.connections.length}</strong> {t("connections")}
+            <div className="summary-metrics">
+              <div>
+                <strong>{data.connections.length}</strong> {t("connections")}
+              </div>
+              <div>
+                <span className="dot" />
+                <strong>
+                  {data.connections.filter((c) => c.mounted).length}
+                </strong>{" "}
+                {t("connected")}
+              </div>
+              <div>
+                <strong>
+                  {data.connections.some((c) => c.pending === null)
+                    ? t("{count} known; others unknown", {
+                        count: data.connections.reduce((n, c) => n + (c.pending ?? 0), 0),
+                      })
+                    : data.connections.reduce((n, c) => n + (c.pending ?? 0), 0)}
+                </strong>{" "}
+                {t("pending uploads")}
+              </div>
             </div>
-            <div>
-              <span className="dot" />
-              <strong>
-                {data.connections.filter((c) => c.mounted).length}
-              </strong>{" "}
-              {t("connected")}
-            </div>
-            <div>
-              <strong>
-                {data.connections.some((c) => c.pending === null)
-                  ? t("{count} known; others unknown", {
-                      count: data.connections.reduce((n, c) => n + (c.pending ?? 0), 0),
-                    })
-                  : data.connections.reduce((n, c) => n + (c.pending ?? 0), 0)}
-              </strong>{" "}
-              {t("pending uploads")}
-            </div>
+            <div className="drive-toolbar-slot" ref={setDriveToolbar} />
           </div>
         )}
         {data && !data.settingsError && (
@@ -377,6 +381,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             </div>
           </article>)}
           {data && <DriveList connections={data.connections.map(c => working[c.id] ? { ...c, busy: true } : c)} providers={data.providers} disabled={!!data.settingsError || data.recoveryHold}
+            toolbarTarget={driveToolbar}
             onReorder={ids => run("drive-order", () => api.reorderConnections(ids), "", "Saving drive order…", true)}>{c => (
             <Drive
               key={c.id}

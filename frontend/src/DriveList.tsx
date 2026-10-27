@@ -1,7 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { ConnectionView, Provider } from "./api";
-import { DialogLayout } from "./DialogLayout";
-import { useDialog } from "./useDialog";
+import { createPortal } from "react-dom";
 import { useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
 import { LoadingStatus } from "./Spinner";
@@ -33,12 +32,14 @@ export function moveVisibleDrive(all: string[], visible: string[], from: string,
   return all.map(id => selected.has(id) ? next[i++] : id);
 }
 
-export function DriveList({ connections, providers, disabled, onReorder, children }: {
+export function DriveList({ connections, providers, disabled, onReorder, toolbarTarget, children }: {
   connections: ConnectionView[]; providers: Provider[]; disabled: boolean;
   onReorder: (ids: string[]) => Promise<void>; children: (c: ConnectionView) => ReactNode;
+  toolbarTarget?: HTMLElement | null;
 }) {
   const { t } = useLanguage();
   const helpID = useId();
+  const filtersID = useId();
   const [filters, setFilters] = useState(emptyDriveFilters);
   const [filterOpen, setFilterOpen] = useState(false);
   const [order, setOrder] = useState<string[]>();
@@ -175,14 +176,21 @@ export function DriveList({ connections, providers, disabled, onReorder, childre
       window.removeEventListener("blur", blur);
     };
   }, [pointerPressed, connections, filters]);
-  return <>
-    <div className="drive-list-toolbar">
-      <button disabled={saving || !!moving} onClick={() => setFilterOpen(true)}>{t("Filter drives")}{count > 0 && ` (${count})`}</button>
+  const toolbar = <div className="drive-list-toolbar">
+    {filterOpen && <DriveFilterFields id={filtersID} filters={filters} disabled={saving || !!moving || pointerPressed}
+      providers={providers.filter(p => connections.some(c => c.provider === p.id))} onChange={setFilters} />}
+    <div className="drive-filter-actions">
+      <button type="button" className={`drive-filter-toggle${count ? " active" : ""}`} title={t("Filter drives")}
+        aria-label={t("Filter drives")} aria-expanded={filterOpen} aria-controls={filterOpen ? filtersID : undefined}
+        disabled={saving || !!moving || pointerPressed} onClick={() => setFilterOpen(!filterOpen)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18l-7 8v7l-4 2v-9Z" /></svg>
+        {count > 0 && <span className="drive-filter-count" aria-hidden="true">{count}</span>}
+      </button>
       <span role="status">{t("Showing {visible} of {total} drives", { visible: visible.length, total: connections.length })}</span>
-      {count > 0 && <button disabled={saving || !!moving} onClick={() => setFilters(emptyDriveFilters)}>{t("Clear filters")}</button>}
     </div>
-    {filterOpen && <DriveFilterDialog filters={filters} providers={providers.filter(p => connections.some(c => c.provider === p.id))}
-      onClose={() => setFilterOpen(false)} onApply={value => { setFilters(value); setFilterOpen(false); }} />}
+  </div>;
+  return <>
+    {toolbarTarget === undefined ? toolbar : toolbarTarget && createPortal(toolbar, toolbarTarget)}
     <p id={helpID} className="sr-only">{t("Drag to reorder. With the keyboard, press Space, use arrow keys, then Space to save or Escape to cancel.")}</p>
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     {error && <p role="alert">{error}</p>}
@@ -219,25 +227,40 @@ export function DriveList({ connections, providers, disabled, onReorder, childre
   </>;
 }
 
-function DriveFilterDialog({ filters, providers, onClose, onApply }: {
-  filters: DriveFilters; providers: Provider[]; onClose: () => void; onApply: (filters: DriveFilters) => void;
+function DriveFilterFields({ id, filters, providers, disabled, onChange }: {
+  id: string; filters: DriveFilters; providers: Provider[]; disabled: boolean; onChange: (filters: DriveFilters) => void;
 }) {
   const { t } = useLanguage();
-  const dialog = useDialog(onClose);
-  const id = useId();
-  const [draft, setDraft] = useState(filters);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => root.current?.querySelectorAll("details[open]").forEach(details => {
+      if (!details.contains(event.target as Node)) details.removeAttribute("open");
+    });
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, []);
   const groups = [
     { key: "states" as const, label: "Status", options: [["connected", "Connected"], ["disconnected", "Disconnected"], ["busy", "Operation in progress…"], ["attention", "Needs attention"]] },
     { key: "providers" as const, label: "Connection Type", options: providers.map(p => [p.id, p.name]) },
     { key: "mounts" as const, label: "Drive presentation", options: [["network", "Network drive"], ["local", "Local disk"], ["folder", "Local folder"]] },
     { key: "access" as const, label: "Access type", options: [["read", "Read only"], ["write", "Read and write"]] },
   ];
-  return <DialogLayout dialogRef={dialog} titleID={id} title={t("Filter drives")} onClose={onClose}
-    footer={<><button onClick={() => setDraft(emptyDriveFilters)}>{t("Clear filters")}</button><button onClick={onClose}>{t("Cancel")}</button><button className="primary" onClick={() => onApply(draft)}>{t("Apply filters")}</button></>}>
-    <label>{t("Search drives")}<input type="search" value={draft.search} onChange={event => setDraft({ ...draft, search: event.target.value })} /></label>
-    {groups.map(group => <fieldset className="option-group" key={group.key}><legend>{t(group.label)}</legend>
-      {group.options.map(([value, label]) => <label className="check" key={value}><input type="checkbox" checked={draft[group.key].includes(value)}
-        onChange={event => setDraft({ ...draft, [group.key]: event.target.checked ? [...draft[group.key], value] : draft[group.key].filter(item => item !== value) })} />{t(label)}</label>)}
-    </fieldset>)}
-  </DialogLayout>;
+  return <div ref={root} id={id} className="drive-filter-fields" onKeyDown={event => {
+    if (event.key !== "Escape") return;
+    const details = (event.target as HTMLElement).closest("details[open]");
+    if (details) { event.preventDefault(); details.removeAttribute("open"); details.querySelector("summary")?.focus(); }
+  }}>
+    <input type="search" aria-label={t("Search drives")} placeholder={t("Search drives")} disabled={disabled}
+      value={filters.search} onChange={event => onChange({ ...filters, search: event.target.value })} />
+    {groups.map(group => <details className="drive-filter-group" name={`${id}-category`} key={group.key}>
+      <summary aria-disabled={disabled} onClick={event => { if (disabled) event.preventDefault(); }}>
+        {t(group.label)}{filters[group.key].length > 0 && ` (${filters[group.key].length})`}
+      </summary>
+      <fieldset disabled={disabled}><legend className="sr-only">{t(group.label)}</legend>
+        {group.options.map(([value, label]) => <label className="check" key={value}><input type="checkbox" checked={filters[group.key].includes(value)}
+          onChange={event => onChange({ ...filters, [group.key]: event.target.checked ? [...filters[group.key], value] : filters[group.key].filter(item => item !== value) })} />{t(label)}</label>)}
+      </fieldset>
+    </details>)}
+    <button type="button" disabled={disabled} onClick={() => onChange(emptyDriveFilters)}>{t("Clear filters")}</button>
+  </div>;
 }
