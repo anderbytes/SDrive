@@ -52,8 +52,10 @@ type ConnectionView struct {
 	Uploads           *UploadView           `json:"uploads"`
 	Cache             CacheView             `json:"cache"`
 	Capacity          CapacityView          `json:"capacity"`
+	Network           NetworkView           `json:"network"`
 }
 type Service struct {
+	networkSessions      map[string]*networkSession
 	serverPaths          map[string]*serverPathInspection
 	pickAccessFile       func(string) (string, error)
 	fileAccessBusy       bool
@@ -368,12 +370,18 @@ func (s *Service) Snapshot() (v View) {
 			if cv.Mounted {
 				cv.TransportSecurity = s.sampleTransportSecurity(ctx, cv.Connection, connectionRPC)
 			}
+			cv.Network = s.sampleNetwork(ctx, cv.Connection, connectionRPC)
 		}(i)
 	}
 	checks.Wait()
 	s.mu.Lock()
 	for i := range v.Connections {
 		cv := &v.Connections[i]
+		if session := s.networkSessions[cv.ID]; session != nil && session.remote == cv.Remote {
+			cv.Network = session.view
+		} else {
+			cv.Network = NetworkView{}
+		}
 		inspection := s.transportInspections[cv.ID]
 		current := s.index(cv.ID)
 		if !s.mounted[cv.ID] {

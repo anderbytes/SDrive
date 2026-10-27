@@ -21,10 +21,39 @@ function DetailsHost({ connection }: { connection: ConnectionView }) {
 }
 afterEach(cleanup);
 
+test("network precedes capacity and separates measured values from unavailable categories", () => {
+  const network = { state: "active", partial: false, startedAt: "2026-10-27T12:00:00Z", checkedAt: "2026-10-27T12:00:03Z", sent: 2048, received: 4096, filesSent: 1024, filesReceived: 2048 };
+  const view = render(<DetailsHost connection={{ ...connected, network }} />);
+  const labels = screen.getAllByRole("button").map(button => button.getAttribute("aria-label"));
+  expect(labels.indexOf("Network") + 1).toBe(labels.indexOf("Remote capacity"));
+  fireEvent.mouseEnter(screen.getByRole("button", { name: "Network" }));
+  expect(screen.getByRole("table", { name: "Network usage by category" })).toBeDefined();
+  expect(screen.getByRole("row", { name: /File contents/ }).textContent).toContain("1.0 KiB");
+  expect(screen.getAllByText("Included in the measured total; separate value unavailable.")).toHaveLength(5);
+  expect(screen.getByRole("row", { name: /Measured socket total/ }).textContent).toContain("4.0 KiB");
+  expect(screen.getByRole("tooltip").textContent).toContain("Do not add the rows");
+  act(() => screen.getByRole("button", { name: "Network" }).focus());
+  fireEvent.keyDown(screen.getByRole("button", { name: "Network" }), { key: "ArrowDown" });
+  expect(screen.getByRole("tooltip").scrollTop).toBe(40);
+  view.rerender(<DetailsHost connection={{ ...connected, mounted: false, network: { ...network, state: "disconnected" } }} />);
+  expect(screen.getByRole("button", { name: "Network" })).toBeDefined();
+  expect(screen.getByRole("tooltip").textContent).toContain("Last connection retained");
+});
+
+test.each(["unavailable", "stale", "partial"])("network exposes %s without presenting missing counters as zero", state => {
+  render(<DetailsHost connection={{ ...connected, network: { ...connected.network, state, partial: state === "partial" } }} />);
+  const button = screen.getByRole("button", { name: "Network" });
+  expect(button.getAttribute("data-tone")).toBe("warning");
+  act(() => button.focus());
+  expect(screen.getByRole("row", { name: /Measured socket total/ }).textContent).not.toContain("0 B");
+  fireEvent.keyDown(button, { key: "Escape" });
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
 test("idle connected and disconnected drives only expose meaningful details", () => {
   const view = render(<DetailsHost connection={connected} />);
   expect(screen.getAllByRole("button").map(button => button.getAttribute("aria-label"))).toEqual([
-    "Remote destination", "Connection options", "Local cache", "Remote capacity", "Connection security",
+    "Remote destination", "Connection options", "Local cache", "Network", "Remote capacity", "Connection security",
   ]);
   view.rerender(<DetailsHost connection={{ ...connected, mounted: false }} />);
   expect(screen.getAllByRole("button").map(button => button.getAttribute("aria-label"))).toEqual(["Remote destination", "Connection options"]);

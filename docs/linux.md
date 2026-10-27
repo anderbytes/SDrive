@@ -40,7 +40,7 @@ sudo apt install build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev dp
 bash scripts/build-linux.sh
 ```
 
-Run the build inside an unlocked Secret Service desktop session. It builds the frontend and application, verifies pinned rclone and SMB module checksums, applies the existing read-only SMB extension, runs its tests, and produces packages, corresponding sources, licenses and `SHA256SUMS` in `bin/linux-amd64`. The portable package depends on system GTK/WebKit libraries; it is not a self-contained AppImage. Builds made on a newer distribution may require newer system libraries; the Ubuntu 24.04 CI artifact is the baseline distribution.
+Run the build inside an unlocked Secret Service desktop session. It builds the frontend and application, verifies pinned rclone and SMB module checksums, applies the SMB security and unprivileged network-accounting extensions, runs its tests, and produces packages, corresponding sources, licenses and `SHA256SUMS` in `bin/linux-amd64`. The portable package depends on system GTK/WebKit libraries; it is not a self-contained AppImage. Builds made on a newer distribution may require newer system libraries; the Ubuntu 24.04 CI artifact is the baseline distribution.
 
 For native validation install `dbus-x11 gnome-keyring xvfb xauth weston`, then run `bash scripts/build-linux.sh --check` from an unlocked D-Bus session. It requires writable `/dev/fuse`; missing native prerequisites fail the check. The test runner includes the platform and engine suites, focused Linux core tests, real local WebDAV/FUSE lifecycle tests, and native WebKit bridge/rendering checks under X11 and headless Wayland. Windows-specific suites remain on Windows CI. CI also checks `.deb` installation and removal.
 

@@ -512,6 +512,16 @@
         "protocol": "",
         "source": "",
         "checkedAt": null
+      },
+      "network": {
+        "state": "",
+        "partial": false,
+        "startedAt": null,
+        "checkedAt": null,
+        "sent": null,
+        "received": null,
+        "filesSent": null,
+        "filesReceived": null
       }
     },
     "dynamicFieldError": {
@@ -867,7 +877,17 @@
           "cardStyle": "blue",
           "iconImage": "data:image/png;base64,synthetic",
           "serverPath": "example.test/folder",
-          "showHiddenFiles": false
+          "showHiddenFiles": false,
+          "network": {
+            "state": "",
+            "partial": false,
+            "startedAt": null,
+            "checkedAt": null,
+            "sent": null,
+            "received": null,
+            "filesSent": null,
+            "filesReceived": null
+          }
         }
       ],
       "settings": {

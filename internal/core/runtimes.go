@@ -150,6 +150,7 @@ func CloseConnectionEngines(s *Service) {
 }
 
 func (s *Service) stopConnection(c Connection) {
+	s.stopNetwork(c)
 	if rpc := s.workers[c.Remote]; rpc != nil {
 		closeRPC(rpc)
 		delete(s.workers, c.Remote)

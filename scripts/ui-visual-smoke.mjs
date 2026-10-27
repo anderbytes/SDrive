@@ -13,6 +13,7 @@ const access = { ...fixtures.accessStatus, setupPending: false, enabled: false, 
 const field = (key, label, secret = false) => ({ key, label, secret, required: true, advanced: false, default: "", file: false });
 const connection = { ...fixtures.connectionUnknown, id: "visual-first", name: "Documents", provider: "webdav", letter: "S", serverPath: "https://files.example.test/dav/Documents", path: "Documents", mounted: true, busy: false, recovery: false, pending: 0, error: "", operation: "",
   uploads: { active: 0, queued: 0, cacheErrors: 0 }, cache: { usedBytes: 1024, pendingBytes: 0, checkedAt: null, error: "" },
+  network: { state: "active", partial: false, startedAt: "2026-10-27T12:00:00Z", checkedAt: "2026-10-27T12:03:00Z", sent: 2048, received: 8192, filesSent: 1024, filesReceived: 4096 },
   transportSecurity: { state: "encrypted", protocol: "https", source: "configuration", checkedAt: null } };
 const snapshot = { ...fixtures.snapshotEmpty, access, settings: { ...fixtures.snapshotEmpty.settings, theme: "light", language: "en" },
   cacheLocation: "C:\\Synthetic\\Cache", freeBytes: 124 * 1024 ** 3,
@@ -182,15 +183,24 @@ try {
     }), "U1 information must stay to the right of the letter");
     assert(await card.getByRole("button", { name: "Disconnect", exact: true }).evaluate(e => e.getBoundingClientRect().height >= 44));
     await capture("units-" + viewport.width);
-    for (const topic of ["Remote destination", "Connection options", "Local cache", "Remote capacity", "Connection security"]) {
+    for (const topic of ["Remote destination", "Connection options", "Local cache", "Network", "Remote capacity", "Connection security"]) {
       const trigger = firstCard.getByRole("button", { name: topic, exact: true });
       await trigger.scrollIntoViewIfNeeded();
       await trigger.hover();
       await page.getByRole("tooltip").waitFor();
       assert.equal(await page.getByRole("tooltip").locator("strong").first().textContent(), topic);
       assert.equal(await page.getByRole("dialog").count(), 0);
+      if (topic === "Network") await capture("network-" + viewport.width);
       const box = await page.getByRole("tooltip").boundingBox();
       assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1);
+      if (topic === "Network") {
+        const anchor = await trigger.boundingBox();
+        assert(box.y + box.height <= anchor.y || box.y >= anchor.y + anchor.height, "Network tooltip must not cover its trigger");
+        await trigger.focus();
+        await trigger.press("End");
+        assert(await page.getByRole("tooltip").evaluate(e => e.scrollHeight <= e.clientHeight || e.scrollTop > 0));
+        await trigger.press("Home");
+      }
       await page.keyboard.press("Escape");
     }
     await firstCard.getByRole("button", { name: "Local cache", exact: true }).click();
@@ -235,9 +245,9 @@ try {
   await uploadIcon.waitFor({ state: "detached" });
   assert.equal(await firstCard.getByRole("button", { name: "Remote destination", exact: true }).evaluate(element => element === document.activeElement), true);
   await page.keyboard.press("Escape");
-  await changeDrive({ mounted: false, recovery: false, cache: { ...originalDrive.cache, usedBytes: 0, pendingBytes: 0 } });
+  await changeDrive({ mounted: false, recovery: false, network: { ...originalDrive.network, state: "disconnected" }, cache: { ...originalDrive.cache, usedBytes: 0, pendingBytes: 0 } });
   await firstCard.getByRole("button", { name: "Edit drive", exact: true }).waitFor();
-  assert.equal(await firstCard.locator(".drive-details button").count(), 2, "Disconnected clean drives only need destination and options");
+  assert.equal(await firstCard.locator(".drive-details button").count(), 3, "Disconnected drives retain the last network session beside destination and options");
   await page.setViewportSize({ width: 420, height: 740 });
   await bounds(); await capture("contextual-disconnected-narrow");
   await changeDrive({ ...originalDrive, pending: null, recovery: true, mounted: false });

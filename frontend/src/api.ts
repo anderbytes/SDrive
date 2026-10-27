@@ -74,6 +74,7 @@ export interface Connection extends DriveAppearance {
   binding?: string;
 }
 export interface ConnectionView extends Connection {
+  network: NetworkView;
   serverPath?: string;
 	transportSecurity: TransportSecurityView;
   mounted: boolean;
@@ -92,6 +93,16 @@ export interface ConnectionView extends Connection {
   errorMessage?: LocalizedMessage;
 }
 export interface TransportSecurityView { state: string; protocol: string; source: string; checkedAt: string | null }
+export interface NetworkView {
+  state: string;
+  partial: boolean;
+  startedAt: string | null;
+  checkedAt: string | null;
+  sent: number | null;
+  received: number | null;
+  filesSent: number | null;
+  filesReceived: number | null;
+}
 export interface Settings {
   driveStripeColorSource?: "theme" | "drive";
   theme: Theme;

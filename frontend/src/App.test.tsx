@@ -85,6 +85,7 @@ vi.mock("./api", async (importOriginal) => ({
   } satisfies { [K in keyof typeof api]: ReturnType<typeof vi.fn<(typeof api)[K]>> },
 }));
 const connection: ConnectionView = {
+  network: { state: "", partial: false, startedAt: null, checkedAt: null, sent: null, received: null, filesSent: null, filesReceived: null },
   id: "1",
   remote: "2",
   name: "My Drive",
@@ -2260,7 +2261,7 @@ test("a locked snapshot removes management even if the native lock event was mis
 });
 
 
-test("drive detail icons expose all seven topics without opening a dialog", async () => {
+test("drive detail icons expose all eight topics without opening a dialog", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, path: "Team files", mounted: true, pending: null,
     transportSecurity: { state: "encrypted", protocol: "https", source: "configuration", checkedAt: null },
   }] });
@@ -2270,6 +2271,7 @@ test("drive detail icons expose all seven topics without opening a dialog", asyn
   for (const [label, detail] of [
     ["Remote destination", "Google Drive · Team files"], ["Connection options", "Automatic mounting disabled"],
     ["Upload details", "Upload activity is currently unknown."], ["Local cache", "Approximate cache used: 0 B · Pending file sizes: 0 B"],
+    ["Network", "Network measurement is unavailable for this connection."],
     ["Remote capacity", "Remote capacity is currently unknown."], ["Connection security", "Traffic encrypted · HTTPS"],
     ["Alerts and recovery", "Pending uploads unknown"],
   ]) {
@@ -2278,7 +2280,7 @@ test("drive detail icons expose all seven topics without opening a dialog", asyn
     expect(tab.getAttribute("aria-describedby")).toBe(screen.getByRole("tooltip").id);
     expect(screen.getAllByRole("tooltip")).toHaveLength(1);
   }
-  expect(screen.getByRole("group", { name: "Drive details" }).querySelectorAll("button")).toHaveLength(7);
+  expect(screen.getByRole("group", { name: "Drive details" }).querySelectorAll("button")).toHaveLength(8);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 

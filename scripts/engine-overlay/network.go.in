@@ -1,0 +1,93 @@
+package accounting
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/rclone/rclone/fs/rc"
+)
+
+// Network counters belong to one isolated SDrive worker, not to RC job groups.
+var network struct {
+	sync.Mutex
+	session                                  string
+	active                                   bool
+	started                                  time.Time
+	sent, received, filesSent, filesReceived int64
+}
+
+func init() {
+	rc.Add(rc.Call{Path: "sdrive/network", Fn: networkCall,
+		Title: "Control and read unprivileged per-connection network counters"})
+}
+
+func networkCall(ctx context.Context, in rc.Params) (rc.Params, error) {
+	action, err := in.GetString("action")
+	if err != nil {
+		return nil, err
+	}
+	session, err := in.GetString("session")
+	if err != nil || session == "" {
+		return nil, fmt.Errorf("network session is required")
+	}
+	network.Lock()
+	defer network.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	switch action {
+	case "start":
+		if network.session != session {
+			network.session, network.active, network.started = session, true, time.Now().UTC()
+			network.sent, network.received, network.filesSent, network.filesReceived = 0, 0, 0, 0
+		}
+	case "stats", "stop":
+		if network.session != session {
+			return nil, fmt.Errorf("network session changed")
+		}
+		if action == "stop" {
+			network.active = false
+		}
+	default:
+		return nil, fmt.Errorf("invalid network action")
+	}
+	return rc.Params{"session": network.session, "active": network.active,
+		"startedAt": network.started, "checkedAt": time.Now().UTC(),
+		"sent": network.sent, "received": network.received,
+		"filesSent": network.filesSent, "filesReceived": network.filesReceived}, nil
+}
+
+// Count returned bytes even when the same Read/Write also reports an error.
+func RecordNetworkBytes(sent bool, n int) {
+	if n <= 0 {
+		return
+	}
+	network.Lock()
+	defer network.Unlock()
+	if !network.active {
+		return
+	}
+	if sent {
+		network.sent += int64(n)
+	} else {
+		network.received += int64(n)
+	}
+}
+
+func recordFileBytes(direction int, n int64) {
+	if n <= 0 || direction == 0 {
+		return
+	}
+	network.Lock()
+	defer network.Unlock()
+	if !network.active {
+		return
+	}
+	if direction == 1 {
+		network.filesSent += n
+	} else {
+		network.filesReceived += n
+	}
+}

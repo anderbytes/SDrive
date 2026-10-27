@@ -111,6 +111,19 @@ func probeResource(ctx context.Context, client *http.Client, address, path, user
 
 func (s *Service) destinationClient(c Connection) (*http.Client, error) {
 	transport := &http.Transport{Proxy: nil, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 15 * time.Second}
+	s.mu.Lock()
+	session := s.networkSessions[c.ID]
+	s.mu.Unlock()
+	if session != nil && session.remote == c.Remote {
+		dial := http.DefaultTransport.(*http.Transport).DialContext
+		transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := dial(ctx, network, address)
+			if err != nil {
+				return nil, err
+			}
+			return &networkProbeConn{Conn: conn, s: s, id: c.ID, session: session}, nil
+		}
+	}
 	if c.UseProxy {
 		s.mu.Lock()
 		p, err := s.readProxy()

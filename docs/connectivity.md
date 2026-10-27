@@ -10,6 +10,16 @@ Settings writes use version 5; the application reads versions 1, 2, 3 and 4 and 
 
 ## Bandwidth and proxy
 
+### Network usage since connection
+
+The **Network** drive-detail icon sits immediately before **Remote capacity**. Hover, focus or click it to see sent/received file contents and the measured socket totals since connection validation began. Collection requires no administrator/root access on Windows or Linux and keeps running while the window is hidden. The display refreshes with the visible window's existing three-second polling. After disconnect, the last sample remains in memory until the next connection or application exit; no usage history is written to disk.
+
+Directory listings/metadata, periodic checks, authentication/token renewal, application retries and TLS/SSH negotiation/overhead are listed separately as included in the measured total, with their individual sizes unavailable. Content and socket counters represent different layers: do not sum the rows or infer maintenance by subtraction. Cached file reads and the local control API are excluded. TCP/IP headers, ACKs, kernel retransmissions/keepalive, system-resolver DNS and VPN encapsulation are not fully attributable here; this is not an ISP or network-interface billing counter. External SSH and transport overrides show partial coverage. A failed sample retains the last values with an outdated warning instead of showing a false zero. WebDAV identity probes performed by SDrive during the connection are added to that connection's socket totals.
+
+The engine extension and reproduction instructions are in [Engine transport extensions](../scripts/engine-overlay/README.md).
+
+### Transfer limits and proxy routing
+
 Upload/download limits are independent per connection, expressed in KiB/s in the interface, with zero meaning unlimited. They limit the corresponding process, not all SDrive drives together. The pinned engine's directional limiter applies at the HTTP transport; SDrive enables it for Drive, OneDrive/SharePoint, Dropbox, Box, pCloud, WebDAV/Nextcloud/ownCloud, S3, B2, Azure Blob and GCS. FTP, SFTP, SMB, MEGA and Proton Drive do not expose this guarantee in this delivery. Short bursts, protocol overhead and local cache reads mean an instantaneous Explorer rate is not the configured average remote-transfer ceiling.
 
 Configure an HTTP, HTTPS or SOCKS5 proxy in Preferences, with username/password separately, then opt each supported HTTP connection into it. The same allowlist applies to proxy routing. Proxy secrets are encrypted locally with a key protected by DPAPI, never returned in snapshots or diagnostics, and not included in process arguments. Leaving the password blank preserves it only for the same proxy address and username. Clearing the address disables that proxy configuration; a connection still opting in will report the missing configuration.

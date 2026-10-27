@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { prepareNetworkOverlay } from "./engine-overlay/prepare-network.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -33,8 +34,13 @@ for (const [dir, prefix, names] of [[smbDir, "", ["smb_transport", "smb_transpor
   }
 }
 const overlay = path.join(output, "overlay.json");
+Object.assign(Replace, prepareNetworkOverlay(rcloneDir, path.join(output, "network")));
+for (const name of readdirSync(path.join(root, "scripts/engine-overlay")).sort()) {
+  digest.update(name).update(readFileSync(path.join(root, "scripts/engine-overlay", name)));
+}
 writeFileSync(overlay, JSON.stringify({ Replace }));
 if (process.argv.includes("--test")) {
+  run(["test", "-mod=readonly", "-modfile", modFile, "-overlay", overlay, "./fs/accounting", "./fs/fshttp", "-run", "^TestNetwork", "-count=1"], rcloneDir);
   run(["test", "-mod=readonly", "-modfile", modFile, "-overlay", overlay, "github.com/cloudsoda/go-smb2", "-run", "^TestShareTransportEncryption$", "-count=1"], rcloneDir);
   run(["test", "-mod=readonly", "-modfile", modFile, "-overlay", overlay, "./backend/smb", "-run", "^TestTransportCommand", "-count=1"], rcloneDir);
 }

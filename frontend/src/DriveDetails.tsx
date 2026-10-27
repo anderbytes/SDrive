@@ -4,6 +4,7 @@ import type { ConnectionView, Provider } from "./api";
 import { useLanguage } from "./i18n";
 import { TransportStatus } from "./TransportSecurity";
 import { formatBytes as bytes } from "./formatBytes";
+import { NetworkDetails } from "./NetworkDetails";
 
 export interface DriveDetailSelection { connectionID: string; topic: string }
 
@@ -13,6 +14,7 @@ const icons = {
   uploads: "M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5",
   cache: "M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8M8 17h5",
   capacity: "M5 4h14l3 13H2ZM2 17v4h20v-4M16 19h3",
+  network: "M7 3v14m-4-4 4 4 4-4M17 21V7m-4 4 4-4 4 4",
   security: "M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6Z",
   alerts: "M12 3 2 21h20ZM12 9v5M12 17v1",
 };
@@ -66,6 +68,8 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
       <p>{c.cache.checkedAt ? t("Local inspection: {time} (updated every 30 s)", { time: new Date(c.cache.checkedAt).toLocaleTimeString() }) : t("Local cache inspection unavailable")}</p>
       {c.cache.error && <p>{t(c.cache.error)}</p>}
     </> },
+    { key: "network", title: "Network", visible: c.mounted || !!c.network?.state, tone: !c.network?.checkedAt || c.network?.state === "stale" || c.network?.partial ? "warning" : "info", content:
+      <NetworkDetails network={c.network || { state: "unavailable", partial: false, startedAt: null, checkedAt: null, sent: null, received: null, filesSent: null, filesReceived: null }} mounted={c.mounted} /> },
     { key: "capacity", title: "Remote capacity", visible: c.mounted && c.capacity.state !== "unsupported", tone: c.capacity.state === "available" ? "info" : "warning", content: <>
       <p>{t("Remote capacity: {total} · Used: {used} · Available: {free}", { total: bytes(c.capacity.total), used: bytes(c.capacity.used), free: bytes(c.capacity.free) })}</p>
       <p>{t(c.capacity.state === "available" ? "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk." : "Remote capacity is currently unknown.")}</p>
@@ -129,15 +133,24 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
       const tooltip = panel.current;
       if (!trigger || !tooltip) return;
       const rect = trigger.getBoundingClientRect();
+      const scrollTop = tooltip.scrollTop;
+      tooltip.style.maxHeight = `${window.innerHeight - 16}px`;
       const { width, height } = tooltip.getBoundingClientRect();
       tooltip.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-      const top = rect.bottom + 8 + height <= window.innerHeight - 8 ? rect.bottom + 8 : rect.top - height - 8;
-      tooltip.style.top = `${Math.max(8, Math.min(top, window.innerHeight - height - 8))}px`;
+      const below = window.innerHeight - rect.bottom - 16;
+      const above = rect.top - 16;
+      const opensBelow = height <= below || below >= above;
+      tooltip.style.maxHeight = `${Math.max(40, Math.min(window.innerHeight - 16, opensBelow ? below : above))}px`;
+      const actualHeight = tooltip.getBoundingClientRect().height;
+      const top = opensBelow ? rect.bottom + 8 : rect.top - actualHeight - 8;
+      tooltip.style.top = `${Math.max(8, Math.min(top, window.innerHeight - actualHeight - 8))}px`;
+      tooltip.scrollTop = scrollTop;
     };
+    const scroll = (event: Event) => { if (!(event.target instanceof Node) || !panel.current?.contains(event.target)) position(); };
     position();
     window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    return () => { window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); };
+    window.addEventListener("scroll", scroll, true);
+    return () => { window.removeEventListener("resize", position); window.removeEventListener("scroll", scroll, true); };
   });
   return <div ref={strip} className="drive-details" role="group" aria-label={t("Drive details")} onMouseLeave={leave} onMouseEnter={enter}
     onBlur={(event) => {
@@ -151,6 +164,12 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
       aria-label={t(entry.title)} aria-describedby={topic === entry.key ? `${id}-tooltip` : undefined}
       onMouseEnter={() => { cancelLeave(); onSelect({ connectionID: c.id, topic: entry.key }); }}
       onFocus={() => { focusedTopic.current = entry.key; cancelLeave(); onSelect({ connectionID: c.id, topic: entry.key }); }}
+      onKeyDown={(event) => {
+        if (topic !== entry.key || !panel.current) return;
+        const directions: Record<string, number> = { ArrowDown: 40, ArrowUp: -40, PageDown: panel.current.clientHeight, PageUp: -panel.current.clientHeight, Home: -panel.current.scrollHeight, End: panel.current.scrollHeight };
+        const direction = directions[event.key];
+        if (direction !== undefined) { event.preventDefault(); panel.current.scrollTop += direction; }
+      }}
       onClick={() => { cancelLeave(); onSelect({ connectionID: c.id, topic: entry.key }); }}>
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d={icons[entry.key]} />
         {entry.key === "security" && security === "encrypted" && <path d="m8 12 3 3 5-6" />}

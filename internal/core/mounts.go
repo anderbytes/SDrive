@@ -48,6 +48,9 @@ func (s *Service) Mount(id string) (resultErr error) {
 	record, owned := false, false
 	defer func() {
 		if owned {
+			if !s.mounted[id] && s.index(id) >= 0 {
+				s.stopNetwork(s.store.Connections[s.index(id)])
+			}
 			s.busy[id] = false
 			delete(s.operations, id)
 			s.snapshotID++
@@ -135,6 +138,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 	delete(s.transportInspections, id)
 	s.mu.Unlock()
 	ctxTarget, cancelTarget := context.WithTimeout(context.Background(), 45*time.Second)
+	s.startNetwork(ctxTarget, c, rpc)
 	var config map[string]string
 	err = callRPC(ctxTarget, rpc, "config/get", map[string]string{"name": "sd_" + c.Remote}, &config)
 	selectedURL := ""
@@ -147,6 +151,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 	cancelTarget()
 	s.mu.Lock()
 	i = s.index(id)
+	s.setNetworkCoverage(c, config)
 	if err == nil && (i < 0 || s.connectionRPC(c) != rpc || s.exiting) {
 		err = fmt.Errorf("connection operation changed; try again")
 	}
@@ -323,6 +328,7 @@ func (s *Service) unmount(id string) (resultErr error) {
 	delete(s.transportInspections, id)
 	if unmounted {
 		delete(s.mounted, id)
+		s.stopNetwork(c)
 	}
 	if err != nil {
 		s.recordConnectionError(id, err)

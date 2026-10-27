@@ -29,7 +29,7 @@ if ((Test-Path -LiteralPath $stampPath) -and (Test-Path -LiteralPath $binary)) {
     $needsBuild = $stamp.sourceSum -cne $sourceSum -or $stamp.overlayDigest -cne $overlay.Digest -or $stamp.compiler -ne 'go1.26.10' -or $stamp.sha256 -ne (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash
 }
 if ($needsBuild) {
-    # Keep pinned upstream modules unchanged; overlay only the read-only SMB status extension.
+    # Keep pinned upstream modules unchanged; overlay SMB status and network accounting.
     $module = & $go -C $projectRoot mod download -json 'github.com/rclone/rclone@v1.75.2' | ConvertFrom-Json
     if ($LASTEXITCODE -or $module.Sum -cne $sourceSum) { throw 'Invalid rclone source checksum' }
     New-Item -ItemType Directory -Force -Path (Split-Path $binary -Parent) | Out-Null

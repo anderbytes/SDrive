@@ -1,0 +1,99 @@
+package accounting
+
+import (
+	"context"
+	"io"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/rclone/rclone/fs/rc"
+	"github.com/rclone/rclone/fstest/mockfs"
+)
+
+func TestNetworkSessionCounters(t *testing.T) {
+	ctx := context.Background()
+	call := func(action, session string) rc.Params {
+		t.Helper()
+		out, err := networkCall(ctx, rc.Params{"action": action, "session": session})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	call("start", "first")
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 100 {
+				RecordNetworkBytes(true, 3)
+				RecordNetworkBytes(false, 2)
+			}
+		}()
+	}
+	wg.Wait()
+	RecordNetworkBytes(true, -1)
+	got := call("stats", "first")
+	if got["sent"] != int64(3000) || got["received"] != int64(2000) {
+		t.Fatal(got)
+	}
+	if call("start", "first")["sent"] != int64(3000) {
+		t.Fatal("retry reset the session")
+	}
+	call("stop", "first")
+	RecordNetworkBytes(true, 10)
+	if call("stats", "first")["sent"] != int64(3000) {
+		t.Fatal("stopped counter grew")
+	}
+	if call("start", "second")["sent"] != int64(0) {
+		t.Fatal("new session retained bytes")
+	}
+	expired, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := networkCall(expired, rc.Params{"action": "start", "session": "first"}); err == nil {
+		t.Fatal("canceled request restarted old session")
+	}
+	if _, err := networkCall(ctx, rc.Params{"action": "stop", "session": "first"}); err == nil {
+		t.Fatal("old session stopped new session")
+	}
+	if rc.Calls.Get("sdrive/network").NoAuth {
+		t.Fatal("network RPC must require authentication")
+	}
+}
+
+func TestNetworkFileAccounting(t *testing.T) {
+	ctx := context.Background()
+	local, _ := mockfs.NewFs(ctx, "local", "", nil)
+	remote, _ := mockfs.NewFs(ctx, "remote", "", nil)
+	local.Features().IsLocal = true
+	networkCall(ctx, rc.Params{"action": "start", "session": "files"})
+	for _, tc := range []struct {
+		name                string
+		sent, received      int64
+		checking, noNetwork bool
+	}{
+		{"upload", 4, 0, false, false}, {"download", 4, 4, false, false},
+		{"check", 4, 4, true, false}, {"server-side", 4, 4, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src, dst := local, remote
+			if tc.name == "download" {
+				src, dst = remote, nil
+			}
+			tr := newTransferRemoteSize(GlobalStats(), "synthetic", 4, tc.checking, "", src, dst)
+			acc := tr.Account(ctx, io.NopCloser(strings.NewReader("data")))
+			if tc.noNetwork {
+				acc.accountReadNoNetwork(4)
+			} else if _, err := io.Copy(io.Discard, acc); err != nil {
+				t.Fatal(err)
+			}
+			tr.Done(ctx, nil)
+			got, _ := networkCall(ctx, rc.Params{"action": "stats", "session": "files"})
+			if got["filesSent"] != tc.sent || got["filesReceived"] != tc.received {
+				t.Fatal(got)
+			}
+		})
+	}
+}

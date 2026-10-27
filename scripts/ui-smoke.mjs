@@ -126,6 +126,13 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     assert.equal(await drive.getByRole("button", { name: "Edit drive", exact: true }).count(), 0);
     await page.waitForFunction(() => document.querySelector('.drive [data-topic="security"]')?.dataset.tone === "inactive");
     const shield = drive.getByRole("button", { name: "Connection security", exact: true });
+    const network = drive.getByRole("button", { name: "Network", exact: true });
+    await network.hover();
+    await page.getByRole("table", { name: "Network usage by category" }).waitFor();
+    await page.waitForFunction(() => document.querySelector('[role="tooltip"]')?.textContent.includes("Since connection:"));
+    assert.equal(await page.getByRole("row").filter({ hasText: "Included in the measured total; separate value unavailable." }).count(), 5);
+    await page.screenshot({ path: path.join(artifacts, "network.png") });
+    await page.keyboard.press("Escape");
     assert.equal(await shield.locator(".security-off-mark").count(), 1);
     assert.equal(await shield.isEnabled(), true);
 

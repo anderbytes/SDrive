@@ -240,6 +240,11 @@ main > header p { margin: 0; }
 .drive-tooltip strong { display: block; }
 .drive-tooltip p { margin: 8px 0 0; }
 .drive-tooltip ul { padding-left: 18px; margin: 8px 0 0; }
+.drive-tooltip:has(.network-breakdown) { width: 520px; }
+.network-breakdown { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+.network-breakdown th, .network-breakdown td { padding: 7px 5px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.network-breakdown th[scope="row"] { width: 45%; font-weight: 500; }
+.network-breakdown .network-total th, .network-breakdown .network-total td { font-weight: 700; }
 .editor-section { border: 0; padding: 0; margin: 0; min-width: 0; }
 @media (max-width: 1000px) {
   .drive > .drive-controls { grid-column: 1 / -1; width: 100%; }
