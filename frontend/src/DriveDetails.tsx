@@ -99,7 +99,9 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
       <NetworkDetails network={c.network || { state: "unavailable", partial: false, startedAt: null, checkedAt: null, sent: null, received: null, filesSent: null, filesReceived: null }} mounted={c.mounted} /> },
     { key: "capacity", title: "Remote capacity", visible: c.mounted && c.capacity.state !== "unsupported", tone: c.capacity.state === "available" ? "info" : "warning", content: <>
       <p>{t("Remote capacity: {total} · Used: {used} · Available: {free}", { total: bytes(c.capacity.total), used: bytes(c.capacity.used), free: bytes(c.capacity.free) })}</p>
-      <p>{t(c.capacity.state === "available" ? "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk." : "Remote capacity is currently unknown.")}</p>
+      <p>{t(c.capacity.state === "available" || c.capacity.state === "stale" ? "Capacity is reported by the provider and may cover the whole account. It is separate from the local cache disk." : "Remote capacity is currently unknown.")}</p>
+      {c.capacity.state === "stale" && <p>{t("Capacity update failed. Last values retained.")}</p>}
+      {c.capacity.checkedAt && <p>{t("Last capacity reading: {time}", { time: new Date(c.capacity.checkedAt).toLocaleString() })}</p>}
     </> },
     { key: "security", title: "Connection security", visible: c.mounted, tone: security === "encrypted" ? "success" : security === "unencrypted" ? "inactive" : "warning", content:
       <TransportStatus connection={c} /> },

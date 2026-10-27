@@ -19,38 +19,70 @@ type capacityInspection struct {
 	rpc        RPC
 	at         time.Time
 	view       CapacityView
+	running    bool
+	cancel     context.CancelFunc
 }
 
-func (s *Service) sampleCapacity(ctx context.Context, c Connection, rpc RPC) CapacityView {
-	s.mu.Lock()
-	i := s.index(c.ID)
-	if i < 0 || s.store.Connections[i] != c || s.busy[c.ID] || s.connectionRPC(c) != rpc || !s.mounted[c.ID] {
-		s.mu.Unlock()
-		return CapacityView{}
+func sameCapacityDestination(a, b Connection) bool {
+	return a.ID == b.ID && a.Remote == b.Remote && a.Provider == b.Provider && a.Path == b.Path && a.TargetHash == b.TargetHash
+}
+
+// Caller holds s.mu. Deleting the entry also rejects a late result from this mount.
+func (s *Service) clearCapacity(id string) {
+	if inspection := s.capacities[id]; inspection != nil && inspection.cancel != nil {
+		inspection.cancel()
 	}
-	if previous := s.capacities[c.ID]; previous != nil && previous.connection == c && previous.rpc == rpc && time.Since(previous.at) < time.Minute {
-		view := previous.view
-		s.mu.Unlock()
-		return view
-	}
-	if s.capacities == nil {
-		s.capacities = map[string]*capacityInspection{}
-	}
-	inspection := &capacityInspection{connection: c, rpc: rpc, at: time.Now()}
-	s.capacities[c.ID] = inspection
-	s.mu.Unlock()
-	capacityCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	defer cancel()
-	view := readCapacity(capacityCtx, rpc, c)
-	view.CheckedAt = &inspection.at
+	delete(s.capacities, id)
+}
+
+func (s *Service) sampleCapacity(c Connection, rpc RPC) CapacityView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	i = s.index(c.ID)
-	if s.capacities[c.ID] != inspection || i < 0 || s.store.Connections[i] != c || s.connectionRPC(c) != rpc || !s.mounted[c.ID] || s.busy[c.ID] {
+	i := s.index(c.ID)
+	if i < 0 || !sameCapacityDestination(s.store.Connections[i], c) || s.connectionRPC(c) != rpc || !s.mounted[c.ID] || rpc == nil || !rpc.Alive() {
 		return CapacityView{}
 	}
-	inspection.view = view
-	return view
+	inspection := s.capacities[c.ID]
+	if inspection != nil && (!sameCapacityDestination(inspection.connection, c) || inspection.rpc != rpc) {
+		s.clearCapacity(c.ID)
+		inspection = nil
+	}
+	if inspection == nil {
+		if s.capacities == nil {
+			s.capacities = map[string]*capacityInspection{}
+		}
+		inspection = &capacityInspection{connection: c, rpc: rpc, view: CapacityView{State: "unavailable"}}
+		s.capacities[c.ID] = inspection
+	}
+	if inspection.running || time.Since(inspection.at) < 5*time.Minute || s.busy[c.ID] || s.exiting {
+		return inspection.view
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	inspection.running, inspection.cancel = true, cancel
+	go func() {
+		defer cancel()
+		view := readCapacity(ctx, rpc, c)
+		now := time.Now()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		inspection.running, inspection.cancel = false, nil
+		i := s.index(c.ID)
+		if s.capacities[c.ID] != inspection || i < 0 || !sameCapacityDestination(s.store.Connections[i], c) || s.connectionRPC(c) != rpc || !rpc.Alive() || !s.mounted[c.ID] || s.exiting {
+			return
+		}
+		inspection.at = now
+		previous := inspection.view
+		losesFields := previous.Total != nil && view.Total == nil || previous.Used != nil && view.Used == nil || previous.Free != nil && view.Free == nil
+		if previous.CheckedAt != nil && (view.State != "available" || losesFields) {
+			inspection.view.State = "stale"
+			return
+		}
+		if view.State == "available" {
+			view.CheckedAt = &now
+		}
+		inspection.view = view
+	}()
+	return inspection.view
 }
 
 func readCapacity(ctx context.Context, rpc RPC, c Connection) CapacityView {

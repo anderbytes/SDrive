@@ -994,5 +994,11 @@
   "Indigo": "Indigo",
   "Rose": "Rose",
   "Lime": "Lime",
-  "Brown": "Brown"
+  "Brown": "Brown",
+  "Capacity update failed. Last values retained.": "Kapazitätsaktualisierung fehlgeschlagen. Letzte Werte beibehalten.",
+  "Last capacity reading: {time}": "Letzte Kapazitätsmessung: {time}",
+  "Disconnected · Last connection.": "Getrennt · Letzte Verbindung.",
+  "Outdated sample · Last counters retained.": "Veraltete Messung · Letzte Zähler beibehalten.",
+  "Partial network coverage.": "Teilweise Netzwerkabdeckung.",
+  "Approximate measurement at different layers; do not add the rows.": "Ungefähre Messung auf verschiedenen Ebenen; Zeilen nicht addieren."
 }

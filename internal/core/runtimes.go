@@ -143,6 +143,9 @@ func closeRPC(rpc RPC) {
 func CloseConnectionEngines(s *Service) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for id := range s.capacities {
+		s.clearCapacity(id)
+	}
 	for remote, rpc := range s.workers {
 		closeRPC(rpc)
 		delete(s.workers, remote)
@@ -150,6 +153,7 @@ func CloseConnectionEngines(s *Service) {
 }
 
 func (s *Service) stopConnection(c Connection) {
+	s.clearCapacity(c.ID)
 	s.stopNetwork(c)
 	if rpc := s.workers[c.Remote]; rpc != nil {
 		closeRPC(rpc)

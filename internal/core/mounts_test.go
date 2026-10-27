@@ -131,6 +131,8 @@ func TestUnmountFailurePreservesRecoveryAndCanRetry(t *testing.T) {
 			c := testConnection()
 			s.store.Connections = []Connection{c}
 			s.mounted[c.ID] = true
+			capacity := &capacityInspection{connection: c, rpc: rpc, view: CapacityView{State: "available"}}
+			s.capacities = map[string]*capacityInspection{c.ID: capacity}
 			if failure == "save settings" {
 				if err := os.Mkdir(filepath.Join(s.dir, "settings.json"), 0700); err != nil {
 					t.Fatal(err)
@@ -144,6 +146,12 @@ func TestUnmountFailurePreservesRecoveryAndCanRetry(t *testing.T) {
 			if !s.store.Connections[0].Recovery || s.busy[c.ID] || s.mounted[c.ID] != (failure != "save settings") {
 				t.Fatal("incorrect state after failed unmount")
 			}
+			if failure != "save settings" && s.capacities[c.ID] != capacity {
+				t.Fatal("failed disconnect discarded mounted capacity")
+			}
+			if failure == "save settings" && s.capacities[c.ID] != nil {
+				t.Fatal("completed unmount retained capacity after a settings failure")
+			}
 			if failure != "save settings" {
 				persisted, err := loadStore(s.dir)
 				if err != nil || !persisted.Connections[0].Recovery {
@@ -152,6 +160,9 @@ func TestUnmountFailurePreservesRecoveryAndCanRetry(t *testing.T) {
 				fail = false
 				if err := s.Unmount(c.ID); err != nil {
 					t.Fatal(err)
+				}
+				if s.capacities[c.ID] != nil {
+					t.Fatal("successful disconnect retained capacity")
 				}
 				persisted, err = loadStore(s.dir)
 				if err != nil || persisted.Connections[0].Recovery || s.mounted[c.ID] || s.errors[c.ID] != "" {

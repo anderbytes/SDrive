@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCapacityPreservesUnknownFieldsAndRejectsInvalidResponses(t *testing.T) {
@@ -104,8 +106,151 @@ func TestCapacityFailureDoesNotInvalidatePendingSnapshot(t *testing.T) {
 	s.store.Connections = []Connection{c}
 	s.mounted[c.ID] = true
 	s.driveUsed = func(string) bool { return true }
+	t.Cleanup(func() { CloseConnectionEngines(s) })
+	started := time.Now()
 	view := s.Snapshot().Connections[0]
+	if time.Since(started) >= time.Second {
+		t.Fatal("capacity query blocked the snapshot")
+	}
 	if view.Pending == nil || *view.Pending != 0 || view.Cache.Error != "" || !view.Mounted || view.Capacity.State != "unavailable" {
 		t.Fatal("capacity failure interfered with mounted upload status")
+	}
+}
+
+func waitCapacity(t *testing.T, s *Service, id string) CapacityView {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s.mu.Lock()
+		inspection := s.capacities[id]
+		if inspection != nil && !inspection.running {
+			view := inspection.view
+			s.mu.Unlock()
+			return view
+		}
+		s.mu.Unlock()
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("capacity query did not complete")
+	return CapacityView{}
+}
+
+func TestCapacityRetainsLastReadingUntilACompleteRefreshSucceeds(t *testing.T) {
+	var stage, calls atomic.Int32
+	rpc := &fakeRPC{handle: func(_ context.Context, method string, _ any) (any, error) {
+		if method == "operations/fsinfo" {
+			return map[string]any{"Features": map[string]bool{"About": stage.Load() != 5}}, nil
+		}
+		calls.Add(1)
+		switch stage.Load() {
+		case 1:
+			return nil, context.DeadlineExceeded
+		case 2:
+			return map[string]any{}, nil
+		case 3:
+			return map[string]any{"total": 10, "used": 20}, nil
+		case 4:
+			return map[string]any{"free": 60}, nil
+		case 6:
+			return map[string]any{"total": 100, "used": 40, "free": 60}, nil
+		}
+		return map[string]any{"total": 100, "used": 25, "free": 75}, nil
+	}}
+	s := testService(t, rpc)
+	c := testConnection()
+	s.store.Connections, s.mounted[c.ID] = []Connection{c}, true
+	t.Cleanup(func() { CloseConnectionEngines(s) })
+	s.sampleCapacity(c, rpc)
+	first := waitCapacity(t, s, c.ID)
+	if first.State != "available" || first.CheckedAt == nil {
+		t.Fatalf("initial capacity: %+v", first)
+	}
+	// Cosmetic changes must not discard the mounted destination's reading.
+	c.CardStyle, c.Name = "blue", "Renamed drive"
+	s.mu.Lock()
+	s.store.Connections[0] = c
+	s.mu.Unlock()
+	if got := s.sampleCapacity(c, rpc); got.CheckedAt != first.CheckedAt || calls.Load() != 1 {
+		t.Fatal("fresh capacity was queried again or lost after appearance change")
+	}
+	for n := int32(1); n <= 6; n++ {
+		stage.Store(n)
+		s.mu.Lock()
+		s.capacities[c.ID].at = time.Now().Add(-5 * time.Minute)
+		s.mu.Unlock()
+		if got := s.sampleCapacity(c, rpc); got.CheckedAt != first.CheckedAt {
+			t.Fatal("refresh cleared the previous reading")
+		}
+		got := waitCapacity(t, s, c.ID)
+		if n < 6 {
+			if got.State != "stale" || got.CheckedAt != first.CheckedAt || *got.Total != 100 || *got.Used != 25 || *got.Free != 75 {
+				t.Fatalf("stage %d did not preserve the whole reading: %+v", n, got)
+			}
+		} else if got.State != "available" || !got.CheckedAt.After(*first.CheckedAt) || *got.Used != 40 {
+			t.Fatalf("successful refresh not accepted: %+v", got)
+		}
+	}
+}
+
+func TestCapacityQueryIsSharedAndRejectsObsoleteMounts(t *testing.T) {
+	for _, change := range []string{"disconnect", "destination", "engine"} {
+		t.Run(change, func(t *testing.T) {
+			started, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			rpc := &fakeRPC{handle: func(ctx context.Context, method string, _ any) (any, error) {
+				if method == "operations/fsinfo" {
+					return map[string]any{"Features": map[string]bool{"About": true}}, nil
+				}
+				deadline, ok := ctx.Deadline()
+				if !ok || time.Until(deadline) < 8*time.Second {
+					t.Error("capacity inherited the short snapshot deadline")
+				}
+				close(started)
+				<-release
+				defer close(finished)
+				return map[string]any{"total": 100, "used": 25}, nil
+			}}
+			s := testService(t, rpc)
+			c := testConnection()
+			s.store.Connections, s.mounted[c.ID] = []Connection{c}, true
+			s.sampleCapacity(c, rpc)
+			<-started
+			for i := 0; i < 10; i++ {
+				if got := s.sampleCapacity(c, rpc); got.State != "unavailable" {
+					t.Fatal("in-flight query exposed an empty state")
+				}
+			}
+			s.mu.Lock()
+			inspection := s.capacities[c.ID]
+			switch change {
+			case "disconnect":
+				s.clearCapacity(c.ID)
+				// A reconnect using the same RPC must still reject the old result.
+				s.capacities[c.ID] = &capacityInspection{connection: c, rpc: rpc, view: CapacityView{State: "unavailable"}}
+			case "destination":
+				s.store.Connections[0].Path = "another-folder"
+			case "engine":
+				s.rpc = &fakeRPC{}
+			}
+			s.mu.Unlock()
+			close(release)
+			<-finished
+			deadline := time.Now().Add(2 * time.Second)
+			for {
+				s.mu.Lock()
+				running, checked := inspection.running, inspection.view.CheckedAt
+				s.mu.Unlock()
+				if !running {
+					if checked != nil {
+						t.Error("obsolete query published a capacity reading")
+					}
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("obsolete query did not finish")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			CloseConnectionEngines(s)
+		})
 	}
 }

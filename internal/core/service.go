@@ -291,6 +291,7 @@ func (s *Service) Snapshot() (v View) {
 			current := s.index(cv.ID)
 			if hasWorker && !connectionRPC.Alive() && s.connectionRPC(cv.Connection) == connectionRPC {
 				s.mounted[cv.ID] = false
+				s.clearCapacity(cv.ID)
 			}
 			if s.snapshotID == snapshotID && s.rpc == rpc && s.connectionRPC(cv.Connection) == connectionRPC && current >= 0 && s.store.Connections[current] == cv.Connection && !s.busy[cv.ID] && mountsErr == nil && connectionRPC != nil && connectionRPC.Alive() {
 				active := false
@@ -315,6 +316,9 @@ func (s *Service) Snapshot() (v View) {
 					s.errors[cv.ID] = cv.Error
 				}
 				s.mounted[cv.ID] = active
+				if !active {
+					s.clearCapacity(cv.ID)
+				}
 				cv.Mounted = active
 				if active && !cv.Recovery {
 					s.store.Connections[current].Recovery = true
@@ -366,7 +370,7 @@ func (s *Service) Snapshot() (v View) {
 				cv.ErrorMessage = nil
 			}
 			if cv.Mounted {
-				cv.Capacity = s.sampleCapacity(ctx, cv.Connection, connectionRPC)
+				cv.Capacity = s.sampleCapacity(cv.Connection, connectionRPC)
 			}
 			cv.TransportSecurity = TransportSecurityView{State: "disconnected"}
 			if cv.Mounted {

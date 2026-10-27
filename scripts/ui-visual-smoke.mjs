@@ -71,6 +71,12 @@ try {
   await page.addInitScript(() => {
     window.visualWaits = { accessStatus: true, snapshot: true };
     window.visualMotion = [];
+    window.visualReorders = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (...args) {
+      if (this.classList.contains("drive-list-entry")) window.visualReorders.push(args[1]);
+      return animate.apply(this, args);
+    };
     document.addEventListener("animationstart", event => window.visualMotion.push({ name: event.animationName, target: event.target.className }));
   });
   page.setDefaultTimeout(8000);
@@ -130,7 +136,13 @@ try {
   const targetBox = await page.locator(".drive-list-entry").nth(1).boundingBox();
   await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(targetBox.x + 12, targetBox.y + targetBox.height / 2, { steps: 8 });
+  await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2 + 2);
+  assert.equal(await page.locator(".drive-list-entry.moving").count(), 0, "A small click movement must not start a drag");
+  await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2 + 20);
+  await page.waitForFunction(() => Math.abs(parseFloat(document.querySelector(".drive-list-entry.moving")?.style.transform.match(/[-\d.]+/)?.[0]) - 20) < 1);
+  await page.mouse.move(targetBox.x + 12, targetBox.y + targetBox.height / 2 + 8, { steps: 8 });
+  await page.waitForFunction(() => document.querySelector(".drive-list-slot")?.dataset.driveId === "visual-second");
+  assert(await page.evaluate(() => window.visualReorders.some(options => options.duration === 180)), "Neighbors must slide into their new slots");
   await page.mouse.up();
   await page.waitForFunction(() => window.visualSnapshot.connections[0].name === "Team library");
   await page.getByText("Drive order saved.", { exact: true }).waitFor();
@@ -138,6 +150,40 @@ try {
   assert(await grip.evaluate(element => document.activeElement === element), "Keyboard reordering must retain focus");
   await page.keyboard.press("Space");
   await page.waitForFunction(() => window.visualSnapshot.connections[0].name === "Documents");
+
+  const savedOrder = await page.evaluate(() => window.visualSnapshot.connections.map(c => c.id));
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const animationCount = await page.evaluate(() => window.visualReorders.length);
+  await grip.focus(); await page.keyboard.press("Space"); await page.keyboard.press("ArrowDown");
+  assert.equal(await page.evaluate(() => window.visualReorders.length), animationCount, "Reduced motion must disable reorder animations");
+  await page.keyboard.press("Escape");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await grip.scrollIntoViewIfNeeded();
+  const touchBox = await grip.boundingBox();
+  const touch = { pointerId: 7, pointerType: "touch", isPrimary: true, button: 0, clientX: touchBox.x + 12, clientY: touchBox.y + 12 };
+  await grip.dispatchEvent("pointerdown", touch);
+  await page.dispatchEvent("body", "pointermove", { ...touch, clientY: touch.clientY + 24 });
+  await page.locator(".drive-list-entry.moving").waitFor();
+  await page.dispatchEvent("body", "pointercancel", touch);
+  await page.locator(".drive-list-entry.moving").waitFor({ state: "detached" });
+  assert.deepEqual(await page.evaluate(() => window.visualSnapshot.connections.map(c => c.id)), savedOrder, "Touch cancellation must preserve saved order");
+
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await grip.scrollIntoViewIfNeeded();
+  const scrollGrip = await grip.boundingBox();
+  const scrollBefore = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(scrollGrip.x + 12, scrollGrip.y + 12); await page.mouse.down();
+  await page.mouse.move(scrollGrip.x + 12, 580, { steps: 8 });
+  await page.waitForFunction(before => window.scrollY > before, scrollBefore);
+  await page.keyboard.press("Escape"); await page.mouse.up();
+  assert.deepEqual(await page.evaluate(() => window.visualSnapshot.connections.map(c => c.id)), savedOrder, "Escape during auto-scroll must cancel the drag");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await grip.scrollIntoViewIfNeeded();
+  const outsideGrip = await grip.boundingBox();
+  await page.mouse.move(outsideGrip.x + 12, outsideGrip.y + 12); await page.mouse.down();
+  await page.mouse.move(4, 4, { steps: 5 }); await page.mouse.up();
+  assert.deepEqual(await page.evaluate(() => window.visualSnapshot.connections.map(c => c.id)), savedOrder, "Dropping outside the list must cancel");
+  await settle();
 
   await page.evaluate(() => {
     window.visualSnapshot.connections[0].busy = true;
@@ -328,6 +374,8 @@ try {
       const box = await page.getByRole("tooltip").boundingBox();
       assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1);
       if (topic === "Network") {
+        assert.equal(await page.getByRole("tooltip").getByRole("row").count(), 3, "Network must show only measured categories");
+        assert.equal(await page.getByRole("tooltip").getByText("Directory listings and metadata", { exact: true }).count(), 0);
         const anchor = await trigger.boundingBox();
         assert(box.y + box.height <= anchor.y || box.y >= anchor.y + anchor.height, "Network tooltip must not cover its trigger");
         await trigger.focus();
@@ -391,6 +439,16 @@ try {
   await changeDrive({ ...originalDrive, capacity: { ...originalDrive.capacity, state: "unsupported" } });
   await firstCard.getByRole("button", { name: "Connection security", exact: true }).waitFor();
   assert.equal(await firstCard.getByRole("button", { name: "Remote capacity", exact: true }).count(), 0);
+  await changeDrive({ ...originalDrive, capacity: { ...originalDrive.capacity, state: "stale", checkedAt: "2026-10-27T12:00:00Z" } });
+  const staleCapacity = firstCard.getByRole("button", { name: "Remote capacity", exact: true });
+  await staleCapacity.waitFor();
+  assert.equal(await staleCapacity.getAttribute("data-tone"), "warning");
+  assert.equal(await firstCard.getByRole("progressbar").getAttribute("value"), "25");
+  await staleCapacity.click();
+  await page.getByText("Capacity update failed. Last values retained.", { exact: true }).waitFor();
+  assert.equal(await page.getByText(/Last capacity reading:/).count(), 1);
+  await capture("capacity-retained-narrow");
+  await page.keyboard.press("Escape");
   await changeDrive(originalDrive);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });

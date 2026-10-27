@@ -994,5 +994,11 @@
   "Indigo": "Indigo",
   "Rose": "Rose",
   "Lime": "Lime",
-  "Brown": "Brown"
+  "Brown": "Brown",
+  "Capacity update failed. Last values retained.": "容量更新失败。保留上次的数值。",
+  "Last capacity reading: {time}": "上次容量读取：{time}",
+  "Disconnected · Last connection.": "已断开 · 上次连接。",
+  "Outdated sample · Last counters retained.": "采样已过期 · 保留上次的计数。",
+  "Partial network coverage.": "网络覆盖不完整。",
+  "Approximate measurement at different layers; do not add the rows.": "不同层级的近似测量；请勿将各行相加。"
 }

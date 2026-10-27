@@ -23,7 +23,7 @@ function DetailsHost({ connection }: { connection: ConnectionView }) {
 }
 afterEach(cleanup);
 
-test("network precedes capacity and separates measured values from unavailable categories", () => {
+test("network precedes capacity and hides categories without measured values", () => {
   const network = { state: "active", partial: false, startedAt: "2026-10-27T12:00:00Z", checkedAt: "2026-10-27T12:00:03Z", sent: 2048, received: 4096, filesSent: 1024, filesReceived: 2048 };
   const view = render(<DetailsHost connection={{ ...connected, network }} />);
   const labels = screen.getAllByRole("button").map(button => button.getAttribute("aria-label"));
@@ -31,15 +31,17 @@ test("network precedes capacity and separates measured values from unavailable c
   fireEvent.mouseEnter(screen.getByRole("button", { name: "Network" }));
   expect(screen.getByRole("table", { name: "Network usage by category" })).toBeDefined();
   expect(screen.getByRole("row", { name: /File contents/ }).textContent).toContain("1.0 KiB");
-  expect(screen.getAllByText("Included in the measured total; separate value unavailable.")).toHaveLength(5);
+  expect(screen.getAllByRole("row")).toHaveLength(3);
+  expect(screen.queryByText("Directory listings and metadata")).toBeNull();
+  expect(screen.queryByText("System DNS and VPN overhead")).toBeNull();
   expect(screen.getByRole("row", { name: /Measured socket total/ }).textContent).toContain("4.0 KiB");
-  expect(screen.getByRole("tooltip").textContent).toContain("Do not add the rows");
+  expect(screen.getByRole("tooltip").textContent).toContain("do not add the rows");
   act(() => screen.getByRole("button", { name: "Network" }).focus());
   fireEvent.keyDown(screen.getByRole("button", { name: "Network" }), { key: "ArrowDown" });
   expect(screen.getByRole("tooltip").scrollTop).toBe(40);
   view.rerender(<DetailsHost connection={{ ...connected, mounted: false, network: { ...network, state: "disconnected" } }} />);
   expect(screen.getByRole("button", { name: "Network" })).toBeDefined();
-  expect(screen.getByRole("tooltip").textContent).toContain("Last connection retained");
+  expect(screen.getByRole("tooltip").textContent).toContain("Disconnected · Last connection.");
 });
 
 test.each(["unavailable", "stale", "partial"])("network exposes %s without presenting missing counters as zero", state => {
@@ -47,9 +49,31 @@ test.each(["unavailable", "stale", "partial"])("network exposes %s without prese
   const button = screen.getByRole("button", { name: "Network" });
   expect(button.getAttribute("data-tone")).toBe("warning");
   act(() => button.focus());
-  expect(screen.getByRole("row", { name: /Measured socket total/ }).textContent).not.toContain("0 B");
+  expect(screen.queryByRole("table")).toBeNull();
+  expect(screen.getByText("Network measurement is unavailable for this connection.")).toBeDefined();
   fireEvent.keyDown(button, { key: "Escape" });
   expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+test("network preserves measured zeros and hides fully unknown rows and combined totals", () => {
+  render(<DetailsHost connection={{ ...connected, network: { state: "active", partial: false, startedAt: null, checkedAt: null, sent: 0, received: null, filesSent: null, filesReceived: null } }} />);
+  fireEvent.mouseEnter(screen.getByRole("button", { name: "Network" }));
+  expect(screen.getAllByRole("row")).toHaveLength(2);
+  expect(screen.getByRole("row", { name: /Measured socket total/ }).textContent).toContain("0 B");
+  expect(screen.getByRole("row", { name: /Measured socket total/ }).textContent).toContain("—");
+  expect(screen.queryByText(/Combined measured total/)).toBeNull();
+  expect(screen.queryByRole("row", { name: /File contents/ })).toBeNull();
+});
+
+test("stale capacity shows the retained numbers and the last successful reading", () => {
+  render(<DetailsHost connection={{ ...connected, capacity: { ...connected.capacity, state: "stale" } }} />);
+  const button = screen.getByRole("button", { name: "Remote capacity" });
+  expect(button.getAttribute("data-tone")).toBe("warning");
+  fireEvent.mouseEnter(button);
+  expect(screen.getByText("Remote capacity: 100 B · Used: 20 B · Available: 80 B")).toBeDefined();
+  expect(screen.getByText("Capacity update failed. Last values retained.")).toBeDefined();
+  expect(screen.getByText(/Last capacity reading:/)).toBeDefined();
+  expect(screen.queryByText("Remote capacity is currently unknown.")).toBeNull();
 });
 
 test("idle connected and disconnected drives only expose meaningful details", () => {

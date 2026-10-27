@@ -134,7 +134,8 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     await network.hover();
     await page.getByRole("table", { name: "Network usage by category" }).waitFor();
     await page.waitForFunction(() => document.querySelector('[role="tooltip"]')?.textContent.includes("Since connection:"));
-    assert.equal(await page.getByRole("row").filter({ hasText: "Included in the measured total; separate value unavailable." }).count(), 5);
+    assert.equal(await page.getByRole("row").filter({ hasText: "Included in the measured total; separate value unavailable." }).count(), 0);
+    assert.equal(await page.getByRole("row").filter({ hasText: "Directory listings and metadata" }).count(), 0);
     await page.screenshot({ path: path.join(artifacts, "network.png") });
     await page.keyboard.press("Escape");
     assert.equal(await shield.locator(".security-off-mark").count(), 1);

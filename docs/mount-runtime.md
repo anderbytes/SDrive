@@ -34,7 +34,9 @@ Modification dates and checksum behavior remain unchanged. `NoModTime` also stop
 
 Cards show provider-reported total, used and available space separately from local cache usage and cache-disk free space. Capacity may cover the account rather than the chosen folder. Missing fields remain unknown; zero requires an explicit provider value. Unsupported and unavailable states do not block mounting.
 
-Queries use already-active workers, with one-minute sampling and the snapshot deadline. They do not start disconnected providers or scan remote files to invent a quota.
+Capacity is queried in the background on the first snapshot after connecting and again on a snapshot at least five minutes after the previous attempt completes. Each query has its own ten-second timeout and does not delay the UI snapshot. While refreshing, the last accepted reading stays visible. Failed, invalid or less complete responses retain that entire reading with a stale warning; values from different readings are never mixed. Details show the date and time of the last accepted reading. Retention is limited to the current mount, lives only in memory and has no age expiry; disconnecting, changing destination or replacing the engine discards it. Cosmetic changes and unsuccessful disconnects that leave the mount active preserve it.
+
+Queries use already-active workers. They do not start disconnected providers or scan remote files to invent a quota.
 
 ## Drive letters and folders
 
@@ -71,6 +73,8 @@ Hidden file visibility is configured per drive: **Follow file manager settings**
 Opening Explorer after connection is also configured per drive, and defaults to off for new drives. Existing global choices migrate to each saved drive. It runs once after a successful connection, including automatic connections, and never from status refreshes.
 
 Drive order can be changed by dragging its handle or by focusing the handle, pressing Space, moving with arrow keys, and pressing Space to save (Escape cancels). The order persists; filtered moves keep hidden drives in their existing slots. Filters combine search, connection state, provider, mount presentation and read/write access, and last only for the current application session. Imported authentication drafts stay visible separately.
+
+After a four-pixel drag threshold, the card follows the pointer vertically while neighboring cards slide into place. Dragging near the window edges scrolls the list. Releasing outside the list, Escape or a cancelled pointer restores the previous order; saving failures also restore the last snapshot. Reduced-motion preferences disable the slide and settling animations while preserving direct pointer tracking and keyboard support.
 
 The Eye **Details** panel provides public connection settings without disconnecting. Other status icons keep their specialized information. **Drive diagnostics** is in the card menu immediately above removal. The general diagnostic report opens in its own modal from **About SDrive**, where users can refresh, copy or export the exact reviewed text as a local UTF-8 file. No report is sent automatically.
 

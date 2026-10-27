@@ -133,6 +133,7 @@ func (s *Service) Mount(id string) (resultErr error) {
 	s.busy[id] = true
 	owned = true
 	s.operations[id] = "validating"
+	s.clearCapacity(id)
 	s.snapshotID++
 	delete(s.inspections, id)
 	delete(s.transportInspections, id)
@@ -328,6 +329,7 @@ func (s *Service) unmount(id string) (resultErr error) {
 	delete(s.transportInspections, id)
 	if unmounted {
 		delete(s.mounted, id)
+		s.clearCapacity(id)
 		s.stopNetwork(c)
 	}
 	if err != nil {
