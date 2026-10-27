@@ -48,7 +48,8 @@ func (s *Service) reconcileDesktopAppearance() {
 func (s *Service) mountDesktopActions(id string) {
 	s.reconcileDesktopAppearance()
 	s.mu.Lock()
-	open := s.store.Settings.OpenMountAfterConnect
+	i := s.index(id)
+	open := i >= 0 && s.store.Connections[i].OpenMountAfterConnect
 	s.mu.Unlock()
 	if open {
 		err := s.OpenMount(id)

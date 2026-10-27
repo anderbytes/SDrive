@@ -1,21 +1,5 @@
 {
   "methods": {
-    "preferenceDefaults": {
-      "name": "PreferenceDefaults",
-      "args": [],
-      "returns": [
-        "core.Settings",
-        "error"
-      ]
-    },
-    "restoreDefaultCacheLocation": {
-      "name": "RestoreDefaultCacheLocation",
-      "args": [],
-      "returns": [
-        "string",
-        "error"
-      ]
-    },
     "about": {
       "args": [],
       "name": "About",
@@ -101,6 +85,16 @@
         "error"
       ]
     },
+    "connectionDetails": {
+      "args": [
+        "string"
+      ],
+      "name": "ConnectionDetails",
+      "returns": [
+        "[]core.ConnectionDetail",
+        "error"
+      ]
+    },
     "desktopVisible": {
       "args": [],
       "name": "DesktopVisible",
@@ -144,6 +138,16 @@
       "args": [],
       "name": "ExportConfiguration",
       "returns": [
+        "error"
+      ]
+    },
+    "exportDiagnosticReport": {
+      "args": [
+        "string"
+      ],
+      "name": "ExportDiagnosticReport",
+      "returns": [
+        "bool",
         "error"
       ]
     },
@@ -201,6 +205,14 @@
       ],
       "name": "OpenMount",
       "returns": [
+        "error"
+      ]
+    },
+    "preferenceDefaults": {
+      "args": [],
+      "name": "PreferenceDefaults",
+      "returns": [
+        "core.Settings",
         "error"
       ]
     },
@@ -278,10 +290,27 @@
         "error"
       ]
     },
+    "reorderConnections": {
+      "args": [
+        "[]string"
+      ],
+      "name": "ReorderConnections",
+      "returns": [
+        "error"
+      ]
+    },
     "restart": {
       "args": [],
       "name": "RestartEngine",
       "returns": [
+        "error"
+      ]
+    },
+    "restoreDefaultCacheLocation": {
+      "args": [],
+      "name": "RestoreDefaultCacheLocation",
+      "returns": [
+        "string",
         "error"
       ]
     },
@@ -388,13 +417,6 @@
         "error"
       ]
     },
-    "verifyRecovery": {
-      "args": [],
-      "name": "VerifyRecovery",
-      "returns": [
-        "error"
-      ]
-    },
     "updateDriveAppearance": {
       "args": [
         "string",
@@ -404,20 +426,31 @@
       "returns": [
         "error"
       ]
+    },
+    "verifyRecovery": {
+      "args": [],
+      "name": "VerifyRecovery",
+      "returns": [
+        "error"
+      ]
     }
   },
   "samples": {
     "about": {
+      "platform": "",
+      "osVersion": "",
       "appVersion": "test",
+      "releaseDate": "",
       "rcloneVersion": "",
       "windowsVersion": "",
       "winFspVersion": "",
       "webView2Version": "",
-      "architecture": "",
-      "platform": "",
-      "osVersion": ""
+      "architecture": ""
     },
     "accessStatus": {
+      "platform": "",
+      "globalIdle": false,
+      "theme": "system",
       "setupPending": false,
       "language": "en",
       "enabled": true,
@@ -429,14 +462,15 @@
       },
       "retryAt": "2026-01-01T00:00:00Z",
       "error": "",
-      "warning": "",
-      "theme": "system",
-      "platform": "",
-      "globalIdle": false
+      "warning": ""
     },
     "configInput": {
       "importDraftID": "draft",
       "connection": {
+        "hiddenFileVisibility": "system",
+        "openExplorerAfterConnect": true,
+        "cardStyle": "blue",
+        "iconImage": "data:image/png;base64,synthetic",
         "id": "connection",
         "remote": "remote",
         "name": "Café 😀",
@@ -445,6 +479,7 @@
         "letter": "S",
         "mountMode": "local",
         "mountFolder": "C:\\Synthetic\\Mount",
+        "virtualCapacityGiB": 256,
         "directoryCacheSeconds": 300,
         "readOnly": false,
         "autoMount": false,
@@ -462,11 +497,7 @@
         "alternateURL": "https://alternate.example.test/dav",
         "resourceID": "synthetic-resource",
         "primaryURL": "https://example.test/dav",
-        "binding": "{}",
-        "virtualCapacityGiB": 256,
-        "cardStyle": "blue",
-        "iconImage": "data:image/png;base64,synthetic",
-        "showHiddenFiles": false
+        "binding": "{}"
       },
       "values": {
         "host": "example.test"
@@ -488,6 +519,12 @@
       "autoMount": false,
       "recovery": false,
       "targetHash": "",
+      "transportSecurity": {
+        "state": "",
+        "protocol": "",
+        "source": "",
+        "checkedAt": null
+      },
       "mounted": false,
       "pending": null,
       "busy": false,
@@ -506,12 +543,6 @@
         "free": null,
         "checkedAt": null,
         "state": ""
-      },
-      "transportSecurity": {
-        "state": "",
-        "protocol": "",
-        "source": "",
-        "checkedAt": null
       },
       "network": {
         "state": "",
@@ -575,12 +606,17 @@
     "importDraft": {
       "id": "draft",
       "definition": {
+        "hiddenFileVisibility": "system",
+        "openExplorerAfterConnect": true,
+        "cardStyle": "blue",
+        "iconImage": "data:image/png;base64,synthetic",
         "name": "Café 😀",
         "provider": "sftp",
         "path": "folder",
         "letter": "S",
         "mountMode": "local",
         "mountFolder": "C:\\Synthetic\\Mount",
+        "virtualCapacityGiB": 256,
         "directoryCacheSeconds": 300,
         "readOnly": false,
         "autoMount": false,
@@ -595,26 +631,27 @@
         "idleTimeout": 60,
         "alternateURL": "https://alternate.example.test/dav",
         "transport": "",
-        "values": {},
-        "virtualCapacityGiB": 256,
-        "cardStyle": "blue",
-        "iconImage": "data:image/png;base64,synthetic",
-        "showHiddenFiles": false
+        "values": {}
       }
     },
     "importPreview": {
       "id": "preview",
       "document": {
         "format": "sdrive-portable",
-        "version": 1,
+        "version": 2,
         "connections": [
           {
+            "hiddenFileVisibility": "system",
+            "openExplorerAfterConnect": true,
+            "cardStyle": "blue",
+            "iconImage": "data:image/png;base64,synthetic",
             "name": "Café 😀",
             "provider": "sftp",
             "path": "folder",
             "letter": "S",
             "mountMode": "local",
             "mountFolder": "C:\\Synthetic\\Mount",
+            "virtualCapacityGiB": 256,
             "directoryCacheSeconds": 300,
             "readOnly": false,
             "autoMount": false,
@@ -629,22 +666,17 @@
             "idleTimeout": 60,
             "alternateURL": "https://alternate.example.test/dav",
             "transport": "",
-            "values": {},
-            "virtualCapacityGiB": 256,
-            "cardStyle": "blue",
-            "iconImage": "data:image/png;base64,synthetic",
-            "showHiddenFiles": false
+            "values": {}
           }
         ],
         "preferences": {
+          "driveStripeColorSource": "theme",
+          "theme": "system",
           "language": "en",
           "cacheGiB": 2,
           "cacheMaxAgeHours": 24,
           "writeBackSeconds": 5,
-          "openExplorerAfterConnect": false,
-          "showServiceIcons": false,
-          "theme": "system",
-          "driveStripeColorSource": "theme"
+          "showServiceIcons": false
         }
       }
     },
@@ -661,14 +693,14 @@
       "mode": "local"
     },
     "providerEmpty": {
+      "transportEncryption": "",
       "id": "",
       "name": "",
       "backend": "",
       "experimental": false,
       "fields": null,
       "oauth": false,
-      "available": false,
-      "transportEncryption": ""
+      "available": false
     },
     "questionEmpty": {
       "Name": "",
@@ -717,7 +749,12 @@
       "connectionID": ""
     },
     "snapshotEmpty": {
+      "platform": "",
+      "mountAvailable": false,
       "access": {
+        "platform": "",
+        "globalIdle": false,
+        "theme": "",
         "setupPending": false,
         "language": "",
         "enabled": false,
@@ -729,25 +766,21 @@
         },
         "retryAt": "0001-01-01T00:00:00Z",
         "error": "",
-        "warning": "",
-        "theme": "",
-        "platform": "",
-        "globalIdle": false
+        "warning": ""
       },
       "desktopWarning": "",
       "importDrafts": [],
       "providers": [],
       "connections": [],
       "settings": {
-        "openExplorerAfterConnect": false,
+        "driveStripeColorSource": "theme",
+        "theme": "system",
         "showServiceIcons": false,
         "language": "en",
         "autoStart": false,
         "cacheGiB": 2,
         "cacheMaxAgeHours": 24,
-        "writeBackSeconds": 5,
-        "theme": "system",
-        "driveStripeColorSource": "theme"
+        "writeBackSeconds": 5
       },
       "letters": [],
       "winFsp": false,
@@ -758,12 +791,15 @@
       "maintenanceError": "",
       "startupWarning": "",
       "freeBytes": null,
-      "cacheLocation": "",
-      "platform": "",
-      "mountAvailable": false
+      "cacheLocation": ""
     },
     "snapshotFilled": {
+      "platform": "",
+      "mountAvailable": false,
       "access": {
+        "platform": "",
+        "globalIdle": false,
+        "theme": "",
         "setupPending": false,
         "language": "",
         "enabled": false,
@@ -775,15 +811,13 @@
         },
         "retryAt": "0001-01-01T00:00:00Z",
         "error": "",
-        "warning": "",
-        "theme": "",
-        "platform": "",
-        "globalIdle": false
+        "warning": ""
       },
       "desktopWarning": "",
       "importDrafts": [],
       "providers": [
         {
+          "transportEncryption": "",
           "id": "sftp",
           "name": "SFTP",
           "backend": "sftp",
@@ -805,12 +839,15 @@
           ],
           "oauth": false,
           "available": true,
-          "notice": "Synthetic provider",
-          "transportEncryption": ""
+          "notice": "Synthetic provider"
         }
       ],
       "connections": [
         {
+          "hiddenFileVisibility": "system",
+          "openExplorerAfterConnect": true,
+          "cardStyle": "blue",
+          "iconImage": "data:image/png;base64,synthetic",
           "id": "connection",
           "remote": "remote",
           "name": "Café 😀",
@@ -819,6 +856,7 @@
           "letter": "S",
           "mountMode": "local",
           "mountFolder": "C:\\Synthetic\\Mount",
+          "virtualCapacityGiB": 256,
           "directoryCacheSeconds": 300,
           "readOnly": false,
           "autoMount": false,
@@ -837,6 +875,13 @@
           "resourceID": "synthetic-resource",
           "primaryURL": "https://example.test/dav",
           "binding": "{}",
+          "serverPath": "example.test/folder",
+          "transportSecurity": {
+            "state": "",
+            "protocol": "",
+            "source": "",
+            "checkedAt": null
+          },
           "mounted": false,
           "pending": 2,
           "busy": false,
@@ -867,17 +912,6 @@
             "checkedAt": null,
             "state": ""
           },
-          "transportSecurity": {
-            "state": "",
-            "protocol": "",
-            "source": "",
-            "checkedAt": null
-          },
-          "virtualCapacityGiB": 256,
-          "cardStyle": "blue",
-          "iconImage": "data:image/png;base64,synthetic",
-          "serverPath": "example.test/folder",
-          "showHiddenFiles": false,
           "network": {
             "state": "",
             "partial": false,
@@ -891,15 +925,14 @@
         }
       ],
       "settings": {
-        "openExplorerAfterConnect": false,
+        "driveStripeColorSource": "theme",
+        "theme": "system",
         "showServiceIcons": false,
         "language": "en",
         "autoStart": false,
         "cacheGiB": 2,
         "cacheMaxAgeHours": 24,
-        "writeBackSeconds": 5,
-        "theme": "system",
-        "driveStripeColorSource": "theme"
+        "writeBackSeconds": 5
       },
       "letters": [
         "T"
@@ -912,9 +945,7 @@
       "maintenanceError": "",
       "startupWarning": "",
       "freeBytes": 1024,
-      "cacheLocation": "",
-      "platform": "",
-      "mountAvailable": false
+      "cacheLocation": ""
     }
   }
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,8 +30,15 @@ func TestWindowsHiddenFileAttributes(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := os.Mkdir(filepath.Join(f.destination, "library", ".dot-folder"), 0700); err != nil {
-				t.Fatal(err)
+			for _, folder := range []string{".dot-folder", "public"} {
+				if err := os.Mkdir(filepath.Join(f.destination, "library", folder), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, name := range []string{".nested", "visible.txt"} {
+				if err := os.WriteFile(filepath.Join(f.destination, "library", "public", name), []byte("fixture"), 0600); err != nil {
+					t.Fatal(err)
+				}
 			}
 			c.MountMode = mode
 			point := c.Letter + `:\`
@@ -39,27 +47,50 @@ func TestWindowsHiddenFileAttributes(t *testing.T) {
 				point = c.MountFolder
 			}
 			for _, readOnly := range []bool{false, true} {
-				for _, shown := range []bool{true, false} {
-					c.ShowHiddenFiles, c.ReadOnly = &shown, readOnly
+				for _, visibility := range []string{"show", "system", "hide"} {
+					c.HiddenFileVisibility, c.ReadOnly = visibility, readOnly
 					if err := s.UpdateConnection(c); err != nil {
 						t.Fatal(err)
 					}
 					if err := s.Mount(c.ID); err != nil {
 						t.Fatal(err)
 					}
-					for _, name := range []string{".dot-file", ".dot-folder", "normal.txt"} {
+					for _, name := range []string{".dot-file", ".dot-folder", "normal.txt", filepath.Join("public", ".nested"), filepath.Join("public", "visible.txt")} {
 						path, err := windows.UTF16PtrFromString(filepath.Join(point, name))
 						if err != nil {
 							t.Fatal(err)
 						}
 						attributes, err := windows.GetFileAttributes(path)
-						wantHidden := !shown && name != "normal.txt"
+						if visibility == "hide" && strings.HasPrefix(filepath.Base(name), ".") {
+							continue
+						}
+						wantHidden := visibility == "system" && strings.HasPrefix(filepath.Base(name), ".")
 						if err != nil || (attributes&windows.FILE_ATTRIBUTE_HIDDEN != 0) != wantHidden {
-							t.Fatalf("%s readOnly=%t shown=%t: attributes=%x error=%v", name, readOnly, shown, attributes, err)
+							t.Fatalf("%s readOnly=%t visibility=%s: attributes=%x error=%v", name, readOnly, visibility, attributes, err)
 						}
-						if data, err := os.ReadDir(point); err != nil || len(data) != 3 {
-							t.Fatal("hidden items must remain available to filesystem enumeration", err)
+					}
+					for _, directory := range []string{"", "public"} {
+						wantCount := 4
+						if directory != "" {
+							wantCount = 2
 						}
+						if visibility == "hide" {
+							wantCount /= 2
+						}
+						entries, err := os.ReadDir(filepath.Join(point, directory))
+						if err != nil || len(entries) != wantCount {
+							t.Fatalf("%s visibility=%s: listing has %d items, want %d: %v", directory, visibility, len(entries), wantCount, err)
+						}
+						if visibility == "hide" {
+							for _, entry := range entries {
+								if strings.HasPrefix(entry.Name(), ".") {
+									t.Fatal("hidden item remained in mounted listing")
+								}
+							}
+						}
+					}
+					if content, err := os.ReadFile(filepath.Join(f.destination, "library", "public", ".nested")); err != nil || string(content) != "fixture" {
+						t.Fatal("visibility changed remote content", err)
 					}
 					if err := s.Unmount(c.ID); err != nil {
 						t.Fatal(err)

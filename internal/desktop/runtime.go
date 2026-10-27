@@ -174,9 +174,17 @@ func Run(assets fs.FS, prerequisiteManifest, packageMetadata []byte, smoke strin
 		return app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Import portable configuration")).AddFilter("JSON", "*.json").PromptForSingleSelection()
 	})
 	var metadata struct {
-		Version string `json:"version"`
+		Version     string `json:"version"`
+		ReleaseDate string `json:"releaseDate"`
 	}
 	_ = json.Unmarshal(packageMetadata, &metadata)
+	core.SetReleaseDate(service, metadata.ReleaseDate)
+	core.SetDiagnosticReportPicker(service, func() (string, error) {
+		if smoke == "true" {
+			return filepath.Join(filepath.Dir(dir), "diagnostics.txt"), nil
+		}
+		return app.Dialog.SaveFile().AttachToWindow(window).SetMessage(i18n.Text(core.Language(service), "Export diagnostic report")).SetFilename("SDrive-diagnostics.txt").AddFilter("Text", "*.txt").PromptForSingleSelection()
+	})
 	desktop := setupDesktop(app, window, service, dir, metadata.Version, hidden)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		<-desktop.ready

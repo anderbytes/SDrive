@@ -39,8 +39,12 @@ async function verifyAboutActions(page, language) {
   const actions = await dialog.getByRole("button").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label") || button.textContent));
   assert(actions.every((name) => [t("Close"), t("Close dialog"), t("View diagnostics")].includes(name)));
   await dialog.getByRole("button", { name: t("View diagnostics"), exact: true }).click();
-  assert((await dialog.getByRole("textbox").inputValue()).length > 0);
-  await dialog.getByRole("button", { name: t("Copy report"), exact: true }).waitFor();
+  const report = page.getByRole("dialog", { name: t("Diagnostic report"), exact: true });
+  assert((await report.getByRole("textbox").inputValue()).length > 0);
+  await report.getByRole("button", { name: t("Copy report"), exact: true }).waitFor();
+  await report.getByRole("button", { name: t("Export report"), exact: true }).click();
+  await report.getByText(t("Report exported."), { exact: true }).waitFor();
+  await report.getByRole("button", { name: t("Close"), exact: true }).click();
   await dialog.getByRole("button", { name: t("Close"), exact: true }).click();
 }
 
@@ -157,6 +161,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     assert.equal(await drive.getAttribute("data-card-style"), "amber");
     await page.screenshot({ path: path.join(artifacts, "drive-appearance.png") });
+    await drive.getByLabel(/More actions for/).click();
     await drive.getByRole("button", { name: "Drive diagnostics", exact: true }).click();
     await page.getByRole("tab", { name: "Refresh files in Explorer", exact: true }).click();
     await page.getByRole("button", { name: "Refresh files in Explorer", exact: true }).click();
@@ -164,7 +169,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await drive.getByRole("button", { name: "Disconnect", exact: true }).click();
     await drive.getByText("Disconnected", { exact: true }).waitFor();
-    await drive.getByRole("button", { name: "Remote destination", exact: true }).focus();
+    await drive.getByRole("button", { name: "Details", exact: true }).focus();
     await page.getByRole("tooltip").waitFor();
     await page.keyboard.press("Escape");
     assert.equal(await page.getByRole("tooltip").count(), 0);
@@ -268,7 +273,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .click();
   await verifySectionNavigation(page, "Categorias de preferências");
   assert.equal(await page.getByLabel("Idioma").inputValue(), "pt-BR");
-  assert.equal(await page.getByLabel("Abrir o Explorer após conectar", { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel("Abrir o Explorer após conectar", { exact: true }).count(), 0);
   await page.getByRole("tab", { name: "Aparência", exact: true }).click();
   assert.equal(await page.getByLabel("Tema").inputValue(), "light");
   assert.equal(await page.getByLabel("Mostrar ícones de serviço nas letras de unidade", { exact: true }).isChecked(), false);
@@ -315,7 +320,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     }
   }
   await page.getByRole("button", { name: /Preferences/ }).click();
-  assert.equal(await page.getByLabel("Open Explorer after connecting", { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel("Open Explorer after connecting", { exact: true }).count(), 0);
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   assert.equal(await page.getByLabel("Show service icons for drive letters", { exact: true }).isChecked(), false);
   await page.getByRole("tab", { name: "Configuration", exact: true }).click();
@@ -325,7 +330,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   const portablePath = path.join(profile, "portable.json");
   const portable = JSON.parse(await readFile(portablePath, "utf8"));
   assert.equal(portable.format, "sdrive-portable");
-  assert.equal(portable.version, 1);
+  assert.equal(portable.version, 2);
   if (process.env.SDRIVE_TEST_MOUNT === "1") {
     assert.equal(portable.connections[0].cardStyle, "amber");
     assert(portable.connections[0].iconImage.startsWith("data:image/png;base64,"));

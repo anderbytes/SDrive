@@ -38,11 +38,14 @@ export const api = {
   proxy: async () => ({ address: '', username: '', password: '', hasPassword: false }), browsers: async () => [{ id: '', name: 'Default browser' }],
   updateDriveAppearance: async (id, appearance) => { Object.assign(current().connections.find(c => c.id === id), appearance); },
   test: async () => {}, refreshDirectoryCache: async () => {}, update: async connection => { Object.assign(current().connections.find(c => c.id === connection.id), connection); },
+  connectionDetails: async () => [{label:'Username',value:'synthetic-user'}],
+  reorderConnections: async ids => {current().connections = ids.map(id => current().connections.find(c => c.id === id));},
+  exportDiagnosticReport: async () => true,
   fields: async () => ({ values: {}, transport: '' }), settings: async settings => { await wait('settings'); current().settings = settings; },
   begin: async () => 'synthetic-draft', status: async () => ({busy:false,authenticated:true,complete:false,error:''}), folders: async () => [{name:'Documents',path:'Documents'}], end: async () => {},
   selectDirectory: async () => 'C:\\\\Synthetic\\\\NewCache', selectFile: async () => ${JSON.stringify("C:\\Synthetic\\Credentials\\" + "long-directory\\".repeat(8) + "account.json")},
-  about: async () => ({appVersion:'fixture',rcloneVersion:'fixture',windowsVersion:'fixture',winFspVersion:'fixture',webView2Version:'fixture',architecture:'amd64'}),
-  diagnostics: async () => { await wait('diagnostics'); return 'Synthetic diagnostic report. No credentials or personal paths.'; }, copyDiagnostics: async () => {},
+  about: async () => ({appVersion:'fixture',releaseDate:'2026-10-26',rcloneVersion:'fixture',windowsVersion:'fixture',winFspVersion:'fixture',webView2Version:'fixture',architecture:'amd64'}),
+  diagnostics: async () => { await wait('diagnostics'); return 'SDrive diagnostic report v1\\nSynthetic diagnostic report. No credentials or personal paths.'; }, copyDiagnostics: async () => {},
   inspectFileAccess: async () => ({path:'S:\\\\Synthetic.txt',state:'unknown',checkedAt:new Date().toISOString(),processes:[]}),
   previewImport: async () => ({id:'synthetic-import',document:{format:'sdrive',version:1,connections:[{name:'Imported documents',provider:'webdav',path:'Documents',letter:'V',mountMode:'network',values:{},readOnly:false,autoMount:false}],preferences:current().settings}}),
   lock: async () => {current().access={...current().access,enabled:true,locked:true};window.visualAccess(true);},
@@ -113,6 +116,28 @@ try {
   await page.evaluate(() => window.visualRelease.snapshot());
   await page.getByRole("heading", { name: "Documents", exact: true }).waitFor();
   assert.equal(await page.locator(".spinner").count(), 0, "Startup spinner must disappear when ready");
+  await page.getByRole("button", { name: "Filter drives", exact: true }).click();
+  await page.getByLabel("Search drives", { exact: true }).fill("Team library");
+  await bounds(); await capture("drive-filters");
+  await page.getByRole("button", { name: "Apply filters", exact: true }).click();
+  assert.equal(await page.locator(".drive").count(), 1);
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  assert.equal(await page.locator(".drive").count(), 3);
+  const grip = page.getByRole("button", { name: "Reorder Documents", exact: true });
+  await grip.scrollIntoViewIfNeeded();
+  const gripBox = await grip.boundingBox();
+  const targetBox = await page.locator(".drive-list-entry").nth(1).boundingBox();
+  await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + 12, targetBox.y + targetBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.visualSnapshot.connections[0].name === "Team library");
+  await page.getByText("Drive order saved.", { exact: true }).waitFor();
+  await grip.focus(); await page.keyboard.press("Space"); await page.keyboard.press("ArrowUp");
+  assert(await grip.evaluate(element => document.activeElement === element), "Keyboard reordering must retain focus");
+  await page.keyboard.press("Space");
+  await page.waitForFunction(() => window.visualSnapshot.connections[0].name === "Documents");
+
   await page.evaluate(() => {
     window.visualSnapshot.connections[0].busy = true;
     window.visualSnapshot.connections[0].operation = "mounting";
@@ -183,7 +208,7 @@ try {
     }), "U1 information must stay to the right of the letter");
     assert(await card.getByRole("button", { name: "Disconnect", exact: true }).evaluate(e => e.getBoundingClientRect().height >= 44));
     await capture("units-" + viewport.width);
-    for (const topic of ["Remote destination", "Connection options", "Local cache", "Network", "Remote capacity", "Connection security"]) {
+    for (const topic of ["Details", "Connection options", "Local cache", "Network", "Remote capacity", "Connection security"]) {
       const trigger = firstCard.getByRole("button", { name: topic, exact: true });
       await trigger.scrollIntoViewIfNeeded();
       await trigger.hover();
@@ -226,7 +251,7 @@ try {
         const box = element.getBoundingClientRect(), glyph = element.querySelector("svg").getBoundingClientRect();
         return box.width === 32 && box.height === 32 && glyph.width === 16 && glyph.height === 16 && getComputedStyle(element.closest(".drive-details")).gap === "2px";
       }), "Desktop icon and glyph dimensions");
-      const info = await firstCard.getByRole("button", { name: "Remote destination", exact: true }).evaluate(element => getComputedStyle(element).color);
+      const info = await firstCard.getByRole("button", { name: "Details", exact: true }).evaluate(element => getComputedStyle(element).color);
       const shieldColor = await shield.evaluate(element => getComputedStyle(element).color);
       assert.notEqual(shieldColor, info, "Security state must have its own color");
       if (state === "unencrypted") {
@@ -243,7 +268,7 @@ try {
   await uploadIcon.focus(); await page.getByRole("tooltip").waitFor();
   await changeDrive({ pending: 0, uploads: { active: 0, queued: 0, cacheErrors: 0 } });
   await uploadIcon.waitFor({ state: "detached" });
-  assert.equal(await firstCard.getByRole("button", { name: "Remote destination", exact: true }).evaluate(element => element === document.activeElement), true);
+  assert.equal(await firstCard.getByRole("button", { name: "Details", exact: true }).evaluate(element => element === document.activeElement), true);
   await page.keyboard.press("Escape");
   await changeDrive({ mounted: false, recovery: false, network: { ...originalDrive.network, state: "disconnected" }, cache: { ...originalDrive.cache, usedBytes: 0, pendingBytes: 0 } });
   await firstCard.getByRole("button", { name: "Edit drive", exact: true }).waitFor();
@@ -263,7 +288,7 @@ try {
   const touchPage = await browser.newPage({ hasTouch: true, viewport: { width: 420, height: 740 } });
   try {
     await touchPage.goto(server.resolvedUrls.local[0]);
-    await touchPage.getByRole("button", { name: "Drive diagnostics", exact: true }).first().waitFor();
+    await touchPage.getByRole("button", { name: "Details", exact: true }).first().waitFor();
     assert(await touchPage.evaluate(() => matchMedia("(pointer: coarse)").matches));
     await touchPage.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
     assert.deepEqual(await touchPage.locator(".drive-detail-icon").first().evaluate(element => {
@@ -308,8 +333,8 @@ try {
     assert.equal(await advanced.evaluate(element => element.closest("fieldset")), null, "Advanced settings must be outside primary fields");
     await advanced.locator("summary").click();
     for (const group of ["Files and cache", "Network", "Drive behavior"]) await advanced.getByRole("group", { name: group, exact: true }).waitFor();
-    assert.equal(await page.getByLabel("Show hidden files", { exact: true }).isChecked(), true);
-    await page.getByLabel("Show hidden files", { exact: true }).uncheck();
+    assert.equal(await page.getByLabel("Hidden files", { exact: true }).inputValue(), "system");
+    await page.getByLabel("Hidden files", { exact: true }).selectOption("hide");
     await bounds(); await capture("advanced-groups-" + width);
     const metadata = page.getByRole("spinbutton", { name: "Directory metadata lifetime (seconds)", exact: true });
     await metadata.fill("-1");
@@ -354,6 +379,7 @@ try {
   assert.equal(await page.locator(".dropdown:visible").evaluate(element => getComputedStyle(element).animationName), "none");
   await page.keyboard.press("Escape");
   await page.emulateMedia({ reducedMotion: "no-preference" });
+  await firstCard.getByLabel(/More actions for/).click();
   await firstCard.getByRole("button", { name: "Drive diagnostics", exact: true }).click();
   await page.getByRole("tab", { name: "Applications using a file", exact: true }).click();
   await page.getByRole("tab", { name: "Test access", exact: true }).click();
@@ -402,14 +428,17 @@ try {
   await page.getByRole("button", { name: "About SDrive", exact: true }).click();
   await page.evaluate(() => { window.visualWaits.diagnostics = true; });
   await page.getByRole("button", { name: "View diagnostics", exact: true }).click();
-  const diagnosticsButton = page.getByRole("button", { name: /Loading diagnostic report/ });
-  await diagnosticsButton.locator(".spinner").waitFor();
-  assert.equal(await diagnosticsButton.getAttribute("aria-live"), "polite");
+  const diagnosticsLoading = page.getByText("Loading diagnostic report…", { exact: true }).locator("..");
+  await diagnosticsLoading.locator(".spinner").waitFor();
+  assert.equal(await diagnosticsLoading.getAttribute("role"), "status");
   await bounds(); await capture("diagnostics-loading");
   await page.evaluate(() => window.visualRelease.diagnostics());
   await page.getByLabel("Diagnostic report (technical text in English)").waitFor();
   await bounds(); await capture("diagnostics");
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Export report", exact: true }).click();
+  await page.getByText("Report exported.", { exact: true }).waitFor();
+  await page.getByRole("dialog", { name: "Diagnostic report", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("dialog", { name: "About SDrive", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
   for (const language of ["en", "pt-BR", "es", "fr", "de", "it", "zh-CN"]) {
     await page.evaluate(language => {
       window.visualSnapshot.settings.language = language;

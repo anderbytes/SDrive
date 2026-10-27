@@ -2,6 +2,8 @@ import { DriveIcon, DriveAppearanceDialog } from "./DriveAppearance";
 import { Preferences } from "./Preferences";
 import { ThemeProvider, useTheme } from "./theme";
 import { errorMessage as message, type LocalizedMessage } from "./messages";
+import { DiagnosticReport } from "./DiagnosticReport";
+import { DriveList } from "./DriveList";
 import { DriveDiagnostics } from "./DriveDiagnostics";
 import { DriveDetails, type DriveDetailSelection } from "./DriveDetails";
 import { formatBytes as bytes } from "./formatBytes";
@@ -373,7 +375,8 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
               <button disabled={!!data.settingsError || data.recoveryHold || !!working[draft.id]} onClick={() => void run(draft.id, () => api.removeImportDraft(draft.id))}>{t("Remove draft")}</button>
             </div>
           </article>)}
-          {data?.connections.map((c) => (
+          {data && <DriveList connections={data.connections.map(c => working[c.id] ? { ...c, busy: true } : c)} providers={data.providers} disabled={!!data.settingsError || data.recoveryHold}
+            onReorder={ids => run("drive-order", () => api.reorderConnections(ids), "", "Saving drive order…", true)}>{c => (
             <Drive
               key={c.id}
               connection={c}
@@ -387,7 +390,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
               onEdit={(auth) => setEditor({ connection: c, auth })}
               onAppearanceSaved={() => void refresh()}
             />
-          ))}
+          )}</DriveList>}
         </section>
         {data && !data.settingsError && !data.recoveryHold && data.connections.length === 0 && !data.importDrafts?.length && (
           <section className="empty">
@@ -467,68 +470,30 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
 }
 
 function AboutDialog({ onClose }: { onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const dialog = useDialog(onClose);
   const [info, setInfo] = useState<AboutInfo>();
   const [error, setError] = useState<string | LocalizedMessage>("");
-  const [report, setReport] = useState("");
-  const [loadingReport, setLoadingReport] = useState(false);
-  const [copying, setCopying] = useState(false);
-  const [reportError, setReportError] = useState<string | LocalizedMessage>("");
-  const [copied, setCopied] = useState(false);
-  const active = useRef(true);
+  const [reportOpen, setReportOpen] = useState(false);
   useEffect(() => {
-    active.current = true;
     let current = true;
     void api.about().then((value) => { if (current) setInfo(value); })
       .catch((e) => { if (current) setError(message(e)); });
-    return () => { current = false; active.current = false; };
+    return () => { current = false; };
   }, []);
-  const loadReport = async () => {
-    setLoadingReport(true);
-    setReportError("");
-    setCopied(false);
-    try {
-      const text = await api.diagnostics();
-      if (active.current) setReport(text);
-    } catch {
-      if (active.current) setReportError("Could not load the diagnostic report. Try again.");
-    } finally {
-      if (active.current) setLoadingReport(false);
-    }
-  };
-  const copyReport = async () => {
-    setCopying(true);
-    setReportError("");
-    setCopied(false);
-    try {
-      await api.copyDiagnostics(report);
-      if (active.current) setCopied(true);
-    } catch {
-      if (active.current) setReportError("Could not copy the report. Select and copy the text manually.");
-    } finally {
-      if (active.current) setCopying(false);
-    }
-  };
   return <DialogLayout dialogRef={dialog} titleID="about-title" title={t("About SDrive")} onClose={onClose} footer={<button onClick={onClose}>{t("Close")}</button>}>
     <p>{t("Open source · GPLv3")}</p>
     {error && <p role="alert" className="alert error">{t(error)}</p>}
     {!info && !error && <LoadingStatus>{t("Loading component versions…")}</LoadingStatus>}
     {info && <dl className="about-versions">{([
-      ["SDrive", info.appVersion], ["rclone (running)", info.rcloneVersion],
+      ["SDrive", info.appVersion + (info.releaseDate && /^\d{4}-\d{2}-\d{2}$/.test(info.releaseDate) ? ` · ${new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(info.releaseDate))}` : "")], ["rclone (running)", info.rcloneVersion],
       [info.platform === "linux" ? "Linux" : "Windows", info.osVersion || info.windowsVersion], ["WinFsp (installed)", info.winFspVersion],
       ["WebView2 (installed)", info.webView2Version], ["Architecture", info.architecture],
     ]).filter(([label]) => info.platform !== "linux" || !["WinFsp (installed)", "WebView2 (installed)"].includes(label)).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
     <p>{t("Updates are installed manually. Use Exit safely and wait for uploads before running an installer.")}</p>
     <p>{t("Minimal diagnostics are kept locally with fixed limits. Nothing is sent automatically. Review the report before sharing.")}</p>
-    <button disabled={loadingReport || copying} aria-live="polite" onClick={() => void loadReport()}>{loadingReport && <Spinner />}{t(loadingReport ? "Loading diagnostic report…" : "View diagnostics")}</button>
-    {reportError && <p role="alert" className="alert error">{t(reportError)}</p>}
-    {report && <>
-      <label htmlFor="diagnostic-report">{t("Diagnostic report (technical text in English)")}</label>
-      <textarea id="diagnostic-report" className="diagnostic-report" readOnly value={report} spellCheck={false} />
-      <button disabled={copying || loadingReport} onClick={() => void copyReport()}>{copying && <Spinner />}{t("Copy report")}</button>
-    </>}
-    {copied && <p role="status">{t("Report copied.")}</p>}
+    <button onClick={() => setReportOpen(true)}>{t("View diagnostics")}</button>
+    {reportOpen && <DiagnosticReport onClose={() => setReportOpen(false)} />}
   </DialogLayout>;
 }
 
@@ -642,9 +607,6 @@ function Drive({
       <div className="drive-controls">
         <div className="drive-tools">
           <DriveDetails connection={c} provider={p} selection={detailSelection} onSelect={onDetailSelect} />
-          <button className="drive-detail-icon" data-tone={busy ? "inactive" : "info"} aria-label={t("Drive diagnostics")} title={t("Drive diagnostics")} onClick={() => { onDetailSelect(undefined); setDiagnostics(true); }}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v4l5 12H4L9 7ZM7 14h10M10 3h4" /></svg>
-          </button>
         </div>
       <div className="actions">
         {c.mounted && <button disabled={busy} title={t("Open in Explorer")} onClick={() => onAction(api.open)}>{t("Open")}</button>}
@@ -682,6 +644,7 @@ function Drive({
             if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMenu();
           }}>
             <button disabled={busy} onClick={() => { closeMenu(); setAppearance(true); }}>{t("Customize appearance")}</button>
+            <button onClick={() => { closeMenu(); onDetailSelect(undefined); setDiagnostics(true); }}>{t("Drive diagnostics")}</button>
             <button
               disabled={busy || c.mounted || c.recovery}
               className="danger"

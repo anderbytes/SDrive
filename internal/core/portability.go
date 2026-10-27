@@ -19,7 +19,8 @@ const portableLimit = 4 << 20
 
 // Portable definitions deliberately have no credential or recovery fields.
 type PortableConnection struct {
-	ShowHiddenFiles       *bool             `json:"showHiddenFiles,omitempty"`
+	HiddenFileVisibility  string            `json:"hiddenFileVisibility,omitempty"`
+	OpenMountAfterConnect bool              `json:"openExplorerAfterConnect,omitempty"`
 	CardStyle             string            `json:"cardStyle,omitempty"`
 	IconImage             string            `json:"iconImage,omitempty"`
 	Name                  string            `json:"name"`
@@ -53,7 +54,6 @@ type PortablePreferences struct {
 	CacheGiB               int    `json:"cacheGiB"`
 	CacheMaxAgeHours       *int   `json:"cacheMaxAgeHours,omitempty"`
 	WriteBackSeconds       *int   `json:"writeBackSeconds,omitempty"`
-	OpenMountAfterConnect  bool   `json:"openExplorerAfterConnect"`
 	ShowServiceIcons       bool   `json:"showServiceIcons"`
 }
 
@@ -75,15 +75,15 @@ type ImportPreview struct {
 }
 
 func (d PortableConnection) connection() Connection {
-	return Connection{ShowHiddenFiles: d.ShowHiddenFiles, CardStyle: d.CardStyle, IconImage: d.IconImage, Name: d.Name, Provider: d.Provider, Path: d.Path, Letter: d.Letter, MountMode: d.MountMode, MountFolder: d.MountFolder, DirectoryCacheSeconds: d.DirectoryCacheSeconds, VirtualCapacityGiB: d.VirtualCapacityGiB, ReadOnly: d.ReadOnly, AutoMount: d.AutoMount, AuthMethod: d.AuthMethod, SessionOnly: d.SessionOnly, UploadLimit: d.UploadLimit, DownloadLimit: d.DownloadLimit, UseProxy: d.UseProxy, Browser: d.Browser, PrivateBrowser: d.PrivateBrowser, ConnectTimeout: d.ConnectTimeout, IdleTimeout: d.IdleTimeout, AlternateURL: d.AlternateURL}
+	return Connection{HiddenFileVisibility: d.HiddenFileVisibility, OpenMountAfterConnect: d.OpenMountAfterConnect, CardStyle: d.CardStyle, IconImage: d.IconImage, Name: d.Name, Provider: d.Provider, Path: d.Path, Letter: d.Letter, MountMode: d.MountMode, MountFolder: d.MountFolder, DirectoryCacheSeconds: d.DirectoryCacheSeconds, VirtualCapacityGiB: d.VirtualCapacityGiB, ReadOnly: d.ReadOnly, AutoMount: d.AutoMount, AuthMethod: d.AuthMethod, SessionOnly: d.SessionOnly, UploadLimit: d.UploadLimit, DownloadLimit: d.DownloadLimit, UseProxy: d.UseProxy, Browser: d.Browser, PrivateBrowser: d.PrivateBrowser, ConnectTimeout: d.ConnectTimeout, IdleTimeout: d.IdleTimeout, AlternateURL: d.AlternateURL}
 }
 
 func portableDefinition(c Connection) PortableConnection {
-	return PortableConnection{ShowHiddenFiles: c.ShowHiddenFiles, CardStyle: c.CardStyle, IconImage: c.IconImage, Name: c.Name, Provider: c.Provider, Path: c.Path, Letter: c.Letter, MountMode: c.MountMode, MountFolder: c.MountFolder, DirectoryCacheSeconds: c.DirectoryCacheSeconds, VirtualCapacityGiB: c.VirtualCapacityGiB, ReadOnly: c.ReadOnly, AutoMount: c.AutoMount, AuthMethod: c.AuthMethod, SessionOnly: c.SessionOnly, UploadLimit: c.UploadLimit, DownloadLimit: c.DownloadLimit, UseProxy: c.UseProxy, Browser: c.Browser, PrivateBrowser: c.PrivateBrowser, ConnectTimeout: c.ConnectTimeout, IdleTimeout: c.IdleTimeout, AlternateURL: c.AlternateURL, Values: map[string]string{}}
+	return PortableConnection{HiddenFileVisibility: c.HiddenFileVisibility, OpenMountAfterConnect: c.OpenMountAfterConnect, CardStyle: c.CardStyle, IconImage: c.IconImage, Name: c.Name, Provider: c.Provider, Path: c.Path, Letter: c.Letter, MountMode: c.MountMode, MountFolder: c.MountFolder, DirectoryCacheSeconds: c.DirectoryCacheSeconds, VirtualCapacityGiB: c.VirtualCapacityGiB, ReadOnly: c.ReadOnly, AutoMount: c.AutoMount, AuthMethod: c.AuthMethod, SessionOnly: c.SessionOnly, UploadLimit: c.UploadLimit, DownloadLimit: c.DownloadLimit, UseProxy: c.UseProxy, Browser: c.Browser, PrivateBrowser: c.PrivateBrowser, ConnectTimeout: c.ConnectTimeout, IdleTimeout: c.IdleTimeout, AlternateURL: c.AlternateURL, Values: map[string]string{}}
 }
 
 func portablePreferences(settings Settings) PortablePreferences {
-	return PortablePreferences{settings.DriveStripeColorSource, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.OpenMountAfterConnect, settings.ShowServiceIcons}
+	return PortablePreferences{settings.DriveStripeColorSource, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.ShowServiceIcons}
 }
 
 func (p PortablePreferences) settings(local Settings) Settings {
@@ -97,7 +97,7 @@ func (p PortablePreferences) settings(local Settings) Settings {
 	}
 	local.Language, local.CacheGiB = p.Language, p.CacheGiB
 	local.CacheMaxAgeHours, local.WriteBackSeconds = p.CacheMaxAgeHours, p.WriteBackSeconds
-	local.OpenMountAfterConnect, local.ShowServiceIcons = p.OpenMountAfterConnect, p.ShowServiceIcons
+	local.ShowServiceIcons = p.ShowServiceIcons
 	return local
 }
 
@@ -199,7 +199,7 @@ func validatePortableMountTarget(c Connection) error {
 
 func validatePortableDocument(d PortableFile) error {
 	b, err := json.Marshal(d)
-	if err != nil || len(b) > portableLimit || d.Format != "sdrive-portable" || d.Version != 1 || d.Connections == nil || len(d.Connections) > 1000 {
+	if err != nil || len(b) > portableLimit || d.Format != "sdrive-portable" || d.Version != 2 || d.Connections == nil || len(d.Connections) > 1000 {
 		return fmt.Errorf("Unsupported or invalid portable configuration.")
 	}
 	s := d.Preferences.settings(defaultStore().Settings)
@@ -243,6 +243,19 @@ func decodePortable(b []byte) (PortableFile, error) {
 	if len(b) > portableLimit {
 		return d, fmt.Errorf("Portable configuration exceeds the size limit.")
 	}
+	var header struct {
+		Version int `json:"version"`
+	}
+	if json.Unmarshal(b, &header) != nil {
+		return d, fmt.Errorf("Unsupported or invalid portable configuration.")
+	}
+	if header.Version == 1 {
+		var err error
+		b, err = migrateDrivePreferences(b, true)
+		if err != nil {
+			return d, fmt.Errorf("Unsupported or invalid portable configuration.")
+		}
+	}
 	decoder := json.NewDecoder(bytes.NewReader(b))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&d); err != nil {
@@ -269,7 +282,7 @@ func (s *Service) ExportConfiguration() error {
 	}
 	connections := append([]Connection{}, s.store.Connections...)
 	drafts := append([]ImportDraft{}, s.store.ImportDrafts...)
-	d := PortableFile{Format: "sdrive-portable", Version: 1, Connections: []PortableConnection{}, Preferences: portablePreferences(s.store.Settings)}
+	d := PortableFile{Format: "sdrive-portable", Version: 2, Connections: []PortableConnection{}, Preferences: portablePreferences(s.store.Settings)}
 	pick := s.pickPortable
 	s.mu.Unlock()
 	if pick == nil {

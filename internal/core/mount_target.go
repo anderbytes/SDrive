@@ -115,8 +115,6 @@ func (s *Service) availableMount(c Connection) error {
 	return nil
 }
 
-func showHiddenFiles(c Connection) bool { return c.ShowHiddenFiles == nil || *c.ShowHiddenFiles }
-
 func mountOptions(c Connection, settings Settings) map[string]any {
 	directorySeconds := c.DirectoryCacheSeconds
 	if directorySeconds == 0 {
@@ -143,7 +141,7 @@ func mountOptions(c Connection, settings Settings) map[string]any {
 	} else if c.MountMode == "local" {
 		mount["ExtraOptions"] = []string{"FileSecurity=D:P(A;;FA;;;OW)"}
 	}
-	if platform.OS == "windows" && !showHiddenFiles(c) {
+	if platform.OS == "windows" && hiddenFileVisibility(c) == "system" {
 		options, _ := mount["ExtraOptions"].([]string)
 		mount["ExtraOptions"] = append(options, "dothidden")
 	}
@@ -155,6 +153,9 @@ func mountOptions(c Connection, settings Settings) map[string]any {
 		}
 	}
 	options := map[string]any{"fs": remote(c), "mountPoint": mountPoint(c), "mountOpt": mount, "vfsOpt": vfs}
+	if hiddenFileVisibility(c) == "hide" {
+		options["_filter"] = map[string]any{"ExcludeRule": []string{".*", ".*/**"}}
+	}
 	if platform.OS == "linux" {
 		options["mountType"] = platform.MountType
 	}

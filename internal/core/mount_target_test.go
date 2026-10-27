@@ -152,6 +152,7 @@ func TestMountPermissionsMatchAccessMode(t *testing.T) {
 				extraOptions = []string{"FileSecurity=D:P(A;;FA;;;OW)"}
 				filePerms, dirPerms = uint32(0600), uint32(0700)
 			}
+			extraOptions = append(extraOptions, "dothidden")
 			actual, _ := mount["ExtraOptions"].([]string)
 			if vfs["ReadOnly"] != readOnly || vfs["FilePerms"] != filePerms || vfs["DirPerms"] != dirPerms || !reflect.DeepEqual(actual, extraOptions) {
 				t.Fatalf("mode=%q readOnly=%t: mount permissions differ: %v, %v", mode, readOnly, mount, vfs)

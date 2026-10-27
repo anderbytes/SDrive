@@ -13,6 +13,7 @@ export interface AboutInfo {
   platform?: string;
   osVersion?: string;
   appVersion: string;
+  releaseDate?: string;
   rcloneVersion: string;
   windowsVersion: string;
   winFspVersion: string;
@@ -42,9 +43,11 @@ export interface Provider {
   available: boolean;
   notice?: string;
 }
+export interface ConnectionDetail { label: string; value: string }
 export interface DriveAppearance { cardStyle?: string; iconImage?: string }
 export interface Connection extends DriveAppearance {
-  showHiddenFiles?: boolean;
+  hiddenFileVisibility?: string;
+  openExplorerAfterConnect?: boolean;
   id: string;
   remote: string;
   name: string;
@@ -106,7 +109,6 @@ export interface NetworkView {
 export interface Settings {
   driveStripeColorSource?: "theme" | "drive";
   theme: Theme;
-	openExplorerAfterConnect: boolean;
 	showServiceIcons: boolean;
   language: Language;
   autoStart: boolean;
@@ -197,6 +199,9 @@ function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
   return Call.ByName(`sdrive/internal/core.Service.${method}`, ...args);
 }
 export const api = {
+  reorderConnections: (ids: string[]) => invoke<void>("ReorderConnections", ids),
+  connectionDetails: (id: string) => invoke<ConnectionDetail[]>("ConnectionDetails", id),
+  exportDiagnosticReport: (report: string) => invoke<boolean>("ExportDiagnosticReport", report),
   updateDriveAppearance: (id: string, appearance: DriveAppearance) => invoke<void>("UpdateDriveAppearance", id, appearance),
   inspectFileAccess: (id: string, path: string) => invoke<FileAccessView>("InspectFileAccess", id, path),
   accessStatus: () => invoke<AccessStatus>("AccessStatus"),

@@ -105,6 +105,8 @@ type Service struct {
 	snapshotChanged      func(uint64, View)
 	disconnectChanged    func(DisconnectProgress)
 	disconnectSequence   uint64
+	releaseDate          string
+	pickDiagnosticReport func() (string, error)
 	appVersion           string
 	diagnostics          *diagnostics.Collector
 }

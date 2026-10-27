@@ -60,7 +60,7 @@ func TestSettingsVersionsAndHistoricalCompatibility(t *testing.T) {
 			t.Fatalf("supported settings rejected: %+v, %v", store, err)
 		}
 	}
-	for _, version := range []string{"null", "0", "6", "-1", `"1"`, "1.5"} {
+	for _, version := range []string{"null", "0", "7", "-1", `"1"`, "1.5"} {
 		dir := t.TempDir()
 		writeFixture(t, dir, "settings.json", []byte(`{"version":`+version+","+legacy[1:]))
 		writeFixture(t, dir, "settings.backup.json", []byte(legacy))
@@ -79,7 +79,7 @@ func TestBackupPreservesPreviousSettingsAndFailedWrites(t *testing.T) {
 	}
 	first := readFixture(t, dir, "settings.json")
 	var shape map[string]any
-	if json.Unmarshal(first, &shape) != nil || shape["version"] != float64(5) {
+	if json.Unmarshal(first, &shape) != nil || shape["version"] != float64(6) {
 		t.Fatal("new settings are not versioned")
 	}
 	next := old

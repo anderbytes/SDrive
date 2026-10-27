@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { DriveDetails, type DriveDetailSelection } from "./DriveDetails";
 import { LanguageProvider } from "./i18n";
 import type { ConnectionView } from "./api";
 import fixtures from "./bridge-fixtures.json";
+
+vi.mock("./api", () => ({ api: { connectionDetails: vi.fn().mockResolvedValue([]) } }));
 
 const connected: ConnectionView = {
   ...fixtures.samples.connectionUnknown, operation: "", mounted: true, recovery: false, pending: 0, error: "",
@@ -53,10 +55,10 @@ test.each(["unavailable", "stale", "partial"])("network exposes %s without prese
 test("idle connected and disconnected drives only expose meaningful details", () => {
   const view = render(<DetailsHost connection={connected} />);
   expect(screen.getAllByRole("button").map(button => button.getAttribute("aria-label"))).toEqual([
-    "Remote destination", "Connection options", "Local cache", "Network", "Remote capacity", "Connection security",
+    "Details", "Connection options", "Local cache", "Network", "Remote capacity", "Connection security",
   ]);
   view.rerender(<DetailsHost connection={{ ...connected, mounted: false }} />);
-  expect(screen.getAllByRole("button").map(button => button.getAttribute("aria-label"))).toEqual(["Remote destination", "Connection options"]);
+  expect(screen.getAllByRole("button").map(button => button.getAttribute("aria-label"))).toEqual(["Details", "Connection options"]);
 });
 
 test.each([
@@ -126,7 +128,7 @@ test("removing the focused icon closes its old tooltip and restores focus to a v
   expect(screen.getByRole("tooltip").textContent).toContain("1 pending upload(s)");
   view.rerender(<DetailsHost connection={connected} />);
   expect(screen.queryByRole("button", { name: "Upload details" })).toBeNull();
-  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Remote destination" }));
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Details" }));
   expect(screen.getByRole("tooltip").textContent).not.toContain("pending upload(s)");
 });
 

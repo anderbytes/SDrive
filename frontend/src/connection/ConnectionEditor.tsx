@@ -148,6 +148,7 @@ export function ConnectionEditor(props: EditorProps) {
                   </>
                 )}
                 </fieldset>}
+                {!initial.id && <label className="check"><input type="checkbox" checked={connection.openExplorerAfterConnect || false} onChange={(e) => change({ openExplorerAfterConnect: e.target.checked })} />{t("Open Explorer after connecting")}</label>}
                 {(!initial.id || connection.provider === "drive") && <fieldset className="option-group"><legend>{t("Drive behavior")}</legend>
                 <div className="option-with-help"><label className="check">
                   <input
@@ -312,6 +313,7 @@ export function ConnectionEditor(props: EditorProps) {
               </label>
               {fieldFeedback("name")}
               <MountDestination wizard={wizard} />
+              <label className="check"><input type="checkbox" checked={connection.openExplorerAfterConnect || false} onChange={(e) => change({ openExplorerAfterConnect: e.target.checked })} />{t("Open Explorer after connecting")}</label>
               {connection.provider !== "drive" && <>
               <div className="option-with-help"><label className="check">
                 <input

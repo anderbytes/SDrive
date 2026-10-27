@@ -433,3 +433,16 @@ legend { color: var(--muted); font-size: 14px; padding: 0 8px; }
   .dialog-navigation.expanded .navigation-items { padding-top: 8px; }
   .drawer { inset-block: 8px; height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); }
 }
+
+.drive-list-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.drive-list-toolbar > span { color: var(--muted); font-size: 13px; }
+.drive-list-entry { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 4px; min-width: 0; }
+.drive-drag-handle { width: 32px; min-height: 44px; padding: 6px; background: transparent; border-color: transparent; cursor: grab; touch-action: none; }
+.drive-drag-handle svg { width: 20px; height: 24px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+.drive-list-entry.moving { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.drive-list-entry.moving .drive-drag-handle { cursor: grabbing; }
+.connection-details { margin: 12px 0; }
+.connection-details > div { margin: 8px 0; }
+.connection-details dt { font-weight: 600; }
+.connection-details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+@media (pointer: coarse) { .drive-list-entry { grid-template-columns: 44px minmax(0, 1fr); } .drive-drag-handle { width: 44px; } }

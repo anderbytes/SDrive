@@ -13,7 +13,7 @@ func portableFixture() PortableFile {
 	c.Recovery, c.AutoMount = false, true
 	d := portableDefinition(c)
 	d.Values["url"] = "https://storage.example.test/dav"
-	return PortableFile{Format: "sdrive-portable", Version: 1, Connections: []PortableConnection{d}, Preferences: portablePreferences(defaultStore().Settings)}
+	return PortableFile{Format: "sdrive-portable", Version: 2, Connections: []PortableConnection{d}, Preferences: portablePreferences(defaultStore().Settings)}
 }
 
 func previewFixture(t *testing.T, s *Service, document PortableFile) *ImportPreview {

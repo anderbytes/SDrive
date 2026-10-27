@@ -15,7 +15,8 @@ import (
 )
 
 type Connection struct {
-	ShowHiddenFiles       *bool  `json:"showHiddenFiles,omitempty"`
+	HiddenFileVisibility  string `json:"hiddenFileVisibility,omitempty"`
+	OpenMountAfterConnect bool   `json:"openExplorerAfterConnect,omitempty"`
 	CardStyle             string `json:"cardStyle,omitempty"`
 	IconImage             string `json:"iconImage,omitempty"`
 	ID                    string `json:"id"`
@@ -49,7 +50,6 @@ type Connection struct {
 type Settings struct {
 	DriveStripeColorSource string `json:"driveStripeColorSource,omitempty"`
 	Theme                  string `json:"theme"`
-	OpenMountAfterConnect  bool   `json:"openExplorerAfterConnect"`
 	ShowServiceIcons       bool   `json:"showServiceIcons"`
 	Language               string `json:"language"`
 	AutoStart              bool   `json:"autoStart"`
@@ -95,10 +95,17 @@ func decodeStore(b []byte) (Store, error) {
 	if json.Unmarshal(b, &shape) != nil {
 		return s, invalid
 	}
+	version := 0
 	if shape.Version != nil {
-		var version int
-		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || (version != 1 && version != 2 && version != 3 && version != 4 && version != 5) {
+		if bytes.Equal(bytes.TrimSpace(shape.Version), []byte("null")) || json.Unmarshal(shape.Version, &version) != nil || version < 1 || version > 6 {
 			return s, errSettingsVersion
+		}
+	}
+	if version < 6 {
+		var migrationErr error
+		b, migrationErr = migrateDrivePreferences(b, false)
+		if migrationErr != nil {
+			return s, invalid
 		}
 	}
 	connections := bytes.TrimSpace(shape.Connections)
@@ -171,7 +178,7 @@ func encodeStore(s Store) ([]byte, error) {
 	b, err := json.MarshalIndent(struct {
 		Version int `json:"version"`
 		Store
-	}{Version: 5, Store: s}, "", "  ")
+	}{Version: 6, Store: s}, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +217,9 @@ func saveStore(dir string, s Store) error {
 func atomicWrite(path string, data []byte) error { return platform.AtomicWrite(path, data) }
 
 func validateConnection(c *Connection) error {
+	if c.HiddenFileVisibility != "" && c.HiddenFileVisibility != "system" && c.HiddenFileVisibility != "show" && c.HiddenFileVisibility != "hide" {
+		return &FieldError{Field: "hiddenFileVisibility", Message: "Select a valid hidden file visibility mode."}
+	}
 	if err := validateDriveAppearance(DriveAppearance{c.CardStyle, c.IconImage}); err != nil {
 		return err
 	}

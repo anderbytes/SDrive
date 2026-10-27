@@ -1,6 +1,7 @@
-import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { ConnectionView, Provider } from "./api";
+import { api, type ConnectionDetail, type ConnectionView, type Provider } from "./api";
+import { LoadingStatus } from "./Spinner";
 import { useLanguage } from "./i18n";
 import { TransportStatus } from "./TransportSecurity";
 import { formatBytes as bytes } from "./formatBytes";
@@ -9,7 +10,7 @@ import { NetworkDetails } from "./NetworkDetails";
 export interface DriveDetailSelection { connectionID: string; topic: string }
 
 const icons = {
-  destination: "M3 7V5h6l2 2h10v12H3Z",
+  destination: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
   options: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6",
   uploads: "M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5",
   cache: "M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8M8 17h5",
@@ -33,6 +34,16 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
   const focusedTopic = useRef<string | undefined>(undefined);
   const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const topic = selection?.connectionID === c.id ? selection.topic : undefined;
+  const [details, setDetails] = useState<ConnectionDetail[]>();
+  const [detailsError, setDetailsError] = useState(false);
+  useEffect(() => {
+    if (topic !== "destination") return;
+    let active = true;
+    setDetails(undefined); setDetailsError(false);
+    void api.connectionDetails(c.id).then(value => { if (active) setDetails(value); })
+      .catch(() => { if (active) setDetailsError(true); });
+    return () => { active = false; };
+  }, [topic, c.id, c.remote]);
   const needsRecovery = c.recovery && !c.mounted;
   const hasAlerts = !!(c.error || c.cache.error || needsRecovery || c.pending === null || c.uploads?.cacheErrors ||
     (c.mounted && c.transportSecurity?.state !== "encrypted"));
@@ -43,7 +54,23 @@ export function DriveDetails({ connection: c, provider: p, selection, onSelect }
   const security = c.transportSecurity?.state;
   const alertError = !!(c.error || c.cache.error || uploadErrors || needsRecovery || c.mounted && security === "unencrypted");
   const items: { key: keyof typeof icons; title: string; visible?: boolean; tone?: "info" | "success" | "warning" | "danger" | "inactive"; content: ReactNode }[] = [
-    { key: "destination", title: "Remote destination", content: <p>{t(p.name)} · {c.path || t("Root")}</p> },
+    { key: "destination", title: "Details", content: <>
+      <p>{c.serverPath || c.path || t("Root")}</p>
+      <dl className="connection-details">
+        <div><dt>{t("Authentication")}</dt><dd>{t(c.authMethod === "serviceAccount" ? "Service account" : p.oauth ? "OAuth" : "Basic")}</dd></div>
+        <div><dt>{t("Hidden files")}</dt><dd>{t(c.hiddenFileVisibility === "hide" ? "Always hide" : c.hiddenFileVisibility === "show" ? "Always show" : "Follow file manager settings")}</dd></div>
+        <div><dt>{t("Open Explorer after connecting")}</dt><dd>{t(c.openExplorerAfterConnect ? "Enabled" : "Disabled")}</dd></div>
+        <div><dt>{t("Directory metadata lifetime (seconds)")}</dt><dd>{c.directoryCacheSeconds || 300}</dd></div>
+        <div><dt>{t("Virtual capacity in Explorer (GiB)")}</dt><dd>{c.virtualCapacityGiB || 0}</dd></div>
+        {["webdav", "nextcloud", "owncloud"].includes(c.provider) && <div><dt>{t("Connection timeout (seconds)")}</dt><dd>{c.connectTimeout || 0}</dd></div>}
+        {["webdav", "nextcloud", "owncloud"].includes(c.provider) && <div><dt>{t("HTTP idle timeout (seconds)")}</dt><dd>{c.idleTimeout || 0}</dd></div>}
+        {p.oauth && c.authMethod !== "serviceAccount" && <div><dt>{t("Sign-in browser")}</dt><dd>{c.browser || t("Default browser")}</dd></div>}
+        {p.oauth && c.authMethod !== "serviceAccount" && <div><dt>{t("Open a private sign-in window")}</dt><dd>{t(c.privateBrowser ? "Enabled" : "Disabled")}</dd></div>}
+        {details?.map(entry => <div key={entry.label}><dt>{t(entry.label)}</dt><dd>{entry.value}</dd></div>)}
+      </dl>
+      {!details && !detailsError && <LoadingStatus>{t("Loading connection details…")}</LoadingStatus>}
+      {detailsError && <p role="status">{t("Could not load additional connection details.")}</p>}
+    </> },
     { key: "options", title: "Connection options", content: <ul aria-label={t("Connection options")}>
       {[
         c.readOnly ? t("Read only") : t("Read and write"),

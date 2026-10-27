@@ -14,7 +14,7 @@ Run `./scripts/test-startup-installer.ps1` for an isolated NSIS check of the pro
 
 In **Preferences → Configuration → Portable configuration**, export a local JSON file or review an import. This is a portable definition file, not a restore operation for `settings.backup.json`. It never transfers pending files or their original recovery identity.
 
-The `sdrive-portable` format, version 1, contains connection names, providers, relative remote paths, mount options, transferable preferences and an explicit allowlist of non-secret access hints. Names, server addresses, usernames and paths may still be private: store and share the file deliberately.
+The `sdrive-portable` format, version 2 (with version 1 accepted and migrated on import), contains connection names, providers, relative remote paths, mount options, transferable preferences and an explicit allowlist of non-secret access hints. Names, server addresses, usernames and paths may still be private: store and share the file deliberately.
 
 Exports exclude passwords, tokens, OAuth Client IDs/Secrets, access-key IDs and secrets, SAS URLs, private-key/service-account file paths and contents, DPAPI keys, encrypted configuration, proxy configuration, cache files and recovery bindings. Addresses containing credentials, query parameters or fragments cannot be exported. If saved access details are unavailable, export fails rather than claiming to have exported a complete definition. Reauthenticate and retry. Selected SSH keys and service-account files must be supplied again on the destination computer.
 
@@ -24,11 +24,11 @@ Imports become persistent **drafts**, separate from operational connections. The
 
 Applying imported preferences is a separate, initially unchecked choice. It covers theme, language, cache size/timing and desktop preferences. Windows startup, proxy settings and authoritative cache location stay local. Existing mounted drives are not remounted for imported cache settings. Preferences and definitions cannot be imported during protected settings recovery or active setup.
 
-Settings writes now use version 5. Unversioned settings and versions 1–4 remain readable. Older applications reject version 5; do not edit version numbers to bypass this protection.
+Settings writes now use version 6. Unversioned settings and versions 1–5 remain readable. Older applications reject version 6; do not edit version numbers to bypass this protection.
 
 ## Explorer and connection options
 
-**Open Explorer after connecting** defaults off. When enabled it opens the mount once after a successful connection, including tray and automatic connections. Repeated status snapshots and failed connects do not open windows. A desktop launch failure does not undo the connected drive or its recovery state.
+**Open Explorer after connecting** is a per-drive option, available in creation and editing, and defaults off for new drives. Existing global preferences migrate to each saved drive. When enabled it opens the mount once after a successful connection, including tray and automatic connections. Repeated status snapshots and failed connects do not open windows. A desktop launch failure does not undo the connected drive or its recovery state.
 
 **Show service icons for drive letters** also defaults off. SDrive supplies original, colored service monograms (for example GD, OD and WD), not third-party logos. Generated ICO files remain in the local profile's `icons` directory; they contain no account information. Folder mounts retain their existing icons.
 

@@ -2,6 +2,7 @@
   "name": "sdrive-ui",
   "private": true,
   "version": "1.0.0",
+  "releaseDate": "2026-10-26",
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",

@@ -93,7 +93,6 @@ export function Preferences({
                 {Object.entries(languages).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
               </select>
             </label>
-            <label className="check"><input type="checkbox" checked={settings.openExplorerAfterConnect || false} onChange={(e) => setSettings({ ...settings, openExplorerAfterConnect: e.target.checked })} />{t("Open Explorer after connecting")}</label>
             <label className="check">
               <input
                 type="checkbox"

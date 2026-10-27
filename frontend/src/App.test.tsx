@@ -37,17 +37,21 @@ async function openAccessEditor(language: Language = "en") {
   fireEvent.click(screen.getByRole("tab", { name: translate(language, "Access") }));
 }
 async function openDriveDiagnostics(language: Language = "en", section = "Test access") {
+  fireEvent.click(await screen.findByLabelText(translate(language, "More actions for {name}", { name: "My Drive" })));
   fireEvent.click(await screen.findByRole("button", { name: translate(language, "Drive diagnostics") }));
   fireEvent.click(screen.getByRole("tab", { name: translate(language, section) }));
 }
 
-const cancelDialog = () => fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+const cancelDialog = () => fireEvent(screen.getAllByRole("dialog").at(-1)!, new Event("cancel", { cancelable: true }));
 
 vi.mock("@wailsio/runtime", () => ({ Call: { ByName: vi.fn() } }));
 
 vi.mock("./api", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api")>(),
   api: {
+    reorderConnections: vi.fn(),
+    connectionDetails: vi.fn().mockResolvedValue([]),
+    exportDiagnosticReport: vi.fn(),
     inspectFileAccess: vi.fn(), accessStatus: vi.fn(), configureAccess: vi.fn(), disableAccess: vi.fn(), lock: vi.fn(), unlockAccess: vi.fn(), recoverAccess: vi.fn(), onAccessChanged: vi.fn(),
     exportConfiguration: vi.fn(), previewImport: vi.fn(), commitImport: vi.fn(), removeImportDraft: vi.fn(),
     preferenceDefaults: vi.fn(), restoreDefaultCacheLocation: vi.fn(),
@@ -124,7 +128,7 @@ const snapshot = {
     },
   ],
   connections: [] as ConnectionView[],
-  settings: { theme: "system" as const, language: "en" as const, autoStart: false, cacheGiB: 2, openExplorerAfterConnect: false, showServiceIcons: false },
+  settings: { theme: "system" as const, language: "en" as const, autoStart: false, cacheGiB: 2, showServiceIcons: false },
   letters: ["S", "T"],
   winFsp: true,
   engineError: "",
@@ -136,6 +140,7 @@ const snapshot = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(api.connectionDetails).mockResolvedValue([]);
   vi.mocked(api.accessStatus).mockResolvedValue(access);
   vi.mocked(api.onAccessChanged).mockReturnValue(() => {});
   vi.mocked(api.browsers).mockResolvedValue([{ id: "", name: "Default browser" }]);
@@ -152,6 +157,57 @@ beforeEach(() => {
   vi.mocked(api.mount).mockResolvedValue();
 });
 afterEach(() => cleanup());
+
+test("Explorer opening is saved per drive and absent from global preferences", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
+  const setting = screen.getByLabelText("Open Explorer after connecting") as HTMLInputElement;
+  expect(setting.checked).toBe(false);
+  fireEvent.click(setting);
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ id: connection.id, openExplorerAfterConnect: true })));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await openPreferences();
+  expect(screen.queryByLabelText("Open Explorer after connecting")).toBeNull();
+});
+
+test("Details loads public provider fields while mounted without opening the editor", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true }] });
+  vi.mocked(api.connectionDetails).mockResolvedValue([{ label: "Server", value: "example.test" }, { label: "Username", value: "Root" }]);
+  render(<App />);
+  await selectDriveDetail("Details");
+  await screen.findByText("example.test");
+  expect(screen.getByRole("tooltip").textContent).toContain("Root");
+  expect(api.connectionDetails).toHaveBeenCalledExactlyOnceWith(connection.id);
+  expect(api.unmount).not.toHaveBeenCalled();
+  expect(api.begin).not.toHaveBeenCalled();
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("About displays the fixed release date and opens an independent exportable report", async () => {
+  vi.mocked(api.about).mockResolvedValue({ appVersion: "1.0.0", releaseDate: "2026-10-26", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
+  const report = "SDrive diagnostic report v1\nReviewed snapshot\n";
+  vi.mocked(api.diagnostics).mockResolvedValue(report);
+  vi.mocked(api.exportDiagnosticReport).mockResolvedValueOnce(false).mockResolvedValue(true);
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "About SDrive" }));
+  await screen.findByText("1.0.0 · Oct 26, 2026");
+  const about = screen.getByRole("dialog", { name: "About SDrive" });
+  expect(within(about).queryByRole("textbox")).toBeNull();
+  fireEvent.click(within(about).getByRole("button", { name: "View diagnostics" }));
+  const modal = screen.getByRole("dialog", { name: "Diagnostic report" });
+  await within(modal).findByRole("textbox");
+  fireEvent.click(within(modal).getByRole("button", { name: "Export report" }));
+  await waitFor(() => expect(api.exportDiagnosticReport).toHaveBeenCalledWith(report));
+  await waitFor(() => expect(within(modal).getByRole("button", { name: "Export report" }).matches(":disabled")).toBe(false));
+  expect(within(modal).queryByText("Report exported.")).toBeNull();
+  fireEvent.click(within(modal).getByRole("button", { name: "Export report" }));
+  await within(modal).findByText("Report exported.");
+  fireEvent.click(within(modal).getByRole("button", { name: "Close" }));
+  expect(screen.getByRole("dialog", { name: "About SDrive" })).toBe(about);
+  expect(api.diagnostics).toHaveBeenCalledTimes(1);
+});
 
 test("initial snapshot shows a large spinner but background refreshes remain silent", async () => {
   let resolve!: (next: Snapshot) => void;
@@ -594,14 +650,15 @@ test("diagnostics offers retry and manual selection when loading or copying fail
   fireEvent.click(await screen.findByRole("button", { name: "About SDrive" }));
   fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
   await screen.findByText("Could not load the diagnostic report. Try again.");
-  fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
+  fireEvent.click(screen.getByRole("button", { name: "Refresh report" }));
   await screen.findByRole("textbox");
   fireEvent.click(screen.getByRole("button", { name: "Copy report" }));
   await screen.findByText("Could not copy the report. Select and copy the text manually.");
   expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("safe report");
   expect(screen.queryByText(/private/)).toBeNull();
   cancelDialog();
-  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "Diagnostic report" })).toBeNull();
+  expect(screen.getByRole("dialog", { name: "About SDrive" })).toBeDefined();
 });
 
 test("diagnostics controls and clipboard feedback use Portuguese", async () => {
@@ -617,18 +674,19 @@ test("diagnostics controls and clipboard feedback use Portuguese", async () => {
   await screen.findByText("Relatório copiado.");
 });
 
-test("closing About ignores a late diagnostic response", async () => {
+test("closing the report ignores a late diagnostic response", async () => {
   vi.mocked(api.about).mockResolvedValue({ appVersion: "1.0.0", rcloneVersion: "", windowsVersion: "", winFspVersion: "", webView2Version: "", architecture: "amd64" });
   let resolve!: (report: string) => void;
   vi.mocked(api.diagnostics).mockImplementation(() => new Promise((done) => { resolve = done; }));
   render(<App />);
   fireEvent.click(await screen.findByRole("button", { name: "About SDrive" }));
   fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
-  expect((screen.getByRole("button", { name: "Loading diagnostic report…" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByRole("button", { name: "Loading diagnostic report…" }).querySelector(".spinner")).not.toBeNull();
+  expect(screen.getByText("Loading diagnostic report…").closest("[role=status]")?.querySelector(".spinner")).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Refresh report" }).matches(":disabled")).toBe(true);
   cancelDialog();
   await act(async () => { resolve("late report"); });
-  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "Diagnostic report" })).toBeNull();
+  expect(screen.getByRole("dialog", { name: "About SDrive" })).toBeDefined();
   expect(api.copyDiagnostics).not.toHaveBeenCalled();
 });
 
@@ -900,8 +958,8 @@ test.each(["en", "pt-BR"])("drive labels and experimental text follow %s without
   expect(document.querySelector(".type-tag")?.textContent).toBe("Google Drive");
   expect(document.querySelector(".server-path")?.textContent).toBe("My drives");
   expect(screen.getByText("Experimental", { exact: true })).toBeDefined();
-  await selectDriveDetail(language === "en" ? "Remote destination" : "Destino remoto");
-  expect(screen.getByRole("tooltip").textContent).toContain("Google Drive · My drives");
+  await selectDriveDetail(language === "en" ? "Details" : "Detalhes");
+  expect(screen.getByRole("tooltip").textContent).toContain("My drives");
   fireEvent.keyDown(document, { key: "Escape" });
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "+ New connection" : "+ Nova conexão" }));
   selectAvailableCategory();
@@ -1462,7 +1520,6 @@ test.each(Object.keys(languages) as Language[])("language %s is saved, applied a
     theme: "system",
     cacheGiB: 2,
     language,
-    openExplorerAfterConnect: false,
     showServiceIcons: false,
   });
   await waitFor(() => expect(document.documentElement.lang).toBe(language));
@@ -2269,7 +2326,7 @@ test("drive detail icons expose all eight topics without opening a dialog", asyn
   await screen.findByRole("heading", { name: connection.name });
   expect(screen.queryByRole("dialog")).toBeNull();
   for (const [label, detail] of [
-    ["Remote destination", "Google Drive · Team files"], ["Connection options", "Automatic mounting disabled"],
+    ["Details", "Team files"], ["Connection options", "Automatic mounting disabled"],
     ["Upload details", "Upload activity is currently unknown."], ["Local cache", "Approximate cache used: 0 B · Pending file sizes: 0 B"],
     ["Network", "Network measurement is unavailable for this connection."],
     ["Remote capacity", "Remote capacity is currently unknown."], ["Connection security", "Traffic encrypted · HTTPS"],
@@ -2328,10 +2385,10 @@ test("one drive detail tooltip follows refreshed snapshots without switching con
   try {
     render(<App />);
     await act(async () => {});
-    await selectDriveDetail("Remote destination", 0);
+    await selectDriveDetail("Details", 0);
     expect(screen.getByRole("tooltip").textContent).toContain("First library");
     fireEvent.keyDown(document, { key: "Escape" });
-    await selectDriveDetail("Remote destination", 1);
+    await selectDriveDetail("Details", 1);
     expect(screen.getAllByRole("tooltip")).toHaveLength(1);
     expect(screen.getByRole("tooltip").textContent).toContain("Second library");
     current = { ...current, connections: current.connections.map((c) => c.id === "second" ? { ...c, path: "Updated library" } : c) };
@@ -2531,18 +2588,18 @@ test("Shared with me selection reaches setup and stays locked during recovery", 
   expect(selection.disabled).toBe(true);
 });
 
-test.each(["en", "pt-BR"] as const)("hidden file visibility defaults on and saves from the editor in %s", async (language) => {
+test.each(["en", "pt-BR"] as const)("hidden file visibility follows the system and saves from the editor in %s", async (language) => {
   const t = (source: string) => translate(language, source);
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection], settings: { ...snapshot.settings, language } });
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
   fireEvent.click(await screen.findByRole("button", { name: t("Edit drive") }));
   fireEvent.click(screen.getByRole("tab", { name: t("Files") }));
-  const checkbox = screen.getByLabelText(t("Show hidden files")) as HTMLInputElement;
-  expect(checkbox.checked).toBe(true);
-  fireEvent.click(checkbox);
+  const selection = screen.getByLabelText(t("Hidden files")) as HTMLSelectElement;
+  expect(selection.value).toBe("system");
+  fireEvent.change(selection, { target: { value: "hide" } });
   fireEvent.click(screen.getByRole("button", { name: t("Save changes") }));
-  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ showHiddenFiles: false })));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ hiddenFileVisibility: "hide" })));
 });
 
 test("drive stripe preference saves explicitly and Cancel leaves the saved mode intact", async () => {
@@ -2595,13 +2652,13 @@ test("Linux uses folder destinations without a missing-drive-letter warning", as
 });
 
 
-test("drive menu contains only appearance and removal, and mounted drives hide the pencil", async () => {
+test("drive menu contains appearance, diagnostics and removal, and mounted drives hide the pencil", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true }] });
   render(<App />);
   const summary = await screen.findByLabelText("More actions for My Drive");
   expect(screen.queryByRole("button", { name: "Edit drive" })).toBeNull();
   fireEvent.click(summary);
-  expect(within(summary.closest("details")!).getAllByRole("button").map(button => button.textContent)).toEqual(["Customize appearance", "Remove connection"]);
+  expect(within(summary.closest("details")!).getAllByRole("button").map(button => button.textContent)).toEqual(["Customize appearance", "Drive diagnostics", "Remove connection"]);
 });
 
 test.each([true, false])("idle disconnected drives show a pencil and busy drives hide it (%s)", async (busy) => {
@@ -2609,7 +2666,9 @@ test.each([true, false])("idle disconnected drives show a pencil and busy drives
   render(<App />);
   await screen.findByRole("heading", { name: connection.name });
   expect(!!screen.queryByRole("button", { name: "Edit drive" })).toBe(!busy);
-  expect(screen.getByRole("button", { name: "Drive diagnostics" }).getAttribute("data-tone")).toBe(busy ? "inactive" : "info");
+  expect(document.querySelector(".drive-tools [aria-label=\"Drive diagnostics\"]")).toBeNull();
+  fireEvent.click(screen.getByLabelText("More actions for My Drive"));
+  expect(screen.getByRole("button", { name: "Drive diagnostics" }).matches(":disabled")).toBe(false);
 });
 
 test("diagnostics preserve section results, serialize operations and reset on reopen", async () => {

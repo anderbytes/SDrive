@@ -40,7 +40,7 @@ func TestExplorerOpensOncePerSuccessfulMountAndNeverFromSnapshots(t *testing.T) 
 			c := testConnection()
 			c.Recovery = false
 			s.store.Connections = []Connection{c}
-			s.store.Settings.OpenMountAfterConnect = tc.preference
+			s.store.Connections[0].OpenMountAfterConnect = tc.preference
 			opens := 0
 			s.open = func(target string) error {
 				if target != `S:\` {
@@ -67,9 +67,9 @@ func TestExplorerOpensOncePerSuccessfulMountAndNeverFromSnapshots(t *testing.T) 
 func TestDesktopFailuresDoNotChangeMountedRecovery(t *testing.T) {
 	s := testService(t, &fakeRPC{})
 	c := testConnection()
+	c.OpenMountAfterConnect = true
 	s.store.Connections = []Connection{c}
 	s.mounted[c.ID] = true
-	s.store.Settings.OpenMountAfterConnect = true
 	s.store.Settings.ShowServiceIcons = true
 	s.open = func(string) error { return fmt.Errorf("desktop failed") }
 	SetDriveIcons(s, func(drives []Connection) error {
@@ -100,6 +100,7 @@ func TestDesktopPreferencesPersistWithoutOpeningExistingMounts(t *testing.T) {
 	s := testService(t, &fakeRPC{})
 	SetAutoStart(s, func(bool) error { return nil })
 	c := testConnection()
+	c.OpenMountAfterConnect = true
 	s.store.Connections = []Connection{c}
 	s.mounted[c.ID] = true
 	opens := 0
@@ -107,13 +108,12 @@ func TestDesktopPreferencesPersistWithoutOpeningExistingMounts(t *testing.T) {
 	icons := 0
 	SetDriveIcons(s, func(drives []Connection) error { icons = len(drives); return nil })
 	settings := s.store.Settings
-	settings.OpenMountAfterConnect = true
 	settings.ShowServiceIcons = true
 	if err := s.SaveSettings(settings); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := loadStore(s.dir)
-	if err != nil || !loaded.Settings.OpenMountAfterConnect || !loaded.Settings.ShowServiceIcons || opens != 0 || icons != 1 {
+	if err != nil || !loaded.Connections[0].OpenMountAfterConnect || !loaded.Settings.ShowServiceIcons || opens != 0 || icons != 1 {
 		t.Fatal("desktop preferences were not preserved independently of mount actions", err, opens, icons)
 	}
 }

@@ -63,7 +63,7 @@ If SDrive reports an unsupported settings version, use the application that crea
 
 ## Collect diagnostics and report a problem
 
-Open **About SDrive → View diagnostics**, review the text, then choose **Copy report**. This remains available when settings or the storage engine cannot load. The controls follow your chosen language; the technical report is in English.
+Open **About SDrive → View diagnostics** to open the report modal, review the text, then choose **Copy report** or **Export report** to save the displayed text locally. This remains available when settings or the storage engine cannot load. The controls follow your chosen language; the technical report is in English.
 
 Use the repository's bug report form. Include the installed version, environment, steps to reproduce, what you expected and what happened. Remove private names, destinations, paths and file contents from any additional text or screenshots. Never attach your profile, configuration, tokens, keys, dumps or cache files.
 

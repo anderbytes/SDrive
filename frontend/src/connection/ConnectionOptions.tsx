@@ -5,8 +5,14 @@ import { supportsNetworkOptions } from "./methods";
 export function DirectoryCacheOptions({ wizard }: { wizard: Wizard }) {
   const { t, connection: c, change, validationProps, fieldFeedback, initial } = wizard;
   return <>
-    <div className="option-with-help"><label className="check"><input type="checkbox" checked={c.showHiddenFiles !== false} disabled={initial.recovery || wizard.data.platform === "linux"} onChange={(e) => change({ showHiddenFiles: e.target.checked })} />{t("Show hidden files")}</label>
-      <FieldHelp label={t("Show hidden files")}>{t("When unchecked, names starting with a dot are marked hidden. Explorer decides whether to display them. Applies on the next connection.")}</FieldHelp>
+    <div className="field-with-help">
+      <label><span className="field-label">{t("Hidden files")}</span><select value={c.hiddenFileVisibility || "system"} disabled={initial.recovery} {...validationProps("hiddenFileVisibility")} aria-label={t("Hidden files")} onChange={(e) => change({ hiddenFileVisibility: e.target.value })}>
+        <option value="system">{t("Follow file manager settings")}</option>
+        <option value="show" disabled={wizard.data.platform === "linux"}>{t("Always show")}</option>
+        <option value="hide">{t("Always hide")}</option>
+      </select></label>
+      <FieldHelp label={t("Hidden files")}>{t("Applies to names starting with a dot, including folders. Always hide excludes them from the mounted listing. Changes apply on the next connection.")}{wizard.data.platform === "linux" && <> {t("On Linux, showing dot-prefixed names depends on your file manager.")}</>}</FieldHelp>
+      {fieldFeedback("hiddenFileVisibility")}
     </div>
     <div className="field-with-help">
       <label><span className="field-label">{t("Virtual capacity in Explorer (GiB)")}</span><input type="number" min="0" max="8388607" step="1" disabled={initial.recovery} {...validationProps("virtualCapacityGiB")} value={c.virtualCapacityGiB || 0} onChange={(e) => change({ virtualCapacityGiB: Number(e.target.value) })} /></label>
