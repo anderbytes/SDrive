@@ -4,6 +4,8 @@ This guide covers everyday use on Windows. For a quick introduction, see the [RE
 
 ## Install and connect
 
+SDrive requires Windows 10 22H2 (build 19045) or Windows 11, on x64 Intel or AMD hardware. Both systems use the same installers and application, with no compatibility setting required.
+
 Choose an installer from the repository's Releases page:
 
 - **Online installer:** recommended for most users. It includes SDrive and its storage engine and downloads missing Windows components automatically.

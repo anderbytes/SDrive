@@ -51,16 +51,24 @@ Var WebViewReboot
 
 Function .onInit
   ${IfNot} ${IsNativeAMD64}
-    MessageBox MB_OK|MB_ICONSTOP "$(RequireX64)"
+    MessageBox MB_OK|MB_ICONSTOP "$(RequireX64)" /SD IDOK
+    SetErrorLevel 1
     Abort
   ${EndIf}
   SetRegView 64
   ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
   SetRegView 32
-  ${If} $0 < 22000
-    MessageBox MB_OK|MB_ICONSTOP "$(RequireWindows)"
-    Abort
+  IntFmt $1 "%u" $0
+  StrCmp $0 $1 0 unsupported_windows
+  ${If} $0 < 19045
+    Goto unsupported_windows
   ${EndIf}
+  Goto supported_windows
+  unsupported_windows:
+  MessageBox MB_OK|MB_ICONSTOP "$(RequireWindows)" /SD IDOK
+  SetErrorLevel 1
+  Abort
+  supported_windows:
 FunctionEnd
 
 Function LaunchSDrive

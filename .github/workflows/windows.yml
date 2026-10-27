@@ -17,6 +17,9 @@ jobs:
       - name: Build, tests, self-check and installer
         shell: pwsh
         run: ./scripts/build.ps1 -Check -Installer
+      - name: Installer platform requirements regression checks
+        shell: pwsh
+        run: ./scripts/test-installer-requirements.ps1
       - name: Native Wails and WebView2 smoke (required)
         timeout-minutes: 6
         shell: pwsh

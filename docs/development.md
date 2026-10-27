@@ -301,7 +301,7 @@ Run `./scripts/test-uninstall.ps1` for focused native NSIS regression checks (re
 
 ## Installer acceptance on a clean machine
 
-Run these scenarios in a disposable Windows 11 x64 VM; do not remove shared components from your workstation to simulate their absence:
+Run these scenarios separately in disposable Windows 10 22H2 (build 19045) x64 and Windows 11 x64 VMs; do not remove shared components from your workstation to simulate their absence. Both systems use the same online and offline installers:
 
 - Install offline without WinFsp/WebView2 and without internet access; open the wizard after completion or restart when requested.
 - Install online with both absent; watch progress and verify both dependencies are prepared automatically.
@@ -315,3 +315,7 @@ Run these scenarios in a disposable Windows 11 x64 VM; do not remove shared comp
 - Confirm users do not need to run terminals or commands.
 
 These scenarios require the VM and UAC interaction. Compiling NSIS and running mocked tests do not replace this validation.
+
+Run `./scripts/test-installer-requirements.ps1` for native NSIS checks of the production platform gate with injected build and architecture values. It accepts Windows 10 build 19045 and Windows 11 builds, rejects older or invalid builds and non-AMD64 architectures, and verifies that rejected platforms never reach installation. This fixture does not establish runtime compatibility on a different Windows version.
+
+Windows 10 22H2 clean-machine acceptance remains pending until results from that system are recorded. WinFsp 2.1 and Microsoft WebView2 are shared prerequisites; their existing integrity checks and automatic installation apply to both supported systems. See [Microsoft's WebView2 support policy](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-supported-operating-systems).
