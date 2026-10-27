@@ -102,7 +102,7 @@ func (o *disconnectOverlay) render() {
 	now := time.Now()
 	for id, entry := range o.entries {
 		if entry.Stage == "succeeded" && entry.expires.IsZero() {
-			entry.expires = now.Add(3 * time.Second)
+			entry.expires = now.Add(time.Second)
 			o.entries[id] = entry
 		}
 	}

@@ -15,7 +15,7 @@ func TestDisconnectOverlayExpiresSuccessButKeepsFailuresAndActiveDrives(t *testi
 	o := &disconnectOverlay{entries: map[string]disconnectEntry{
 		"active": {DisconnectProgress: core.DisconnectProgress{ID: "active", Name: "Private drive", Stage: "waitingUploads"}},
 		"failed": {DisconnectProgress: core.DisconnectProgress{ID: "failed", Stage: "failed"}},
-		"done":   {DisconnectProgress: core.DisconnectProgress{ID: "done", Stage: "succeeded"}, expires: now.Add(3 * time.Second)},
+		"done":   {DisconnectProgress: core.DisconnectProgress{ID: "done", Stage: "succeeded"}, expires: now.Add(time.Second)},
 	}, last: map[string]uint64{"active": 10}}
 	if len(o.view(core.AccessStatus{}, now).Rows) != 3 {
 		t.Fatal("simultaneous operations lost")
@@ -25,8 +25,11 @@ func TestDisconnectOverlayExpiresSuccessButKeepsFailuresAndActiveDrives(t *testi
 	if err != nil || strings.Contains(string(data), "Private") || strings.Contains(string(data), "active") {
 		t.Fatal("locked overlay exposed connection data", string(data), err)
 	}
-	if len(o.view(core.AccessStatus{}, now.Add(3*time.Second)).Rows) != 2 {
-		t.Fatal("success did not expire after three seconds")
+	if len(o.view(core.AccessStatus{}, now.Add(time.Second-time.Nanosecond)).Rows) != 3 {
+		t.Fatal("success expired before one second")
+	}
+	if len(o.view(core.AccessStatus{}, now.Add(time.Second)).Rows) != 2 {
+		t.Fatal("success did not expire after one second")
 	}
 	o.update(core.DisconnectProgress{Sequence: 9, ID: "active", Stage: "succeeded"})
 	if o.entries["active"].Stage != "waitingUploads" {

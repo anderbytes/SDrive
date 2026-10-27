@@ -222,6 +222,7 @@ main > header p { margin: 0; }
 :root[data-theme="light"] .type-webdav { background: #dbf2eb; color: #245c4f; }
 :root[data-theme="light"] .type-cloud { background: #eee5fa; color: #63418a; }
 :root[data-theme="light"] .type-object { background: #faedcf; color: #755117; }
+.drive[data-card-style]:not([data-card-style=""]) .drive-metadata > .type-tag { background: var(--button); color: var(--text); border-color: var(--border); }
 .drive-metadata { flex-wrap: nowrap; align-items: flex-start; gap: 8px; }
 .type-tag { flex: 0 1 auto; max-width: 55%; }
 .server-path { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; line-height: 1.7; color: var(--muted); }

@@ -221,9 +221,37 @@ func exerciseNativeDisconnectOverlay(o *disconnectOverlay, text <-chan string) e
 			return err
 		}
 		if closed {
-			return nil
+			return exerciseNativeDisconnectSuccessExpiry(o, onDesktop, awaitText)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	return fmt.Errorf("close button did not dismiss the failure")
+}
+
+func exerciseNativeDisconnectSuccessExpiry(o *disconnectOverlay, onDesktop func(func() error) error, awaitText func(string, string) error) error {
+	var completed time.Time
+	if err := onDesktop(func() error {
+		completed = time.Now()
+		o.update(core.DisconnectProgress{Sequence: 6, ID: "one", Name: "Fixture", Stage: "succeeded"})
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := awaitText("Unidade desconectada.", ""); err != nil {
+		return err
+	}
+	for time.Since(completed) < 2*time.Second {
+		visible := false
+		if err := onDesktop(func() error { visible = o.window.IsVisible(); return nil }); err != nil {
+			return err
+		}
+		if !visible {
+			if time.Since(completed) < time.Second {
+				return fmt.Errorf("success overlay disappeared before one second")
+			}
+			return nil
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return fmt.Errorf("success overlay did not hide within two seconds")
 }
