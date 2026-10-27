@@ -2,6 +2,8 @@
 
 **Implemented setup** and **mocked tests** do not mean validation with a real account. Do not report third-party results without running the scenarios and recording sanitized evidence.
 
+The maintainer cannot personally cover every connection type, feature or environment. Community testing helps close these gaps, and your understanding and support are appreciated. Follow the checklist below with disposable accounts and data, record the environment and actual results, and submit sanitized evidence through the Provider validation issue form. For general feature testing and bug reports, see [Contributing](CONTRIBUTING.md). Reports apply to the scenarios tested; they do not establish compatibility with every account or environment.
+
 OAuth uses the user's own application registration for Google Drive, OneDrive, SharePoint, Dropbox, Box, pCloud, Yandex Disk and Google Cloud Storage. All remain selectable in Advanced, with required application credentials and [per-service setup instructions](oauth-setup.md). GCS service-account access is a separate Basic method using the same backend. Local implementation and automated tests do not certify live service approval, cancellation or renewal.
 
 | Profile | rclone backend | Setup and automated tests | Live service |

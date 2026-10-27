@@ -1,0 +1,26 @@
+name: Feature request
+description: Explain a problem and the improvement you would like to see.
+title: '[Feature] '
+body:
+  - type: markdown
+    attributes:
+      value: Please omit credentials, private account information, URLs, paths and file contents.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the task you cannot complete or what makes it difficult.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Explain the behavior and outcome you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include any existing workaround, if applicable.

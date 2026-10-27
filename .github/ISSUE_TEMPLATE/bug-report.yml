@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible problem with SDrive.
+title: '[Bug] '
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Community reports help cover connection types, features and environments
+        the maintainer cannot test personally. Use disposable test data and remove
+        credentials, configurations, tokens, private URLs, paths and file contents
+        from all text and screenshots.
+  - type: input
+    id: version
+    attributes:
+      label: SDrive version
+      description: Copy the version from About SDrive, or identify the build if the application cannot start.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Windows version, online or offline installer, and relevant connection type or component versions. Omit private account and server identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Describe the steps and whether the problem happens every time.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized diagnostics or screenshots
+      description: If available, review About SDrive > View diagnostics > Copy report before attaching it. Never attach your profile, configuration or cache files.

@@ -48,12 +48,23 @@ jobs:
             .tools/check-results/summary.md
             .tools/check-results/ui-smoke/*/result.json
             .tools/check-results/ui-smoke/*/*.png
+      - name: Verify installer artifacts for the package version
+        id: package
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath 'frontend/package.json' -Raw | ConvertFrom-Json).version
+          if ($version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Artifacts require a stable three-part package version' }
+          foreach ($name in @("SDrive-$version-setup.exe", "SDrive-$version-offline-setup.exe")) {
+            if (!(Test-Path -LiteralPath "bin/$name" -PathType Leaf)) { throw "Missing installer: $name" }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
       - uses: actions/upload-artifact@v4
         with:
           name: SDrive-windows-x64
+          if-no-files-found: error
           path: |
-            bin/SDrive-1.0.0-setup.exe
-            bin/SDrive-1.0.0-offline-setup.exe
+            bin/SDrive-${{ steps.package.outputs.version }}-setup.exe
+            bin/SDrive-${{ steps.package.outputs.version }}-offline-setup.exe
             bin/SDrive-source.zip
             bin/rclone-source.zip
             bin/SHA256SUMS
