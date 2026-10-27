@@ -1,9 +1,8 @@
-package main
+package desktop
 
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -59,10 +58,7 @@ func TestDisconnectOverlayNativeChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer windows.CoUninitialize()
-	content, err := fs.Sub(assets, "frontend/dist")
-	if err != nil {
-		t.Fatal(err)
-	}
+	content := os.DirFS("frontend/dist")
 	app := application.New(application.Options{Name: "SDrive overlay test", LogLevel: slog.LevelError,
 		Windows: application.WindowsOptions{WebviewUserDataPath: filepath.Join(os.Getenv("LOCALAPPDATA"), "webview")},
 		Assets:  application.AssetOptions{Handler: application.BundledAssetFileServer(content)}})

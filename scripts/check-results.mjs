@@ -3,9 +3,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const checks = [
-  ["sdrive", "TestWindowsMountLifecycle"],
-  ["sdrive", "TestWindowsMountOpenFiles"],
-  ["sdrive", "TestWindowsMountPendingRecovery"],
+  ["sdrive/tests/integration", "TestWindowsMountLifecycle"],
+  ["sdrive/tests/integration", "TestWindowsMountOpenFiles"],
+  ["sdrive/tests/integration", "TestWindowsMountPendingRecovery"],
   ["sdrive/internal/platform", "TestOfficialPrerequisiteSignatures/winfsp"],
   ["sdrive/internal/platform", "TestOfficialPrerequisiteSignatures/webview2"],
 ];

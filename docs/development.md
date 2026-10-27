@@ -6,6 +6,12 @@ Portable configuration and service icons are described in [portability and deskt
 
 Application access, inactivity, process discovery and measured Windows Shell operations are described in [access and file operations](access-and-file-operations.md), including focused native test names and acceptance limits.
 
+## Repository structure
+
+The root `main.go` embeds the frontend, prerequisite manifest and package metadata, then delegates to `internal/desktop`. The Windows resource remains beside that entry point. `internal/desktop` owns Wails startup, auxiliary commands, windows, tray menus and disconnect progress; its unit and native UI tests stay in that package. Existing domain logic, rclone integration and Windows APIs remain in `internal/core`, `internal/engine` and `internal/platform`.
+
+Cross-layer tests and their disposable fixtures live in `tests/integration`. Both relocated test packages prepare the repository working directory in `TestMain`, so engine discovery, fixture paths and child processes continue to use the root `.tools/` directory. They retain the `--config-key` subprocess entry required by encrypted rclone configuration. Source archives include both `internal/` and `tests/`, including files not yet tracked by Git.
+
 ## Interface layout and visual checks
 
 The shared `DialogLayout` retains native modal semantics through `useDialog`: right-side panels have rounded left corners, space above and below, a fixed heading/footer and a scrollable body. Preferences, drive editing and drive details use vertical section navigation; setup shows its existing Service, Access, Folder and Connect stages. Below 640 px the navigation collapses behind the current-section button. Short confirmations remain centered. Form buttons in fixed footers use explicit form IDs, preserving submission and native field validation across tabs. Busy setup cancellation and one-time recovery acknowledgements retain their original guards.
@@ -32,7 +38,7 @@ The script downloads **Go 1.26.10** and, for the installer, **NSIS 3.12** into `
 
 Distribution retains `rclone-source.zip` as the verified upstream archive. The exact local additions and reproduction scripts are included in `SDrive-source.zip` under `scripts/`, and are also copied into `licenses/engine-overlay/` with the extension instructions. The pinned go-smb2 archive is included there as well. Reproduce the modified engine by extracting the SDrive source archive and running `scripts/bootstrap.ps1`; an unchanged upstream build does not contain the SMB security command.
 
-The optional `TestSMBTransportNegotiationIntegration` requires `SDRIVE_TEST_SMB=1` and a disposable server with `SDRIVE_SMB_HOST`, `SDRIVE_SMB_USER`, `SDRIVE_SMB_PASSWORD`, `SDRIVE_SMB_ENCRYPTED_SHARE` and `SDRIVE_SMB_UNENCRYPTED_SHARE`. Domain and port can be supplied with `SDRIVE_SMB_DOMAIN` and `SDRIVE_SMB_PORT`. Use an account confined to synthetic fixture shares, one requiring encryption and one negotiating without it. Credentials belong only in the test process environment. Run `go test . -run '^TestSMBTransportNegotiationIntegration$' -count=1`. The test negotiates and checks both shares without writing remote files or mounting a Windows drive. Missing settings or an unavailable fixture fail explicitly after opt-in; without opt-in the test is reported as skipped. No fixture server is installed or configured by this test.
+The optional `TestSMBTransportNegotiationIntegration` requires `SDRIVE_TEST_SMB=1` and a disposable server with `SDRIVE_SMB_HOST`, `SDRIVE_SMB_USER`, `SDRIVE_SMB_PASSWORD`, `SDRIVE_SMB_ENCRYPTED_SHARE` and `SDRIVE_SMB_UNENCRYPTED_SHARE`. Domain and port can be supplied with `SDRIVE_SMB_DOMAIN` and `SDRIVE_SMB_PORT`. Use an account confined to synthetic fixture shares, one requiring encryption and one negotiating without it. Credentials belong only in the test process environment. Run `go test ./tests/integration -run '^TestSMBTransportNegotiationIntegration$' -count=1`. The test negotiates and checks both shares without writing remote files or mounting a Windows drive. Missing settings or an unavailable fixture fail explicitly after opt-in; without opt-in the test is reported as skipped. No fixture server is installed or configured by this test.
 
 Outputs in `bin/`: application, rclone, per-user online and offline installers, SDrive and rclone sources, licenses and `SHA256SUMS`. Both installers include sources and licenses. Local executables have no publisher digital signature.
 
@@ -101,7 +107,7 @@ The local fixture runs the pinned rclone as a disposable WebDAV server on an eph
 $previousEngineTest = $env:SDRIVE_TEST_ENGINE
 try {
     $env:SDRIVE_TEST_ENGINE = '1'
-    ./.tools/go/bin/go.exe test . ./internal/engine -count=1 -v -timeout 5m
+    ./.tools/go/bin/go.exe test ./internal/desktop ./tests/integration ./internal/engine -count=1 -v -timeout 5m
 } finally { $env:SDRIVE_TEST_ENGINE = $previousEngineTest }
 ```
 
@@ -111,7 +117,7 @@ Native checks require compatible WinFsp, a free letter between D and Z and at le
 $previousMountTest = $env:SDRIVE_TEST_MOUNT
 try {
     $env:SDRIVE_TEST_MOUNT = '1'
-    ./.tools/go/bin/go.exe test . -run 'TestWindowsMount|TestMountRecoveryChild' -count=1 -v -timeout 15m
+    ./.tools/go/bin/go.exe test ./tests/integration -run 'TestWindowsMount|TestMountRecoveryChild' -count=1 -v -timeout 15m
 } finally { $env:SDRIVE_TEST_MOUNT = $previousMountTest }
 ```
 
@@ -129,7 +135,7 @@ Fixtures use unique, ACL-protected `.tools/integration/run-*` directories. Clean
 $previousMountTest = $env:SDRIVE_TEST_MOUNT
 try {
     $env:SDRIVE_TEST_MOUNT = '1'
-    ./.tools/go/bin/go.exe test . -run '^TestWindowsMountRuntimeModes$|^TestWindowsMountPendingRecovery$' -count=1 -v -timeout 5m
+    ./.tools/go/bin/go.exe test ./tests/integration -run '^TestWindowsMountRuntimeModes$|^TestWindowsMountPendingRecovery$' -count=1 -v -timeout 5m
     if ($LASTEXITCODE) { throw 'Native mount runtime validation failed' }
 } finally { $env:SDRIVE_TEST_MOUNT = $previousMountTest }
 ```
@@ -161,18 +167,18 @@ Run engine, frontend and native checks separately. Passing unit tests does not c
 Desktop regressions run without provider accounts, mounts or changes to the real startup registry:
 
 ```powershell
-./.tools/go/bin/go.exe test . ./internal/core ./internal/platform ./internal/i18n
+./.tools/go/bin/go.exe test ./internal/desktop ./tests/integration ./internal/core ./internal/platform ./internal/i18n
 npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
-The root tests start a disposable child process with the real Wails message-only receiver and verify activation while preserving profile ownership. Platform tests cover independent profile identities and the legacy installer marker. Other regressions cover stale snapshot delivery, alert deduplication, installed/running version reporting, negative/off-screen/oversized geometry and small monitor work areas. Frontend tests cover About, translation, visibility handshakes, suspended polling and obsolete responses.
+The desktop tests start a disposable child process with the real Wails message-only receiver and verify activation while preserving profile ownership. Platform tests cover independent profile identities and the legacy installer marker. Other regressions cover stale snapshot delivery, alert deduplication, installed/running version reporting, negative/off-screen/oversized geometry and small monitor work areas. Frontend tests cover About, translation, visibility handshakes, suspended polling and obsolete responses.
 
 `About()` adds component-version diagnostics to the service bridge. `DesktopVisible()` supplies initial native visibility; the `desktop:visibility` event carries a boolean for subsequent changes. Native visibility includes minimization. The interface polls every three seconds when visible and refreshes immediately on return. While hidden, a native loop samples the existing `Snapshot` every 15 seconds; only current snapshots reach the tray. Active authentication/setup status checks retain their existing behavior.
 
 Drive disconnection publishes lifecycle notifications directly to a separate desktop overlay, including manual, safe-exit and inactivity paths. The overlay remains above ordinary windows without retaining foreground focus, shows checking/waiting/unmounting stages and expires successful results after three seconds. Failures remain until dismissed or opened in SDrive; dismissing a result never cancels an active operation. Locked presentation contains no drive names, destinations or error details. Notifications are transient and do not change the bridge's disconnect methods or persisted settings.
 
-Run focused regressions with `./.tools/go/bin/go.exe test . ./internal/core ./internal/i18n -run 'TestDisconnect|TestConcurrentDisconnect|TestLocale'` and `npm --prefix frontend test -- src/DisconnectOverlay.test.tsx`. For the real Windows/WebView2 check, set `SDRIVE_TEST_DESKTOP=1` only in the test process environment and run `./.tools/go/bin/go.exe test . -run '^TestDisconnectOverlayNative$' -count=1`. It uses a child process and temporary profiles, checks real rendering, focus preservation, minimization, simultaneous progress, English/Portuguese text, lock redaction, success expiry and the close button. Missing WebView2 or an unavailable graphical session fails the opted-in check. It does not mount drives, use provider accounts or certify physical multi-monitor/DPI and screen-reader behavior.
+Run focused regressions with `./.tools/go/bin/go.exe test ./internal/desktop ./tests/integration ./internal/core ./internal/i18n -run 'TestDisconnect|TestConcurrentDisconnect|TestLocale'` and `npm --prefix frontend test -- src/DisconnectOverlay.test.tsx`. For the real Windows/WebView2 check, set `SDRIVE_TEST_DESKTOP=1` only in the test process environment and run `./.tools/go/bin/go.exe test ./internal/desktop -run '^TestDisconnectOverlayNative$' -count=1`. It uses a child process and temporary profiles, checks real rendering, focus preservation, minimization, simultaneous progress, English/Portuguese text, lock redaction, success expiry and the close button. Missing WebView2 or an unavailable graphical session fails the opted-in check. It does not mount drives, use provider accounts or certify physical multi-monitor/DPI and screen-reader behavior.
 
 Tray regression checks must include a real right-click, including in the hidden-icons overflow, reopening the menu and selecting **Exit safely** in both supported languages. Windows can deliver another tray notification inside the popup's message loop; it must not replace or destroy the active menu. Sending a single synthetic notification does not reproduce this case. `TestTrayRepeatedOpenPreservesActiveMenu` covers preservation of the menu and its drive submenu during a repeated notification.
 
@@ -182,10 +188,10 @@ For native acceptance, use a new temporary profile by setting `LOCALAPPDATA` onl
 
 `Service.Diagnostics()` returns a sanitized text report through the existing Wails bridge. The About dialog previews it and uses the installed runtime's `Clipboard.SetText` to copy exactly that preview. Collection is installed before service publication and engine initialization; tests can leave the collector nil. The engine and service share one collector, while its disk worker never takes service or engine locks. Snapshot reads do not emit routine status events; repeated engine failure categories are deduplicated.
 
-Run the root and affected-package tests, frontend checks and production build:
+Run the desktop, integration and affected-package tests, frontend checks and production build:
 
 ```powershell
-./.tools/go/bin/go.exe test . ./internal/diagnostics ./internal/engine ./internal/core ./internal/platform ./internal/i18n
+./.tools/go/bin/go.exe test ./internal/desktop ./tests/integration ./internal/diagnostics ./internal/engine ./internal/core ./internal/platform ./internal/i18n
 ./.tools/go/bin/go.exe vet ./...
 npm --prefix frontend test
 npm --prefix frontend run build
@@ -240,7 +246,7 @@ Drive names contain 1–80 Unicode code points after trimming Go-compatible Unic
 
 `frontend/src/bridge-fixtures.json` contains synthetic serialized Go samples and service method signatures. The core contract test compares actual Go serialization and reflected signatures to this fixture. Frontend contract tests check client method names/arguments/results and TypeScript field names, required fields and nullable metrics against the same samples. The frontend build runs the compile-time assertions; running Vitest alone does not type-check them. Review Go types, TypeScript types and fixtures together when a contract intentionally changes. Never put account data or credentials into fixtures.
 
-Run `./.tools/go/bin/go.exe test . ./internal/core ./internal/platform ./internal/i18n`, `./.tools/go/bin/go.exe vet ./...`, `npm --prefix frontend test` and `npm --prefix frontend run build`. The root tests include the isolated real-engine self-check. For the changed concurrency paths, use the existing Windows compiler setup with `CGO_ENABLED=1` and `go test -race ./internal/core ./internal/i18n`. Production compilation can target `.tools/validation-check.exe` without replacing the installed application. These checks do not mount drives or establish native WebView/provider behavior.
+Run `./.tools/go/bin/go.exe test ./internal/desktop ./tests/integration ./internal/core ./internal/platform ./internal/i18n`, `./.tools/go/bin/go.exe vet ./...`, `npm --prefix frontend test` and `npm --prefix frontend run build`. The desktop package tests include the isolated real-engine self-check. For the changed concurrency paths, use the existing Windows compiler setup with `CGO_ENABLED=1` and `go test -race ./internal/core ./internal/i18n`. Production compilation can target `.tools/validation-check.exe` without replacing the installed application. These checks do not mount drives or establish native WebView/provider behavior.
 
 ### Folder interactions
 
@@ -265,7 +271,7 @@ Focused connection checks:
 npm --prefix frontend test
 npm --prefix frontend run build
 $env:SDRIVE_TEST_ENGINE = '1'
-try { ./.tools/go/bin/go.exe test . ./internal/core ./internal/engine -run '^Test(ConnectionEngine|SessionOnlyEngine|ProviderProxy|SOCKSProxy)' -count=1 -v }
+try { ./.tools/go/bin/go.exe test ./tests/integration ./internal/core ./internal/engine -run '^Test(ConnectionEngine|SessionOnlyEngine|ProviderProxy|SOCKSProxy)' -count=1 -v }
 finally { Remove-Item Env:SDRIVE_TEST_ENGINE }
 ```
 

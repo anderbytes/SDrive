@@ -1,4 +1,4 @@
-package main
+package integration
 
 import (
 	"context"
@@ -11,13 +11,14 @@ import (
 
 	"golang.org/x/sys/windows"
 	"sdrive/internal/core"
+	"sdrive/internal/desktop"
 	"sdrive/internal/platform"
 )
 
 func isolatedConnectionWorkers(t *testing.T, s *core.Service, profile string) {
 	t.Helper()
 	core.SetConnectionEngine(s, func(c core.Connection, proxy string) (core.RPC, error) {
-		return startConnectionEngine(profile, core.CachePath(s), c, proxy, nil)
+		return desktop.StartConnectionEngine(profile, core.CachePath(s), c, proxy, nil)
 	})
 	t.Cleanup(func() { core.CloseConnectionEngines(s) })
 }
@@ -386,7 +387,7 @@ func TestConnectionWorkerUsesSelectedCache(t *testing.T) {
 	var worker core.RPC
 	core.SetConnectionEngine(s, func(c core.Connection, proxy string) (core.RPC, error) {
 		var err error
-		worker, err = startConnectionEngine(f.profile, core.CachePath(s), c, proxy, nil)
+		worker, err = desktop.StartConnectionEngine(f.profile, core.CachePath(s), c, proxy, nil)
 		return worker, err
 	})
 	t.Cleanup(func() { core.CloseConnectionEngines(s) })

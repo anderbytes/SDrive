@@ -64,7 +64,7 @@ Core tests cover durable throttling, recovery rotation, malformed/missing record
 Native checks require the existing WinFsp installation, free disposable letters and the repository's disk-space prerequisites. They never install prerequisites, use personal accounts, change startup entries or access existing user mounts. Enable `SDRIVE_TEST_MOUNT=1` only for the selected tests:
 
 ```powershell
-./.tools/go/bin/go.exe test . -run 'TestWindowsMountedFileProcessDiscovery|TestIndependentMountedClientsDoNotShareExclusiveFileHandles|TestMountedRemoteOperationsMeasureExistingWindowsShellBehavior|TestWindowsMountOpenFiles' -count=1 -v -timeout 5m
+./.tools/go/bin/go.exe test ./tests/integration -run 'TestWindowsMountedFileProcessDiscovery|TestIndependentMountedClientsDoNotShareExclusiveFileHandles|TestMountedRemoteOperationsMeasureExistingWindowsShellBehavior|TestWindowsMountOpenFiles' -count=1 -v -timeout 5m
 ```
 
 The Wails smoke includes PIN setup, wrong-PIN rejection, recovery, manual lock/unlock in both languages, second-instance activation while locked and safe exit using a disposable profile. It records lock-screen images without PINs or recovery codes. Real hardware idle intervals, power failure, Linux, external providers, exhaustive application compatibility and installer execution are not certified by these checks.

@@ -1,4 +1,4 @@
-package main
+package integration
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"sdrive/internal/core"
+	"sdrive/internal/desktop"
 	"sdrive/internal/engine"
 )
 
@@ -17,7 +18,7 @@ func TestConnectionEnginePersistenceAndLegacyImport(t *testing.T) {
 	s, legacy := openIntegrationService(t, f.profile, nil)
 	old := configureIntegration(t, s, f.url, "")
 	core.SetConnectionEngine(s, func(c core.Connection, proxy string) (core.RPC, error) {
-		return startConnectionEngine(f.profile, core.CachePath(s), c, proxy, nil)
+		return desktop.StartConnectionEngine(f.profile, core.CachePath(s), c, proxy, nil)
 	})
 	defer core.CloseConnectionEngines(s)
 	if err := s.TestConnection(old.ID); err != nil {
@@ -35,7 +36,7 @@ func TestConnectionEnginePersistenceAndLegacyImport(t *testing.T) {
 	core.CloseConnectionEngines(s)
 	reopened, _ := openIntegrationService(t, f.profile, nil)
 	core.SetConnectionEngine(reopened, func(c core.Connection, proxy string) (core.RPC, error) {
-		return startConnectionEngine(f.profile, core.CachePath(reopened), c, proxy, nil)
+		return desktop.StartConnectionEngine(f.profile, core.CachePath(reopened), c, proxy, nil)
 	})
 	defer core.CloseConnectionEngines(reopened)
 	if err = reopened.TestConnection(old.ID); err != nil {
@@ -58,7 +59,7 @@ func TestSessionOnlyEngineDoesNotPersistCredentials(t *testing.T) {
 	}
 	dir := integrationRoot(t)
 	c := core.Connection{Remote: strings.Repeat("1", 32), SessionOnly: true}
-	rpc, err := startConnectionEngine(dir, filepath.Join(dir, "cache"), c, "", nil)
+	rpc, err := desktop.StartConnectionEngine(dir, filepath.Join(dir, "cache"), c, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

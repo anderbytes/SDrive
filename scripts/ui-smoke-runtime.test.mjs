@@ -34,6 +34,21 @@ test("conditional results preserve skips, incomplete tests and later signature e
   assert.match(renderResults([{ check: "a|b", status: "skipped", reason: "a\nb" }]), /a\\\|b.*skipped.*a b/);
 });
 
+test("conditional results recognize the integration package after relocation", () => {
+  const event = (Action, Test, Output) => ({ Action, Package: "sdrive/tests/integration", Test, Output });
+  const rows = goCheckResults([
+    event("run", "TestWindowsMountLifecycle"),
+    event("pass", "TestWindowsMountLifecycle"),
+    event("run", "TestWindowsMountOpenFiles"),
+    event("output", "TestWindowsMountOpenFiles", "opt-in disabled\n"),
+    event("skip", "TestWindowsMountOpenFiles"),
+    event("run", "TestWindowsMountPendingRecovery"),
+    event("fail", "TestWindowsMountPendingRecovery"),
+  ]);
+  assert.deepEqual(rows.slice(0, 3).map(({ status }) => status), ["passed", "skipped", "failed"]);
+  assert.equal(rows[1].reason, "opt-in disabled");
+});
+
 test("failed build and failed launch remove only their own unique directories", { skip: process.platform !== "win32" }, async (t) => {
   const workspace = await mkdtemp(path.join(tmpdir(), "sdrive-ui-smoke-test-"));
   t.after(async () => {
