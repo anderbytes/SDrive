@@ -19,6 +19,7 @@ const portableLimit = 4 << 20
 
 // Portable definitions deliberately have no credential or recovery fields.
 type PortableConnection struct {
+	ShowHiddenFiles       *bool             `json:"showHiddenFiles,omitempty"`
 	CardStyle             string            `json:"cardStyle,omitempty"`
 	IconImage             string            `json:"iconImage,omitempty"`
 	Name                  string            `json:"name"`
@@ -46,6 +47,7 @@ type PortableConnection struct {
 }
 
 type PortablePreferences struct {
+	DriveStripeColorSource   string `json:"driveStripeColorSource,omitempty"`
 	Theme                    string `json:"theme"`
 	Language                 string `json:"language"`
 	CacheGiB                 int    `json:"cacheGiB"`
@@ -73,18 +75,22 @@ type ImportPreview struct {
 }
 
 func (d PortableConnection) connection() Connection {
-	return Connection{CardStyle: d.CardStyle, IconImage: d.IconImage, Name: d.Name, Provider: d.Provider, Path: d.Path, Letter: d.Letter, MountMode: d.MountMode, MountFolder: d.MountFolder, DirectoryCacheSeconds: d.DirectoryCacheSeconds, VirtualCapacityGiB: d.VirtualCapacityGiB, ReadOnly: d.ReadOnly, AutoMount: d.AutoMount, AuthMethod: d.AuthMethod, SessionOnly: d.SessionOnly, UploadLimit: d.UploadLimit, DownloadLimit: d.DownloadLimit, UseProxy: d.UseProxy, Browser: d.Browser, PrivateBrowser: d.PrivateBrowser, ConnectTimeout: d.ConnectTimeout, IdleTimeout: d.IdleTimeout, AlternateURL: d.AlternateURL}
+	return Connection{ShowHiddenFiles: d.ShowHiddenFiles, CardStyle: d.CardStyle, IconImage: d.IconImage, Name: d.Name, Provider: d.Provider, Path: d.Path, Letter: d.Letter, MountMode: d.MountMode, MountFolder: d.MountFolder, DirectoryCacheSeconds: d.DirectoryCacheSeconds, VirtualCapacityGiB: d.VirtualCapacityGiB, ReadOnly: d.ReadOnly, AutoMount: d.AutoMount, AuthMethod: d.AuthMethod, SessionOnly: d.SessionOnly, UploadLimit: d.UploadLimit, DownloadLimit: d.DownloadLimit, UseProxy: d.UseProxy, Browser: d.Browser, PrivateBrowser: d.PrivateBrowser, ConnectTimeout: d.ConnectTimeout, IdleTimeout: d.IdleTimeout, AlternateURL: d.AlternateURL}
 }
 
 func portableDefinition(c Connection) PortableConnection {
-	return PortableConnection{CardStyle: c.CardStyle, IconImage: c.IconImage, Name: c.Name, Provider: c.Provider, Path: c.Path, Letter: c.Letter, MountMode: c.MountMode, MountFolder: c.MountFolder, DirectoryCacheSeconds: c.DirectoryCacheSeconds, VirtualCapacityGiB: c.VirtualCapacityGiB, ReadOnly: c.ReadOnly, AutoMount: c.AutoMount, AuthMethod: c.AuthMethod, SessionOnly: c.SessionOnly, UploadLimit: c.UploadLimit, DownloadLimit: c.DownloadLimit, UseProxy: c.UseProxy, Browser: c.Browser, PrivateBrowser: c.PrivateBrowser, ConnectTimeout: c.ConnectTimeout, IdleTimeout: c.IdleTimeout, AlternateURL: c.AlternateURL, Values: map[string]string{}}
+	return PortableConnection{ShowHiddenFiles: c.ShowHiddenFiles, CardStyle: c.CardStyle, IconImage: c.IconImage, Name: c.Name, Provider: c.Provider, Path: c.Path, Letter: c.Letter, MountMode: c.MountMode, MountFolder: c.MountFolder, DirectoryCacheSeconds: c.DirectoryCacheSeconds, VirtualCapacityGiB: c.VirtualCapacityGiB, ReadOnly: c.ReadOnly, AutoMount: c.AutoMount, AuthMethod: c.AuthMethod, SessionOnly: c.SessionOnly, UploadLimit: c.UploadLimit, DownloadLimit: c.DownloadLimit, UseProxy: c.UseProxy, Browser: c.Browser, PrivateBrowser: c.PrivateBrowser, ConnectTimeout: c.ConnectTimeout, IdleTimeout: c.IdleTimeout, AlternateURL: c.AlternateURL, Values: map[string]string{}}
 }
 
 func portablePreferences(settings Settings) PortablePreferences {
-	return PortablePreferences{settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.OpenExplorerAfterConnect, settings.ShowServiceIcons}
+	return PortablePreferences{settings.DriveStripeColorSource, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.OpenExplorerAfterConnect, settings.ShowServiceIcons}
 }
 
 func (p PortablePreferences) settings(local Settings) Settings {
+	local.DriveStripeColorSource = p.DriveStripeColorSource
+	if local.DriveStripeColorSource == "" {
+		local.DriveStripeColorSource = "theme"
+	}
 	local.Theme = p.Theme
 	if local.Theme == "" {
 		local.Theme = "system"
@@ -161,7 +167,7 @@ func validatePortableDocument(d PortableFile) error {
 		return fmt.Errorf("Unsupported or invalid portable configuration.")
 	}
 	s := d.Preferences.settings(defaultStore().Settings)
-	if !validTheme(s.Theme) || !i18n.Valid(s.Language) || s.CacheGiB < 1 || s.CacheGiB > 1024 {
+	if !validDriveStripeColorSource(s.DriveStripeColorSource) || !validTheme(s.Theme) || !i18n.Valid(s.Language) || s.CacheGiB < 1 || s.CacheGiB > 1024 {
 		return fmt.Errorf("Invalid portable preferences.")
 	}
 	if err := validateCacheDurations(s); err != nil {
@@ -176,6 +182,9 @@ func validatePortableDocument(d PortableFile) error {
 }
 
 func normalizePortableDocument(d *PortableFile) {
+	if d.Preferences.DriveStripeColorSource == "" {
+		d.Preferences.DriveStripeColorSource = "theme"
+	}
 	if d.Preferences.Theme == "" {
 		d.Preferences.Theme = "system"
 	}

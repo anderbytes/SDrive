@@ -40,6 +40,7 @@ export interface Provider {
 }
 export interface DriveAppearance { cardStyle?: string; iconImage?: string }
 export interface Connection extends DriveAppearance {
+  showHiddenFiles?: boolean;
   id: string;
   remote: string;
   name: string;
@@ -88,6 +89,7 @@ export interface ConnectionView extends Connection {
 }
 export interface TransportSecurityView { state: string; protocol: string; source: string; checkedAt: string | null }
 export interface Settings {
+  driveStripeColorSource?: "theme" | "drive";
   theme: Theme;
 	openExplorerAfterConnect: boolean;
 	showServiceIcons: boolean;

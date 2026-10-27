@@ -15,6 +15,7 @@ import (
 )
 
 type Connection struct {
+	ShowHiddenFiles       *bool  `json:"showHiddenFiles,omitempty"`
 	CardStyle             string `json:"cardStyle,omitempty"`
 	IconImage             string `json:"iconImage,omitempty"`
 	ID                    string `json:"id"`
@@ -46,6 +47,7 @@ type Connection struct {
 	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
+	DriveStripeColorSource   string `json:"driveStripeColorSource,omitempty"`
 	Theme                    string `json:"theme"`
 	OpenExplorerAfterConnect bool   `json:"openExplorerAfterConnect"`
 	ShowServiceIcons         bool   `json:"showServiceIcons"`
@@ -65,7 +67,7 @@ type Store struct {
 var errSettingsVersion = errors.New("unsupported settings format; preserve the data directory and use a compatible SDrive version")
 
 func defaultStore() Store {
-	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en", Theme: "system"}}
+	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en", Theme: "system", DriveStripeColorSource: "theme"}}
 }
 
 func loadStore(dir string) (Store, error) {
@@ -107,6 +109,9 @@ func decodeStore(b []byte) (Store, error) {
 		return s, invalid
 	}
 	var err error
+	if !validDriveStripeColorSource(s.Settings.DriveStripeColorSource) || s.Settings.DriveStripeColorSource == "" {
+		s.Settings.DriveStripeColorSource = "theme"
+	}
 	if !validTheme(s.Settings.Theme) {
 		s.Settings.Theme = "system"
 	}

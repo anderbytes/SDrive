@@ -105,6 +105,8 @@ func (s *Service) availableMount(c Connection) error {
 	return nil
 }
 
+func showHiddenFiles(c Connection) bool { return c.ShowHiddenFiles == nil || *c.ShowHiddenFiles }
+
 func mountOptions(c Connection, settings Settings) map[string]any {
 	directorySeconds := c.DirectoryCacheSeconds
 	if directorySeconds == 0 {
@@ -130,6 +132,10 @@ func mountOptions(c Connection, settings Settings) map[string]any {
 		mount["ExtraOptions"] = []string{"FileSecurity=D:P(A;;FRFX;;;OW)"}
 	} else if c.MountMode == "local" {
 		mount["ExtraOptions"] = []string{"FileSecurity=D:P(A;;FA;;;OW)"}
+	}
+	if !showHiddenFiles(c) {
+		options, _ := mount["ExtraOptions"].([]string)
+		mount["ExtraOptions"] = append(options, "dothidden")
 	}
 	return map[string]any{"fs": remote(c), "mountPoint": mountPoint(c), "mountOpt": mount, "vfsOpt": vfs}
 }

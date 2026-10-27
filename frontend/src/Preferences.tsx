@@ -104,10 +104,13 @@ export function Preferences({
             </label>
           </div>
           <div id={`${helpID}-Appearance-panel`} role="tabpanel" aria-labelledby={`${helpID}-Appearance-tab`} data-preference-tab="Appearance" hidden={tab !== "Appearance"}>
-            <label>{t("Theme")}<select disabled={busy} value={settings.theme} onChange={(e) => {
+            <label>{t("Theme")}<select aria-label={t("Theme")} disabled={busy} value={settings.theme} onChange={(e) => {
               const theme = e.target.value as Theme; setSettings({ ...settings, theme }); setPreview(theme);
             }}><option value="system">{t("System")}</option><option value="light">{t("Light")}</option><option value="dark">{t("Dark")}</option></select></label>
             <p>{t("System follows your Windows theme. Save to keep the preview; Cancel restores the saved theme.")}</p>
+            <label>{t("Drive card stripe")}<select aria-label={t("Drive card stripe")} disabled={busy} value={settings.driveStripeColorSource || "theme"} onChange={(e) => setSettings({ ...settings, driveStripeColorSource: e.target.value as "theme" | "drive" })}>
+              <option value="theme">{t("Theme color")}</option><option value="drive">{t("Custom drive color")}</option>
+            </select></label>
             <label className="check"><input type="checkbox" checked={settings.showServiceIcons || false} onChange={(e) => setSettings({ ...settings, showServiceIcons: e.target.checked })} />{t("Show service icons for drive letters")}</label>
             <p>{t("Service icons are local monograms for SDrive drive letters. Existing customization takes precedence; mounted folders keep their icons.")}</p>
           </div>

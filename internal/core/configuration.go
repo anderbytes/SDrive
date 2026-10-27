@@ -165,7 +165,7 @@ func (s *Service) BeginConfig(input ConfigInput) (resultID string, resultErr err
 		oldRemote = old.Remote
 		c.CardStyle, c.IconImage = old.CardStyle, old.IconImage
 		if old.Recovery {
-			if c.Provider != old.Provider || c.Path != old.Path || mountTarget(c) != mountTarget(old) || c.ReadOnly != old.ReadOnly || c.DirectoryCacheSeconds != old.DirectoryCacheSeconds || c.VirtualCapacityGiB != old.VirtualCapacityGiB {
+			if showHiddenFiles(c) != showHiddenFiles(old) || c.Provider != old.Provider || c.Path != old.Path || mountTarget(c) != mountTarget(old) || c.ReadOnly != old.ReadOnly || c.DirectoryCacheSeconds != old.DirectoryCacheSeconds || c.VirtualCapacityGiB != old.VirtualCapacityGiB {
 				return "", fmt.Errorf("preserve provider, folder, letter and access mode during recovery")
 			}
 			if c.UploadLimit != old.UploadLimit || c.DownloadLimit != old.DownloadLimit || c.UseProxy != old.UseProxy || c.ConnectTimeout != old.ConnectTimeout || c.IdleTimeout != old.IdleTimeout || c.AlternateURL != old.AlternateURL {

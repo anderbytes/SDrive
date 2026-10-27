@@ -680,7 +680,6 @@
   "Download limit: {size}/s": "Límite de descarga: {size}/s",
   "Updates are installed manually. Use Exit safely and wait for uploads before running an installer.": "Las actualizaciones se instalan manualmente. Utilice Salir de forma segura y espere las cargas antes de ejecutar un instalador.",
   "Explorer drive names or service icons could not be updated. Existing customization may take precedence.": "No se pudieron actualizar los nombres de las unidades del Explorador o los íconos de servicio. La personalización existente puede tener prioridad.",
-  "The drive connected, but Explorer could not be opened. Use Open in Explorer to retry.": "La unidad se conectó, pero no se pudo abrir Explorer. Utilice Abrir en el Explorador para volver a intentarlo.",
   "Invalid portable configuration.": "Configuración portátil no válida.",
   "Portable addresses must not contain credentials, query parameters or fragments.": "Las direcciones portátiles no deben contener credenciales, parámetros de consulta ni fragmentos.",
   "Unsupported or invalid portable configuration.": "Configuración portátil no compatible o no válida.",
@@ -857,5 +856,14 @@
   "Choose a PNG, JPEG or WebP image up to 5 MiB.": "Elige una imagen PNG, JPEG o WebP de hasta 5 MiB.",
   "The image could not be read.": "No se pudo leer la imagen.",
   "Select a supported card style.": "Selecciona un estilo de tarjeta compatible.",
-  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "Elige una imagen válida de hasta 128 × 128 píxeles y 128 KiB."
+  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "Elige una imagen válida de hasta 128 × 128 píxeles y 128 KiB.",
+  "The drive connected, but Explorer could not be opened. Use Open to retry.": "La unidad se conectó, pero no se pudo abrir Explorer. Utilice Abrir para volver a intentarlo.",
+  "Show hidden files": "Mostrar archivos ocultos",
+  "When unchecked, names starting with a dot are marked hidden. Explorer decides whether to display them. Applies on the next connection.": "Al desmarcar, los nombres que empiezan por un punto se marcan como ocultos. El Explorador decide si se muestran. Se aplica en la próxima conexión.",
+  "Drive card stripe": "Franja de las tarjetas de unidades",
+  "Theme color": "Color del tema",
+  "Custom drive color": "Color personalizado de la unidad",
+  "Mounted at:": "Montado en:",
+  "unsupported drive stripe color source": "Origen del color de la franja no compatible",
+  "Open": "Abrir"
 }

@@ -315,9 +315,9 @@ test("connection option indicators preserve recovery and upload messages", async
 });
 
 test("independent desktop failure messages remain localized together", async () => {
-  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, desktopWarning: "Explorer drive names or service icons could not be updated. Existing customization may take precedence.\nThe drive connected, but Explorer could not be opened. Use Open in Explorer to retry." });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, desktopWarning: "Explorer drive names or service icons could not be updated. Existing customization may take precedence.\nThe drive connected, but Explorer could not be opened. Use Open to retry." });
   render(<App />);
-  await screen.findByText("Não foi possível atualizar os nomes das unidades ou os ícones de serviço do Explorer. Personalizações existentes podem ter prioridade. A unidade conectou, mas não foi possível abrir o Explorer. Use Abrir no Explorer para tentar novamente.");
+  await screen.findByText("Não foi possível atualizar os nomes das unidades ou os ícones de serviço do Explorer. Personalizações existentes podem ter prioridade. A unidade conectou, mas não foi possível abrir o Explorer. Use Abrir para tentar novamente.");
 });
 
 test("Basic is initially selected and category tabs support keyboard navigation", async () => {
@@ -2415,4 +2415,53 @@ test("Shared with me selection reaches setup and stays locked during recovery", 
   const selection=await screen.findByLabelText("Google Drive contents") as HTMLSelectElement;
   await waitFor(()=>expect(selection.value).toBe("true"));
   expect(selection.disabled).toBe(true);
+});
+
+test.each(["en", "pt-BR"] as const)("hidden file visibility defaults on and saves from the editor in %s", async (language) => {
+  const t = (source: string) => translate(language, source);
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection], settings: { ...snapshot.settings, language } });
+  vi.mocked(api.update).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByText(t("Edit drive")));
+  fireEvent.click(screen.getByRole("tab", { name: t("Files") }));
+  const checkbox = screen.getByLabelText(t("Show hidden files")) as HTMLInputElement;
+  expect(checkbox.checked).toBe(true);
+  fireEvent.click(checkbox);
+  fireEvent.click(screen.getByRole("button", { name: t("Save changes") }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ showHiddenFiles: false })));
+});
+
+test("drive stripe preference saves explicitly and Cancel leaves the saved mode intact", async () => {
+  vi.mocked(api.settings).mockResolvedValue();
+  render(<App />);
+  await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  expect((screen.getByLabelText("Drive card stripe") as HTMLSelectElement).value).toBe("theme");
+  fireEvent.change(screen.getByLabelText("Drive card stripe"), { target: { value: "drive" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(document.querySelector(".drives")?.getAttribute("data-stripe-source")).toBe("theme");
+  expect(api.settings).not.toHaveBeenCalled();
+  await openPreferences();
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  fireEvent.change(screen.getByLabelText("Drive card stripe"), { target: { value: "drive" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(api.settings).toHaveBeenCalledWith(expect.objectContaining({ driveStripeColorSource: "drive" })));
+});
+
+test.each(["en", "pt-BR"] as const)("cards keep full paths, a bold mount prefix and a short Open action in %s", async (language) => {
+  const t = (source: string) => translate(language, source);
+  const mounted = { ...connection, mounted: true, mountFolder: "C:\\Synthetic\\" + "long-folder\\".repeat(15), serverPath: "https://example.test/" + "long-path/".repeat(20) };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [mounted], settings: { ...snapshot.settings, language, driveStripeColorSource: "drive" } });
+  vi.mocked(api.open).mockResolvedValue();
+  render(<App />);
+  const open = await screen.findByRole("button", { name: t("Open") });
+  expect(open.title).toBe(t("Open in Explorer"));
+  expect(document.querySelector(".server-path")?.getAttribute("title")).toBe(mounted.serverPath);
+  expect(document.querySelector(".mount-folder strong")?.textContent).toBe(t("Mounted at:"));
+  expect(document.querySelector(".mount-folder span")?.textContent).toBe(mounted.mountFolder);
+  expect(document.querySelector(".drive-credits")?.textContent).toContain("Go + rclone");
+  expect(document.querySelector("aside footer")?.textContent).not.toContain("Go + rclone");
+  expect(document.querySelector(".drives")?.getAttribute("data-stripe-source")).toBe("drive");
+  fireEvent.click(open);
+  await waitFor(() => expect(api.open).toHaveBeenCalledWith(mounted.id));
 });

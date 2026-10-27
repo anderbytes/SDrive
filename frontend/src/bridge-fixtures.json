@@ -461,7 +461,8 @@
         "binding": "{}",
         "virtualCapacityGiB": 256,
         "cardStyle": "blue",
-        "iconImage": "data:image/png;base64,synthetic"
+        "iconImage": "data:image/png;base64,synthetic",
+        "showHiddenFiles": false
       },
       "values": {
         "host": "example.test"
@@ -583,7 +584,8 @@
         "values": {},
         "virtualCapacityGiB": 256,
         "cardStyle": "blue",
-        "iconImage": "data:image/png;base64,synthetic"
+        "iconImage": "data:image/png;base64,synthetic",
+        "showHiddenFiles": false
       }
     },
     "importPreview": {
@@ -616,7 +618,8 @@
             "values": {},
             "virtualCapacityGiB": 256,
             "cardStyle": "blue",
-            "iconImage": "data:image/png;base64,synthetic"
+            "iconImage": "data:image/png;base64,synthetic",
+            "showHiddenFiles": false
           }
         ],
         "preferences": {
@@ -626,7 +629,8 @@
           "writeBackSeconds": 5,
           "openExplorerAfterConnect": false,
           "showServiceIcons": false,
-          "theme": "system"
+          "theme": "system",
+          "driveStripeColorSource": "theme"
         }
       }
     },
@@ -726,7 +730,8 @@
         "cacheGiB": 2,
         "cacheMaxAgeHours": 24,
         "writeBackSeconds": 5,
-        "theme": "system"
+        "theme": "system",
+        "driveStripeColorSource": "theme"
       },
       "letters": [],
       "winFsp": false,
@@ -851,7 +856,8 @@
           "virtualCapacityGiB": 256,
           "cardStyle": "blue",
           "iconImage": "data:image/png;base64,synthetic",
-          "serverPath": "example.test/folder"
+          "serverPath": "example.test/folder",
+          "showHiddenFiles": false
         }
       ],
       "settings": {
@@ -862,7 +868,8 @@
         "cacheGiB": 2,
         "cacheMaxAgeHours": 24,
         "writeBackSeconds": 5,
-        "theme": "system"
+        "theme": "system",
+        "driveStripeColorSource": "theme"
       },
       "letters": [
         "T"

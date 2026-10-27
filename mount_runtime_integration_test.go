@@ -49,6 +49,60 @@ func requireNativeMount(t *testing.T) {
 	}
 }
 
+func TestWindowsHiddenFileAttributes(t *testing.T) {
+	requireNativeMount(t)
+	for _, mode := range []string{"network", "local", "folder"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newIntegrationFixture(t, true)
+			s, _ := openIntegrationService(t, f.profile, nil)
+			c := configureIntegration(t, s, f.url, f.letter)
+			isolatedConnectionWorkers(t, s, f.profile)
+			for _, name := range []string{".dot-file", "normal.txt"} {
+				if err := os.WriteFile(filepath.Join(f.destination, "library", name), []byte("fixture"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Mkdir(filepath.Join(f.destination, "library", ".dot-folder"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			c.MountMode = mode
+			point := c.Letter + `:\`
+			if mode == "folder" {
+				c.Letter, c.MountMode, c.MountFolder = "", "local", filepath.Join(f.root, "mounted-folder")
+				point = c.MountFolder
+			}
+			for _, readOnly := range []bool{false, true} {
+				for _, shown := range []bool{true, false} {
+					c.ShowHiddenFiles, c.ReadOnly = &shown, readOnly
+					if err := s.UpdateConnection(c); err != nil {
+						t.Fatal(err)
+					}
+					if err := s.Mount(c.ID); err != nil {
+						t.Fatal(err)
+					}
+					for _, name := range []string{".dot-file", ".dot-folder", "normal.txt"} {
+						path, err := windows.UTF16PtrFromString(filepath.Join(point, name))
+						if err != nil {
+							t.Fatal(err)
+						}
+						attributes, err := windows.GetFileAttributes(path)
+						wantHidden := !shown && name != "normal.txt"
+						if err != nil || (attributes&windows.FILE_ATTRIBUTE_HIDDEN != 0) != wantHidden {
+							t.Fatalf("%s readOnly=%t shown=%t: attributes=%x error=%v", name, readOnly, shown, attributes, err)
+						}
+						if data, err := os.ReadDir(point); err != nil || len(data) != 3 {
+							t.Fatal("hidden items must remain available to filesystem enumeration", err)
+						}
+					}
+					if err := s.Unmount(c.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestWindowsMountRuntimeModes(t *testing.T) {
 	requireNativeMount(t)
 	for _, mode := range []string{"network", "local", "folder"} {

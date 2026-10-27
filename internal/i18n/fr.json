@@ -680,7 +680,6 @@
   "Download limit: {size}/s": "Limite de téléchargement : {size}/s",
   "Updates are installed manually. Use Exit safely and wait for uploads before running an installer.": "Les mises à jour sont installées manuellement. Utilisez Quitter en toute sécurité et attendez les téléversements avant d’exécuter un programme d’installation.",
   "Explorer drive names or service icons could not be updated. Existing customization may take precedence.": "Les noms de lecteur ou les icônes de service de l'Explorateur n'ont pas pu être mis à jour. La personnalisation existante peut prévaloir.",
-  "The drive connected, but Explorer could not be opened. Use Open in Explorer to retry.": "Le lecteur s'est connecté, mais l'Explorateur n'a pas pu être ouvert. Utilisez Ouvrir dans l'Explorateur pour réessayer.",
   "Invalid portable configuration.": "Configuration portable invalide.",
   "Portable addresses must not contain credentials, query parameters or fragments.": "Les adresses portables ne doivent pas contenir d'informations d'identification, de paramètres de requête ou de fragments.",
   "Unsupported or invalid portable configuration.": "Configuration portable non prise en charge ou invalide.",
@@ -857,5 +856,14 @@
   "Choose a PNG, JPEG or WebP image up to 5 MiB.": "Choisissez une image PNG, JPEG ou WebP de 5 Mio maximum.",
   "The image could not be read.": "Impossible de lire l’image.",
   "Select a supported card style.": "Sélectionnez un style de carte pris en charge.",
-  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "Choisissez une image valide de 128 × 128 pixels et 128 Kio maximum."
+  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "Choisissez une image valide de 128 × 128 pixels et 128 Kio maximum.",
+  "The drive connected, but Explorer could not be opened. Use Open to retry.": "Le lecteur s'est connecté, mais l'Explorateur n'a pas pu être ouvert. Utilisez Ouvrir pour réessayer.",
+  "Show hidden files": "Afficher les fichiers cachés",
+  "When unchecked, names starting with a dot are marked hidden. Explorer decides whether to display them. Applies on the next connection.": "Si décoché, les noms commençant par un point sont marqués comme cachés. L’Explorateur décide de leur affichage. S’applique à la prochaine connexion.",
+  "Drive card stripe": "Bande des cartes de lecteurs",
+  "Theme color": "Couleur du thème",
+  "Custom drive color": "Couleur personnalisée du lecteur",
+  "Mounted at:": "Monté dans :",
+  "unsupported drive stripe color source": "Source de couleur de bande non prise en charge",
+  "Open": "Ouvrir"
 }

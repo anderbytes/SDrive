@@ -20,7 +20,7 @@ const snapshot = { ...fixtures.snapshotEmpty, access, settings: { ...fixtures.sn
     fields: [field("url", "WebDAV HTTPS URL"), field("user", "Username"), field("pass", "Password / app password", true)] },
     { ...fixtures.providerEmpty, id: "gcs", name: "Google Cloud Storage", backend: "google cloud storage", transportEncryption: "required", available: true, oauth: true,
       fields: [{ ...field("service_account_file", "Service account JSON file (optional)"), file: true }] }],
-  connections: [connection, { ...connection, id: "visual-second", name: "Team library", letter: "", mountFolder: "C:\\Synthetic\\Team", cardStyle: "violet", serverPath: "https://files.example.test/dav/Projects", path: "Projects", mounted: false },
+  connections: [connection, { ...connection, id: "visual-second", name: "Team library", letter: "", mountFolder: "C:\\Synthetic\\Team\\" + "Long local directory\\".repeat(12), cardStyle: "violet", serverPath: "https://files.example.test/dav/Projects", path: "Projects", mounted: false },
     { ...connection, id: "visual-long", name: "Shared documents and administrative projects with a deliberately long name", letter: "U", serverPath: "https://files.example.test/dav/" + "Long remote directory/".repeat(8), path: "Long remote directory/".repeat(8), pending: null, recovery: true }],
   importDrafts: [], letters: ["V", "W"], winFsp: true, engineError: "", settingsError: "", desktopWarning: "", startupWarning: "", maintenanceError: "", recoveryHold: false };
 const apiSource = `window.visualSnapshot = ${JSON.stringify(snapshot)};
@@ -118,6 +118,17 @@ try {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 1180, height: 800 }, { width: 850, height: 620 }, { width: 420, height: 740 }]) {
     await page.setViewportSize(viewport);
     await bounds();
+    assert(await page.locator(".server-path, .mount-folder > span").evaluateAll(paths => paths.every(element => {
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      return style.whiteSpace === "nowrap" && style.textOverflow === "ellipsis" && box.height <= parseFloat(style.lineHeight) + 1 && element.title === element.textContent;
+    })), "All card paths must stay on one line and preserve the complete hover text");
+    assert(await page.locator(".mount-folder strong").evaluate(element => parseInt(getComputedStyle(element).fontWeight) >= 600), "Mount prefix must be bold");
+    assert(await page.locator(".drive-credits").evaluate(element => {
+      const box = element.getBoundingClientRect(), hint = element.previousElementSibling.getBoundingClientRect();
+      return getComputedStyle(element).fontSize === "11px" && box.top >= hint.bottom && getComputedStyle(element).textAlign === "right";
+    }), "Credits must be discreet and below content");
+    assert.equal(await firstCard.getByRole("button", { name: "Open", exact: true }).getAttribute("title"), "Open in Explorer");
     const card = page.locator(".drive").first();
     assert(await card.evaluate(e => {
       const letter = e.querySelector(".letter").getBoundingClientRect(), info = e.querySelector(".drive-info").getBoundingClientRect();
@@ -175,6 +186,8 @@ try {
     assert.equal(await advanced.evaluate(element => element.closest("fieldset")), null, "Advanced settings must be outside primary fields");
     await advanced.locator("summary").click();
     for (const group of ["Files and cache", "Network", "Drive behavior"]) await advanced.getByRole("group", { name: group, exact: true }).waitFor();
+    assert.equal(await page.getByLabel("Show hidden files", { exact: true }).isChecked(), true);
+    await page.getByLabel("Show hidden files", { exact: true }).uncheck();
     await bounds(); await capture("advanced-groups-" + width);
     const metadata = page.getByRole("spinbutton", { name: "Directory metadata lifetime (seconds)", exact: true });
     await metadata.fill("-1");
@@ -229,6 +242,18 @@ try {
   for (const tab of ["General", "Appearance", "Cache", "Network", "Configuration"]) {
     await page.getByRole("tab", { name: tab, exact: true }).click(); await bounds(); await capture("preferences-" + tab.toLowerCase());
   }
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  assert.equal(await page.getByLabel("Drive card stripe").inputValue(), "theme");
+  assert(await firstCard.evaluate(element => getComputedStyle(element).borderLeftColor === getComputedStyle(document.querySelector(".primary")).backgroundColor), "Default stripe must follow the theme");
+  await page.getByLabel("Drive card stripe").selectOption("drive");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".drives").dataset.stripeSource === "drive");
+  assert.equal(await firstCard.evaluate(element => getComputedStyle(element).borderLeftColor), "rgb(50, 183, 165)");
+  assert(await page.locator(".drive").last().evaluate(element => getComputedStyle(element).borderLeftColor === getComputedStyle(document.querySelector(".primary")).backgroundColor), "Missing custom color must fall back to the theme");
+  await page.getByRole("button", { name: /Preferences/ }).click();
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  assert.equal(await page.getByLabel("Drive card stripe").inputValue(), "drive");
+  await page.getByRole("tab", { name: "Configuration", exact: true }).click();
   await page.getByRole("button", { name: "Import configuration", exact: true }).click();
   assert.equal(await page.getByRole("dialog").count(), 2, "Import opens above Preferences");
   await bounds(); await capture("import-review");
@@ -279,14 +304,14 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: /Preferences/ }).click();
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
-  await page.getByLabel("Theme").selectOption("dark");
+  await page.getByLabel("Theme", { exact: true }).selectOption("dark");
   await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
   await bounds(); await capture("dark-drawer");
   await page.emulateMedia({ forcedColors: "active" }); await bounds(); await capture("forced-colors");
   await page.emulateMedia({ forcedColors: "none" });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Single-line local/remote paths with full hover text, bold mount prefix, short Open action, theme/custom stripes and fallback, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

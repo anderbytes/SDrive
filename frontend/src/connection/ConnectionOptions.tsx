@@ -5,6 +5,9 @@ import { supportsNetworkOptions } from "./methods";
 export function DirectoryCacheOptions({ wizard }: { wizard: Wizard }) {
   const { t, connection: c, change, validationProps, fieldFeedback, initial } = wizard;
   return <>
+    <div className="option-with-help"><label className="check"><input type="checkbox" checked={c.showHiddenFiles !== false} disabled={initial.recovery} onChange={(e) => change({ showHiddenFiles: e.target.checked })} />{t("Show hidden files")}</label>
+      <FieldHelp label={t("Show hidden files")}>{t("When unchecked, names starting with a dot are marked hidden. Explorer decides whether to display them. Applies on the next connection.")}</FieldHelp>
+    </div>
     <div className="field-with-help">
       <label><span className="field-label">{t("Virtual capacity in Explorer (GiB)")}</span><input type="number" min="0" max="8388607" step="1" disabled={initial.recovery} {...validationProps("virtualCapacityGiB")} value={c.virtualCapacityGiB || 0} onChange={(e) => change({ virtualCapacityGiB: Number(e.target.value) })} /></label>
       {fieldFeedback("virtualCapacityGiB")}

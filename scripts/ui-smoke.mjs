@@ -165,7 +165,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
   const lightBackground = await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
-  await page.getByLabel("Theme").selectOption("dark");
+  await page.getByLabel("Theme", { exact: true }).selectOption("dark");
   await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
   assert.notEqual(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor), lightBackground);
   await verifySectionNavigation(page, "Preferences categories");
@@ -176,10 +176,10 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
   await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
   await page.getByRole("button", { name: /Preferences/ }).click();
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
-  assert.equal(await page.getByLabel("Theme").inputValue(), "system");
+  assert.equal(await page.getByLabel("Theme", { exact: true }).inputValue(), "system");
   await page.emulateMedia({ colorScheme: "dark" });
   await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
-  await page.getByLabel("Theme").selectOption("light");
+  await page.getByLabel("Theme", { exact: true }).selectOption("light");
   await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
   await page.getByRole("tab", { name: "Appearance", exact: true }).press("ArrowUp");
   await page.getByRole("tab", { name: "General", exact: true }).press("ArrowDown");
@@ -222,7 +222,7 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     .click();
   await page.getByLabel("Language").selectOption("pt-BR");
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
-  assert.equal(await page.getByLabel("Theme").inputValue(), "light");
+  assert.equal(await page.getByLabel("Theme", { exact: true }).inputValue(), "light");
   await page.getByRole("tab", { name: "Cache", exact: true }).click();
   assert.equal(await page.getByLabel("Cache retention after last access (hours)").inputValue(), "48");
   assert.equal(await page.getByLabel("Upload delay after last use (seconds)").inputValue(), "0");

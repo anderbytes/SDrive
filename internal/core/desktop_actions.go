@@ -55,7 +55,7 @@ func (s *Service) mountDesktopActions(id string) {
 		s.mu.Lock()
 		s.explorerWarning = ""
 		if err != nil {
-			s.explorerWarning = "The drive connected, but Explorer could not be opened. Use Open in Explorer to retry."
+			s.explorerWarning = "The drive connected, but Explorer could not be opened. Use Open to retry."
 		}
 		s.mu.Unlock()
 	}

@@ -182,8 +182,6 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
         <button className="nav" onClick={() => setAccessSettings(true)}>{t("Application lock")}</button>
         {data?.access?.enabled && <button className="nav" onClick={() => void run("lock", api.lock)}>{t("Lock SDrive")}</button>}
         <footer>
-          {t("Open source · GPLv3")}
-          <br /> Go + rclone <br />
           <button className="nav" onClick={() => setAbout(true)}>{t("About SDrive")}</button>
           <button
             className="nav"
@@ -353,11 +351,11 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
           </p>
         )}
         <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
-        <section aria-label={t("Drives")} className="drives">
+        <section aria-label={t("Drives")} className="drives" data-stripe-source={data?.settings.driveStripeColorSource || "theme"}>
           {data?.importDrafts?.map((draft) => <article className="drive" data-card-style={draft.definition.cardStyle || ""} key={draft.id}>
             <DriveIcon connection={draft.definition} />
             <div className="drive-info"><h2>{draft.definition.name}</h2>
-              <p>{data.providers.find((p) => p.id === draft.definition.provider)?.name} · {draft.definition.mountFolder || `${draft.definition.letter}:`}</p>
+              <p className="server-path" title={draft.definition.mountFolder || `${draft.definition.letter}:`}>{data.providers.find((p) => p.id === draft.definition.provider)?.name} · {draft.definition.mountFolder || `${draft.definition.letter}:`}</p>
               <p role="status">{t("Authentication required for imported configuration")}</p>
               <p>{t("Supply application credentials and authenticate again. No credentials or pending files were imported.")}</p>
             </div>
@@ -413,6 +411,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             "Closing the window keeps your drives active in the tray. Wait for uploads before exiting.",
           )}
         </div>
+        <footer className="drive-credits">{t("Open source · GPLv3")} · Go + rclone</footer>
       </main>
       {editor && data && (
         <ConnectionEditor
@@ -608,16 +607,16 @@ function Drive({
                   ? t("Recovery required")
                   : t("Disconnected")}
         </div></div>
-        <div className="drive-metadata"><span className={`type-tag type-${["smb", "sftp", "ftp"].includes(p.id) ? "network" : ["webdav", "nextcloud", "owncloud"].includes(p.id) ? "webdav" : ["s3", "b2", "azureblob", "gcs"].includes(p.id) ? "object" : "cloud"}`}>{t(p.name)}</span><span className="server-path">{c.serverPath || c.path || t("Root")}</span></div>
+        <div className="drive-metadata"><span className={`type-tag type-${["smb", "sftp", "ftp"].includes(p.id) ? "network" : ["webdav", "nextcloud", "owncloud"].includes(p.id) ? "webdav" : ["s3", "b2", "azureblob", "gcs"].includes(p.id) ? "object" : "cloud"}`}>{t(p.name)}</span><span className="server-path" title={c.serverPath || c.path || t("Root")}>{c.serverPath || c.path || t("Root")}</span></div>
         {p.experimental && <p className="drive-secondary">{t("Experimental")}</p>}
-        {c.mountFolder && <p className="mount-folder">{c.mountFolder}</p>}
+        {c.mountFolder && <p className="mount-folder"><strong>{t("Mounted at:")}</strong>{" "}<span title={c.mountFolder}>{c.mountFolder}</span></p>}
         {c.recovery && !c.mounted && (busy || c.pending === null) && <p className="inline-error">{t("Recovery required")}</p>}
         {!!c.error && <p className="inline-error">{t("Connection needs attention.")}</p>}
         {(!!c.cache.error || !!c.uploads?.cacheErrors) && <p className="inline-error">{t("Local cache needs attention.")}</p>}
         {c.mounted && c.transportSecurity?.state !== "encrypted" && <p className="inline-error">{t(c.transportSecurity?.state === "unencrypted" ? "Traffic unencrypted" : "Traffic encryption could not be verified")}</p>}
       </div>
       <div className="actions">
-        {c.mounted && <button disabled={busy} onClick={() => onAction(api.open)}>{t("Open in Explorer")}</button>}
+        {c.mounted && <button disabled={busy} title={t("Open in Explorer")} onClick={() => onAction(api.open)}>{t("Open")}</button>}
         <button
           disabled={busy}
           className={c.mounted ? "" : "primary"}

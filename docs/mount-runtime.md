@@ -63,3 +63,9 @@ Google Drive setup and Reconfigure account offer preferred download formats in A
 Virtual capacity in Explorer is an optional whole GiB value in the connection's file options (0 uses the provider default; maximum 8,388,607 GiB). It maps to the pinned engine's `DiskSpaceTotalSize` VFS option, applies after reconnecting and survives local and portable configuration. It changes the volume's reported total only: it neither reserves space nor enforces a quota. Free/used values still follow engine/provider reporting; SDrive's provider capacity and local cache free space remain separate. Invalid, fractional and overflowing inputs are rejected.
 
 Engine references: [Google document export formats](https://rclone.org/drive/#drive-export-formats) and [VFS disk options](https://rclone.org/commands/rclone_mount/#vfs-disk-options). Behavior was also checked against the pinned engine source.
+
+## Hidden files and card appearance
+
+“Show hidden files” defaults to enabled for new and existing connections. Disable it in the connection's file options to mark names starting with a dot as hidden using WinFsp's native `dothidden` mount option. Explorer's “Hidden items” setting then controls their visibility. Files and folders remain accessible through their paths; SDrive does not filter or delete them or change Explorer's global settings. The option applies on the next connection, survives export/import, and cannot change during pending recovery. It does not preserve provider-specific hidden attributes on names without a leading dot.
+
+Preferences → Appearance chooses whether the left card stripe follows the theme or the drive's existing custom color. The default is the theme color, which also applies to drives without a custom color. Connection status remains in the card's status indicators. This preference survives export/import.

@@ -680,7 +680,6 @@
   "Download limit: {size}/s": "下载限制：{size}/s",
   "Updates are installed manually. Use Exit safely and wait for uploads before running an installer.": "更新是手动安装的。运行安装程序之前，请安全退出并等待上传。",
   "Explorer drive names or service icons could not be updated. Existing customization may take precedence.": "无法更新资源管理器驱动器名称或服务图标。现有的定制可能优先。",
-  "The drive connected, but Explorer could not be opened. Use Open in Explorer to retry.": "驱动器已连接，但无法打开资源管理器。使用“在资源管理器中打开”重试。",
   "Invalid portable configuration.": "便携式配置无效。",
   "Portable addresses must not contain credentials, query parameters or fragments.": "可移植地址不得包含凭据、查询参数或片段。",
   "Unsupported or invalid portable configuration.": "便携式配置不受支持或无效。",
@@ -857,5 +856,14 @@
   "Choose a PNG, JPEG or WebP image up to 5 MiB.": "请选择不超过 5 MiB 的 PNG、JPEG 或 WebP 图片。",
   "The image could not be read.": "无法读取图片。",
   "Select a supported card style.": "请选择受支持的卡片样式。",
-  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "请选择不超过 128 × 128 像素和 128 KiB 的有效图片。"
+  "Choose a valid drive image up to 128 × 128 pixels and 128 KiB.": "请选择不超过 128 × 128 像素和 128 KiB 的有效图片。",
+  "The drive connected, but Explorer could not be opened. Use Open to retry.": "驱动器已连接，但无法打开资源管理器。使用“打开”重试。",
+  "Show hidden files": "显示隐藏文件",
+  "When unchecked, names starting with a dot are marked hidden. Explorer decides whether to display them. Applies on the next connection.": "取消勾选后，以点开头的名称会被标记为隐藏。是否显示由资源管理器决定。下次连接时生效。",
+  "Drive card stripe": "驱动器卡片色条",
+  "Theme color": "主题颜色",
+  "Custom drive color": "驱动器自定义颜色",
+  "Mounted at:": "挂载位置：",
+  "unsupported drive stripe color source": "不支持的色条颜色来源",
+  "Open": "打开"
 }

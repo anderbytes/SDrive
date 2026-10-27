@@ -30,6 +30,10 @@ func (s *Service) PreferenceDefaults() (Settings, error) {
 	return settings, nil
 }
 
+func validDriveStripeColorSource(source string) bool {
+	return source == "" || source == "theme" || source == "drive"
+}
+
 func validTheme(theme string) bool { return theme == "system" || theme == "light" || theme == "dark" }
 
 func (s *Service) SaveSettings(settings Settings) error {
@@ -39,6 +43,12 @@ func (s *Service) SaveSettings(settings Settings) error {
 	defer s.reconcileDesktopAppearance()
 	if err := validateCacheDurations(settings); err != nil {
 		return err
+	}
+	if !validDriveStripeColorSource(settings.DriveStripeColorSource) {
+		return fmt.Errorf("unsupported drive stripe color source")
+	}
+	if settings.DriveStripeColorSource == "" {
+		settings.DriveStripeColorSource = "theme"
 	}
 	if settings.Theme == "" {
 		settings.Theme = "system"

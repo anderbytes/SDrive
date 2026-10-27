@@ -24,7 +24,7 @@ export function ConnectionEditor(props: EditorProps) {
   } = wizard;
   const formID = `${fieldID}-form`;
   const footer = step === "folder" ? <FolderActions wizard={wizard} /> : step === "auth" ? <AuthenticationActions wizard={wizard} /> : step === "complete" ? <>
-    <button onClick={close}>{t("Done")}</button><button className="primary" disabled={busy} onClick={() => void action(() => api.open(savedID))}>{t("Open in Explorer")}</button>
+    <button onClick={close}>{t("Done")}</button><button className="primary" disabled={busy} title={t("Open in Explorer")} onClick={() => void action(() => api.open(savedID))}>{t("Open")}</button>
   </> : <>
     <button type="button" disabled={busy} onClick={() => step === "access" && !initial.id ? dispatch({ type: "service" }) : close()}>{step === "access" && !initial.id ? t("Back") : t("Cancel")}</button>
     <button form={formID} className="primary" disabled={step === "service"
