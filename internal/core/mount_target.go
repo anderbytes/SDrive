@@ -28,6 +28,9 @@ func mountPoint(c Connection) string {
 	return c.Letter + ":"
 }
 func mountKey(point string) string {
+	if platform.OS == "linux" {
+		return filepath.Clean(point)
+	}
 	point = strings.TrimRight(strings.ReplaceAll(point, "/", `\`), `\`)
 	if len(point) == 2 && point[1] == ':' {
 		return strings.ToUpper(point)
@@ -42,16 +45,23 @@ func (s *Service) mountPresent(c Connection) bool {
 	if c.MountFolder == "" {
 		return s.driveUsed(c.Letter)
 	}
+	if platform.OS == "linux" {
+		return platform.FolderMounted(c.MountFolder)
+	}
 	_, err := os.Lstat(c.MountFolder)
 	return !os.IsNotExist(err)
 }
 func pathWithin(path, parent string) bool {
 	path, parent = mountKey(path), mountKey(parent)
-	return path == parent || strings.HasPrefix(path, parent+`\`)
+	separator := string(filepath.Separator)
+	return path == parent || strings.HasPrefix(path, strings.TrimRight(parent, separator)+separator)
 }
 func pathsOverlap(a, b string) bool { return pathWithin(a, b) || pathWithin(b, a) }
 
 func validateMountTarget(c *Connection) error {
+	if platform.OS == "linux" && (c.Letter != "" || c.MountFolder == "" || c.MountMode != "local") {
+		return &FieldError{Field: "mountFolder", Message: "Choose an absolute Linux mount folder."}
+	}
 	if c.MountMode != "" && c.MountMode != "network" && c.MountMode != "local" {
 		return &FieldError{Field: "mountMode", Message: "Choose network drive or local disk."}
 	}
@@ -99,7 +109,7 @@ func (s *Service) availableMount(c Connection) error {
 	if _, err := platform.DirectoryIdentity(filepath.Dir(c.MountFolder)); err != nil {
 		return &FieldError{Field: "mountFolder", Message: "Choose an available local parent directory without links."}
 	}
-	if _, err := os.Lstat(c.MountFolder); !os.IsNotExist(err) {
+	if err := platform.CheckMountFolder(s.dir, c.ID, c.MountFolder); err != nil {
 		return &FieldError{Field: "mountFolder", Message: "The mount folder must not exist. Choose a new subfolder; existing contents will not be removed."}
 	}
 	return nil
@@ -133,11 +143,22 @@ func mountOptions(c Connection, settings Settings) map[string]any {
 	} else if c.MountMode == "local" {
 		mount["ExtraOptions"] = []string{"FileSecurity=D:P(A;;FA;;;OW)"}
 	}
-	if !showHiddenFiles(c) {
+	if platform.OS == "windows" && !showHiddenFiles(c) {
 		options, _ := mount["ExtraOptions"].([]string)
 		mount["ExtraOptions"] = append(options, "dothidden")
 	}
-	return map[string]any{"fs": remote(c), "mountPoint": mountPoint(c), "mountOpt": mount, "vfsOpt": vfs}
+	if platform.OS == "linux" {
+		mount = map[string]any{"AllowOther": false}
+		vfs["FilePerms"], vfs["DirPerms"] = uint32(0600), uint32(0700)
+		if c.ReadOnly {
+			vfs["FilePerms"], vfs["DirPerms"] = uint32(0400), uint32(0500)
+		}
+	}
+	options := map[string]any{"fs": remote(c), "mountPoint": mountPoint(c), "mountOpt": mount, "vfsOpt": vfs}
+	if platform.OS == "linux" {
+		options["mountType"] = platform.MountType
+	}
+	return options
 }
 
 func cacheDurations(settings Settings) (time.Duration, time.Duration) {

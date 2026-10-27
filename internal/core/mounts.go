@@ -22,7 +22,7 @@ func readMounts(ctx context.Context, rpc RPC) ([]engineMount, error) {
 	seen := map[string]bool{}
 	for _, m := range *result.MountPoints {
 		point := mountKey(m.MountPoint)
-		letter := len(point) == 2 && point[0] >= 'A' && point[0] <= 'Z' && point[1] == ':'
+		letter := platform.OS == "windows" && len(point) == 2 && point[0] >= 'A' && point[0] <= 'Z' && point[1] == ':'
 		_, pathErr := platform.LocalPath(m.MountPoint)
 		if (!letter && pathErr != nil) || m.Fs == "" || seen[point] {
 			return nil, fmt.Errorf("could not verify mounted drives; preserve the cache and try again")
@@ -90,7 +90,10 @@ func (s *Service) Mount(id string) (resultErr error) {
 	if s.session != nil && s.session.connection.ID == id && !s.session.Complete {
 		return fmt.Errorf("complete or cancel reconfiguration")
 	}
-	if !s.winFsp() {
+	if !s.mountAvailable() {
+		if platform.OS == "linux" {
+			return fmt.Errorf("Install FUSE3 and ensure your user can access /dev/fuse. See the Linux installation guide.")
+		}
 		return fmt.Errorf("run the SDrive installer again to prepare virtual drives")
 	}
 	if err := s.availableMount(c); err != nil {
@@ -173,6 +176,9 @@ func (s *Service) Mount(id string) (resultErr error) {
 	if err = s.availableMount(c); err != nil {
 		return err
 	}
+	if err = platform.PrepareMountFolder(s.dir, c.ID, c.MountFolder); err != nil {
+		return err
+	}
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -206,12 +212,17 @@ func (s *Service) Mount(id string) (resultErr error) {
 			}
 			if active {
 				s.mounted[id] = true
-			} else if !previous {
-				count, cacheErr := s.cachedPending(checkCtx, c)
-				if cacheErr == nil && count == 0 {
-					s.store.Connections[i].Recovery = false
-					if saveErr := saveStore(s.dir, s.store); saveErr != nil {
-						s.store.Connections[i].Recovery = true
+			} else {
+				if cleanupErr := platform.ReleaseMountFolder(s.dir, c.ID, c.MountFolder); cleanupErr != nil {
+					return fmt.Errorf("%w; mount folder cleanup failed: %v", err, cleanupErr)
+				}
+				if !previous {
+					count, cacheErr := s.cachedPending(checkCtx, c)
+					if cacheErr == nil && count == 0 {
+						s.store.Connections[i].Recovery = false
+						if saveErr := saveStore(s.dir, s.store); saveErr != nil {
+							s.store.Connections[i].Recovery = true
+						}
 					}
 				}
 			}
@@ -373,6 +384,9 @@ func (s *Service) drainAndUnmount(c Connection) (unmounted bool, resultErr error
 	}
 	if pending > 0 {
 		return true, fmt.Errorf("the drive was unmounted with pending files; use Recover before exiting")
+	}
+	if err := platform.ReleaseMountFolder(s.dir, c.ID, c.MountFolder); err != nil {
+		return true, err
 	}
 	return true, nil
 }

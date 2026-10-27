@@ -14,9 +14,11 @@ import { fileURLToPath } from "node:url";
 
 const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const go = path.join(root, ".tools/go/bin/go.exe");
-const destination = path.join(root, "bin/licenses");
-if (path.relative(root,destination)!==path.join('bin','licenses')) throw new Error('Invalid output directory');
+const linux = process.platform === "linux";
+const go = linux ? process.env.SDRIVE_GO || "go" : path.join(root, ".tools/go/bin/go.exe");
+const distribution = process.env.SDRIVE_DIST_DIR || path.join(root, "bin");
+const destination = path.join(distribution, "licenses");
+if (!destination.startsWith(path.join(root, 'bin') + path.sep)) throw new Error('Invalid output directory');
 await rm(destination,{recursive:true,force:true});
 await mkdir(destination, { recursive: true });
 async function copyWritable(source, target) {
@@ -29,10 +31,10 @@ async function copyWritable(source, target) {
   await chmod(target, 0o600);
 }
 const records = new Map();
-for (const binary of ["SDrive.exe", "rclone.exe"]) {
+for (const binary of linux ? ["SDrive", "rclone"] : ["SDrive.exe", "rclone.exe"]) {
   const { stdout } = await exec(
     go,
-    ["version", "-m", "-json", path.join(root, "bin", binary)],
+    ["version", "-m", "-json", path.join(distribution, binary)],
     { cwd: root },
   );
   const info = JSON.parse(stdout);
@@ -123,13 +125,13 @@ await Promise.all(
         }
         await copyWritable(
           module.Zip,
-          path.join(root, "bin", "rclone-source.zip"),
+          path.join(distribution, "rclone-source.zip"),
         );
         await mkdir(path.join(destination, "engine-overlay"), { recursive: true });
         for (const entry of await readdir(path.join(root, "scripts/engine-overlay"))) {
           await copyWritable(path.join(root, "scripts/engine-overlay", entry), path.join(destination, "engine-overlay", entry));
         }
-        for (const entry of ["bootstrap.ps1", "engine-overlay.ps1"]) {
+        for (const entry of linux ? ["build-linux.sh", "engine-overlay.mjs"] : ["bootstrap.ps1", "engine-overlay.ps1"]) {
           await copyWritable(path.join(root, "scripts", entry), path.join(destination, "engine-overlay", entry));
         }
         await copyWritable(path.join(root, ".tools/rclone/build.json"), path.join(destination, "engine-overlay/build.json"));
@@ -171,7 +173,7 @@ for (const [location, record] of Object.entries(lock.packages)) {
   }
 }
 await copyWritable(
-  path.join(root, ".tools/go/LICENSE"),
+  linux ? path.join((await exec(go, ["env", "GOROOT"], { cwd: root })).stdout.trim(), "LICENSE") : path.join(root, ".tools/go/LICENSE"),
   path.join(destination, "Go-LICENSE"),
 );
 await writeFile(

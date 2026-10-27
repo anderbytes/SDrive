@@ -8,6 +8,8 @@
 
 SDrive brings your cloud storage and remote servers into Windows File Explorer. Open, edit and save files with the applications you already use, without downloading everything first.
 
+Linux desktop builds target **Ubuntu 24.04+ and Debian 13+, x64**, with a `.deb` package and portable archive. See the [Linux guide](docs/linux.md) for installation, desktop requirements and validation limits.
+
 Free and open source, for **Windows 10 22H2 (build 19045) and Windows 11, x64 (Intel or AMD)**. The same online and offline installers work on both systems.
 
 [Features](#what-you-can-do) · [Get started](#get-started) · [User guide](docs/usage.md) · [Contribute](#help-improve-sdrive)

@@ -127,3 +127,11 @@ test("file access reports unknown separately from an empty Windows result and re
   await screen.findByText("Windows reported no applications for this file. Other access may still exist.");
   expect(api.inspectFileAccess).toHaveBeenLastCalledWith("drive","file.txt");
 });
+
+test("Linux keeps manual PIN protection and disables global inactivity automation", async () => {
+ vi.mocked(api.accessStatus).mockResolvedValue({ ...status, platform: "linux", globalIdle: false, policy: { idleMinutes: 0, disconnectIdle: false, reconnect: false } });
+ render(<LanguageProvider><AccessSettings onClose={() => {}} /></LanguageProvider>);
+ await screen.findByText("Global inactivity automation is unavailable on Linux. You can lock SDrive manually.");
+ expect(screen.getByLabelText("Lock after computer inactivity (minutes; 0 disables)").closest("fieldset")?.disabled).toBe(true);
+ expect((screen.getByLabelText("Current PIN") as HTMLInputElement).disabled).toBe(false);
+});

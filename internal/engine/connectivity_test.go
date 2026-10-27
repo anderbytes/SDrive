@@ -44,7 +44,7 @@ func TestConnectionEnginesEnforceIndependentTransferLimits(t *testing.T) {
 	if os.Getenv("SDRIVE_TEST_ENGINE") != "1" {
 		t.Skip("set SDRIVE_TEST_ENGINE=1 for disposable real-engine checks")
 	}
-	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", "rclone.exe"))
+	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", binaryName()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestConnectionEnginesEnforceIndependentTransferLimits(t *testing.T) {
 	}
 	// Memory configuration must never create a credential file, including on refresh.
 	for _, client := range clients {
-		if strings.Contains(strings.Join(client.cmd.Args, " "), "--config NUL") == false {
+		if !strings.Contains(strings.Join(client.cmd.Args, " "), "--config "+os.DevNull) {
 			t.Fatal("memory worker uses a persistent config")
 		}
 	}
@@ -114,7 +114,7 @@ func TestProviderProxyDoesNotAffectLocalRPC(t *testing.T) {
 	if os.Getenv("SDRIVE_TEST_ENGINE") != "1" {
 		t.Skip("set SDRIVE_TEST_ENGINE=1 for disposable real-engine checks")
 	}
-	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", "rclone.exe"))
+	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", binaryName()))
 	if err != nil {
 		t.Fatal(err)
 	}

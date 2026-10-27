@@ -21,7 +21,7 @@ func TestSOCKSProxyTransfersDNSFailuresAndReconnect(t *testing.T) {
 	if os.Getenv("SDRIVE_TEST_ENGINE") != "1" {
 		t.Skip("set SDRIVE_TEST_ENGINE=1 for disposable real-engine checks")
 	}
-	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", "rclone.exe"))
+	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", binaryName()))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -27,7 +27,7 @@ func TestAboutUsesRunningEngineAndHandlesUnavailableVersions(t *testing.T) {
 		if unavailable {
 			want = ""
 		}
-		if info.AppVersion != "1.0.0" || info.RcloneVersion != want || info.WindowsVersion == "" || info.Architecture == "" || s.DesktopVisible() {
+		if info.AppVersion != "1.0.0" || info.RcloneVersion != want || info.OSVersion == "" || info.Architecture == "" || s.DesktopVisible() {
 			t.Fatalf("invalid diagnostics: %+v", info)
 		}
 	}

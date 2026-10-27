@@ -47,14 +47,14 @@ type PortableConnection struct {
 }
 
 type PortablePreferences struct {
-	DriveStripeColorSource   string `json:"driveStripeColorSource,omitempty"`
-	Theme                    string `json:"theme"`
-	Language                 string `json:"language"`
-	CacheGiB                 int    `json:"cacheGiB"`
-	CacheMaxAgeHours         *int   `json:"cacheMaxAgeHours,omitempty"`
-	WriteBackSeconds         *int   `json:"writeBackSeconds,omitempty"`
-	OpenExplorerAfterConnect bool   `json:"openExplorerAfterConnect"`
-	ShowServiceIcons         bool   `json:"showServiceIcons"`
+	DriveStripeColorSource string `json:"driveStripeColorSource,omitempty"`
+	Theme                  string `json:"theme"`
+	Language               string `json:"language"`
+	CacheGiB               int    `json:"cacheGiB"`
+	CacheMaxAgeHours       *int   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds       *int   `json:"writeBackSeconds,omitempty"`
+	OpenMountAfterConnect  bool   `json:"openExplorerAfterConnect"`
+	ShowServiceIcons       bool   `json:"showServiceIcons"`
 }
 
 type PortableFile struct {
@@ -83,7 +83,7 @@ func portableDefinition(c Connection) PortableConnection {
 }
 
 func portablePreferences(settings Settings) PortablePreferences {
-	return PortablePreferences{settings.DriveStripeColorSource, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.OpenExplorerAfterConnect, settings.ShowServiceIcons}
+	return PortablePreferences{settings.DriveStripeColorSource, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.OpenMountAfterConnect, settings.ShowServiceIcons}
 }
 
 func (p PortablePreferences) settings(local Settings) Settings {
@@ -97,7 +97,7 @@ func (p PortablePreferences) settings(local Settings) Settings {
 	}
 	local.Language, local.CacheGiB = p.Language, p.CacheGiB
 	local.CacheMaxAgeHours, local.WriteBackSeconds = p.CacheMaxAgeHours, p.WriteBackSeconds
-	local.OpenExplorerAfterConnect, local.ShowServiceIcons = p.OpenExplorerAfterConnect, p.ShowServiceIcons
+	local.OpenMountAfterConnect, local.ShowServiceIcons = p.OpenMountAfterConnect, p.ShowServiceIcons
 	return local
 }
 
@@ -123,6 +123,10 @@ func portableField(providerID, key string) bool {
 
 func validatePortableConnection(d PortableConnection) error {
 	c := d.connection()
+	if err := validatePortableMountTarget(c); err != nil {
+		return err
+	}
+	c.Letter, c.MountFolder, c.MountMode = platform.PortableValidationTarget()
 	if err := validateConnection(&c); err != nil {
 		return err
 	}
@@ -157,6 +161,38 @@ func validatePortableConnection(d PortableConnection) error {
 				return fmt.Errorf("Portable addresses must not contain credentials, query parameters or fragments.")
 			}
 		}
+	}
+	return nil
+}
+
+// Portable previews accept either operating system; committing still requires a local target.
+func validatePortableMountTarget(c Connection) error {
+	invalid := fmt.Errorf("Invalid portable configuration.")
+	if c.MountMode != "" && c.MountMode != "network" && c.MountMode != "local" {
+		return invalid
+	}
+	if c.MountFolder == "" {
+		letter := strings.ToUpper(strings.TrimSpace(c.Letter))
+		if len(letter) != 1 || letter[0] < 'D' || letter[0] > 'Z' {
+			return invalid
+		}
+		return nil
+	}
+	if c.Letter != "" || c.MountMode != "local" || strings.ContainsAny(c.MountFolder, "\x00\r\n") {
+		return invalid
+	}
+	unix := strings.HasPrefix(c.MountFolder, "/") && c.MountFolder != "/"
+	windows := len(c.MountFolder) > 3 && ((c.MountFolder[0] >= 'a' && c.MountFolder[0] <= 'z') || (c.MountFolder[0] >= 'A' && c.MountFolder[0] <= 'Z')) && c.MountFolder[1] == ':' && (c.MountFolder[2] == '\\' || c.MountFolder[2] == '/')
+	if !unix && !windows {
+		return invalid
+	}
+	for _, part := range strings.Split(strings.ReplaceAll(c.MountFolder, `\`, "/"), "/") {
+		if part == "." || part == ".." {
+			return invalid
+		}
+	}
+	if (platform.OS == "linux" && unix) || (platform.OS == "windows" && windows) {
+		return validateMountTarget(&c)
 	}
 	return nil
 }
@@ -374,6 +410,9 @@ func (s *Service) CommitImport(id string, document PortableFile, applyPreference
 	}
 	for _, definition := range document.Connections {
 		c := definition.connection()
+		if err := validateConnection(&c); err != nil {
+			return err
+		}
 		for _, other := range existing {
 			if strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(other.Name)) {
 				return &FieldError{Field: "name", Message: "Resolve duplicate names before importing."}

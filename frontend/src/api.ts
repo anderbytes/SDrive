@@ -5,9 +5,13 @@ import { Call, Clipboard, Events } from "@wailsio/runtime";
 
 export interface FileAccessView { path: string; state: string; checkedAt: string; processes: { pid: number; name: string; startedAt: string }[] }
 export interface AccessPolicy { idleMinutes: number; disconnectIdle: boolean; reconnect: boolean }
-export interface AccessStatus { theme: string; setupPending: boolean; enabled: boolean; locked: boolean; language: string; policy: AccessPolicy; retryAt: string; error: string; warning: string }
+export interface AccessStatus {
+  platform?: string;
+  globalIdle?: boolean; theme: string; setupPending: boolean; enabled: boolean; locked: boolean; language: string; policy: AccessPolicy; retryAt: string; error: string; warning: string }
 
 export interface AboutInfo {
+  platform?: string;
+  osVersion?: string;
   appVersion: string;
   rcloneVersion: string;
   windowsVersion: string;
@@ -102,6 +106,8 @@ export interface Settings {
 export interface MountTarget { letter: string; folder: string; mode: string }
 export const mountTarget = (c: Connection): MountTarget => ({ letter: c.letter, folder: c.mountFolder || "", mode: c.mountMode || "" });
 export interface Snapshot {
+  platform?: string;
+  mountAvailable?: boolean;
   access: AccessStatus;
 	importDrafts: ImportDraft[];
 	desktopWarning: string;
@@ -229,7 +235,7 @@ export const api = {
       "ConnectionFields", id,
     ),
   settings: (settings: Settings) => invoke<void>("SaveSettings", settings),
-  open: (id: string) => invoke<void>("OpenExplorer", id),
+  open: (id: string) => invoke<void>("OpenMount", id),
   prerequisite: (name: string) => invoke<void>("Prerequisite", name),
   probe: (host: string, port: string) =>
     invoke<{ key: string; fingerprint: string }>("ProbeSSH", host, port),

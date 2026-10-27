@@ -8,7 +8,7 @@ import (
 	"sdrive/internal/platform"
 )
 
-// RestoreStartup applies only the saved Windows integration, without starting a service.
+// RestoreStartup applies only the saved desktop integration, without starting a service.
 func RestoreStartup(dir string) error {
 	return restoreStartup(dir, platform.AutoStartMatches, platform.AutoStart)
 }
@@ -24,11 +24,11 @@ func restoreStartup(dir string, matches func(bool) (bool, error), update func(bo
 		return err
 	}
 	if _, err := os.Stat(filepath.Join(dir, recoveryMarker)); !os.IsNotExist(err) {
-		return fmt.Errorf("resolve settings recovery before restoring Windows startup")
+		return fmt.Errorf("resolve settings recovery before restoring sign-in startup")
 	}
 	for _, connection := range store.Connections {
 		if connection.Recovery {
-			return fmt.Errorf("resolve connection recovery before restoring Windows startup")
+			return fmt.Errorf("resolve connection recovery before restoring sign-in startup")
 		}
 	}
 	ok, err := matches(store.Settings.AutoStart)
@@ -43,7 +43,7 @@ func restoreStartup(dir string, matches func(bool) (bool, error), update func(bo
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("Windows startup still differs from saved preferences")
+		return fmt.Errorf("sign-in startup still differs from saved preferences")
 	}
 	return nil
 }
@@ -58,12 +58,12 @@ func reconcileStartup(s *Service, matches func(bool) (bool, error)) error {
 	defer s.mu.Unlock()
 	var err error
 	if s.settingsError != "" || s.recoveryHold {
-		err = fmt.Errorf("resolve settings recovery before restoring Windows startup")
+		err = fmt.Errorf("resolve settings recovery before restoring sign-in startup")
 	} else {
 		err = restoreStartup(s.dir, matches, s.setAutoStart)
 	}
 	if err != nil {
-		s.startupWarning = "Windows startup may differ from saved preferences. Save preferences to reconcile it."
+		s.startupWarning = "sign-in startup may differ from saved preferences. Save preferences to reconcile it."
 	} else {
 		s.startupWarning = ""
 	}

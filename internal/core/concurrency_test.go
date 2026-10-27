@@ -189,7 +189,7 @@ func TestMountReservesConnectionAcrossCalls(t *testing.T) {
 				return map[string]any{}, nil
 			}}
 			s := testService(t, rpc)
-			s.winFsp = func() bool { return true }
+			s.mountAvailable = func() bool { return true }
 			c := testConnection()
 			c.Recovery = false
 			for letter := 'D'; letter <= 'Z'; letter++ {

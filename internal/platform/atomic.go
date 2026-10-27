@@ -3,8 +3,6 @@ package platform
 import (
 	"os"
 	"path/filepath"
-
-	"golang.org/x/sys/windows"
 )
 
 // AtomicWrite replaces a file only after its complete contents have been synced.
@@ -33,16 +31,4 @@ func atomicWrite(path string, data []byte, promote func(string, string) error) e
 		return closeErr
 	}
 	return promote(temp, path)
-}
-
-func createFile(src, dst string) error {
-	s, err := windows.UTF16PtrFromString(src)
-	if err != nil {
-		return err
-	}
-	d, err := windows.UTF16PtrFromString(dst)
-	if err != nil {
-		return err
-	}
-	return windows.MoveFileEx(s, d, windows.MOVEFILE_WRITE_THROUGH)
 }

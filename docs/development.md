@@ -1,5 +1,7 @@
 # SDrive development
 
+For Linux dependencies, packaging and native X11/Wayland checks, see the [Linux guide](linux.md#build-and-validation).
+
 This guide is for developers and maintainers. End users only need the installer. Repository documentation and source messages are written in English; see [localization](localization.md) for interface translations.
 
 Portable configuration and service icons are described in [portability and desktop preferences](portability-and-desktop.md), including focused validation boundaries.

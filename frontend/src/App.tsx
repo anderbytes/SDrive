@@ -221,7 +221,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             {t("+ New connection")}
           </button>
         </header>
-        {data && !data.settingsError && !data.letters.length && (
+        {data && !data.settingsError && data.platform !== "linux" && !data.letters.length && (
           <p role="status" className="alert warning">{t("No drive letters are available. Choose a new local subfolder or free a drive letter.")}</p>
         )}
         {error && !restoreConfirm && (
@@ -315,7 +315,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             </button>
           </div>
         )}
-        {data && !data.settingsError && !data.winFsp && (
+        {data && !data.settingsError && !(data.mountAvailable ?? data.winFsp) && (
           <div className="alert warning">
             <div>
               <strong>{t("Installation needs repair")}</strong>
@@ -513,9 +513,9 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
     {!info && !error && <LoadingStatus>{t("Loading component versions…")}</LoadingStatus>}
     {info && <dl className="about-versions">{([
       ["SDrive", info.appVersion], ["rclone (running)", info.rcloneVersion],
-      ["Windows", info.windowsVersion], ["WinFsp (installed)", info.winFspVersion],
+      [info.platform === "linux" ? "Linux" : "Windows", info.osVersion || info.windowsVersion], ["WinFsp (installed)", info.winFspVersion],
       ["WebView2 (installed)", info.webView2Version], ["Architecture", info.architecture],
-    ]).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
+    ]).filter(([label]) => info.platform !== "linux" || !["WinFsp (installed)", "WebView2 (installed)"].includes(label)).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
     <p>{t("Updates are installed manually. Use Exit safely and wait for uploads before running an installer.")}</p>
     <p>{t("Minimal diagnostics are kept locally with fixed limits. Nothing is sent automatically. Review the report before sharing.")}</p>
     <button disabled={loadingReport || copying} aria-live="polite" onClick={() => void loadReport()}>{loadingReport && <Spinner />}{t(loadingReport ? "Loading diagnostic report…" : "View diagnostics")}</button>
@@ -574,7 +574,7 @@ function Drive({
   onEdit: (auth: boolean) => void;
   onAppearanceSaved: () => void;
 }) {
-  const { t, language } = useLanguage();
+  const { t, language, platform } = useLanguage();
   const { used, total } = c.capacity;
   const usage = used !== null && total !== null && Number.isFinite(used) && Number.isFinite(total) && total > 0 && used >= 0 && used <= total
     ? used / total * 100 : null;
@@ -667,7 +667,7 @@ function Drive({
           }}>
             <button onClick={() => { closeMenu(); onDetailSelect({ connectionID: c.id, topic: "destination" }); }}>{t("Drive details")}</button>
             <button disabled={busy} onClick={() => { closeMenu(); setAppearance(true); }}>{t("Customize appearance")}</button>
-            <button disabled={busy || !c.mounted} onClick={() => { closeMenu(); setFileAccess(true); }}>{t("Applications using a file")}</button>
+            <button disabled={busy || !c.mounted || platform === "linux"} title={platform === "linux" ? t("File process inspection is unavailable on Linux.") : undefined} onClick={() => { closeMenu(); setFileAccess(true); }}>{t("Applications using a file")}</button>
           <button disabled={busy || !c.mounted} onClick={() => onAction(api.refreshDirectoryCache, "Refreshing directory metadata…", "Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.")}>{t("Refresh files in Explorer")}</button>
             <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>
               {t("Test access")}

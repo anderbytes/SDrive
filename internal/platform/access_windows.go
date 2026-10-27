@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func ProtectData(data []byte) ([]byte, error) {
+func ProtectData(_ string, data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty protected data")
 	}
@@ -22,7 +22,7 @@ func ProtectData(data []byte) ([]byte, error) {
 	return append([]byte(nil), unsafe.Slice(out.Data, out.Size)...), nil
 }
 
-func UnprotectData(data []byte) ([]byte, error) {
+func UnprotectData(_ string, data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty protected data")
 	}

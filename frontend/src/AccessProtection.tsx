@@ -11,7 +11,7 @@ import { LoadingStatus } from "./Spinner";
 const lockLimit = "The lock protects SDrive management controls. Drives that remain connected are still accessible in Explorer.";
 
 export function AccessBoundary({ children }: { children: (showLocked: () => void) => ReactNode }) {
-  const { t, setLanguage } = useLanguage();
+  const { t, setLanguage, setPlatform } = useLanguage();
   const { setTheme } = useTheme();
   const [status, setStatus] = useState<AccessStatus>();
   const [failure, setFailure] = useState("");
@@ -27,6 +27,7 @@ export function AccessBoundary({ children }: { children: (showLocked: () => void
       const next = await api.accessStatus();
       if (request !== generation.current) return;
       setStatus(next);
+      setPlatform(next.platform || "windows");
       setTheme((next.theme || "system") as Theme);
       setLanguage(isLanguage(next.language) ? next.language : "en");
       setFailure("");
@@ -95,7 +96,7 @@ function RecoveryCode({ code, onDone, hideButton = false }: { code: string; onDo
 }
 
 export function AccessSettings({ onClose }: { onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, setPlatform } = useLanguage();
   const formID = useId();
   const [status, setStatus] = useState<AccessStatus>();
   const [policy, setPolicy] = useState<AccessPolicy>({ idleMinutes: 15, disconnectIdle: false, reconnect: false });
@@ -109,7 +110,8 @@ export function AccessSettings({ onClose }: { onClose: () => void }) {
   const dialog = useDialog(() => { if (!busy && !code) onClose(); });
   useEffect(() => {
     active.current = true;
-    void api.accessStatus().then((next) => { if (active.current) { setStatus(next); setPolicy(next.policy); } }).catch((e) => { if (active.current) setError(t(errorMessage(e))); });
+    void api.accessStatus().then((next) => { if (active.current) { setStatus(next);
+      setPlatform(next.platform || "windows"); setPolicy(next.platform === "linux" ? { idleMinutes: 0, disconnectIdle: false, reconnect: false } : next.policy); } }).catch((e) => { if (active.current) setError(t(errorMessage(e))); });
     return () => { active.current = false; };
   }, []);
   return <DialogLayout dialogRef={dialog} titleID="access-settings-title" title={t("Application lock")} onClose={onClose} closeDisabled={busy || !!code}
@@ -136,12 +138,13 @@ export function AccessSettings({ onClose }: { onClose: () => void }) {
       <SecretInput label={t("New PIN")} value={pin} required={!status?.enabled} onChange={setPIN} />
       <SecretInput label={t("Confirm new PIN")} value={confirmation} required={!!pin} onChange={setConfirmation} />
       <p>{t("Use 6 to 12 digits. Leave the new PIN empty to keep the existing PIN.")}</p>
-      <label>{t("Lock after computer inactivity (minutes; 0 disables)")}<input type="number" min="0" max="1440" required value={policy.idleMinutes} onChange={(e) => {
+      {status?.platform === "linux" && <p>{t("Global inactivity automation is unavailable on Linux. You can lock SDrive manually.")}</p>}
+      <fieldset disabled={status?.platform === "linux"}><label>{t("Lock after computer inactivity (minutes; 0 disables)")}<input type="number" min="0" max="1440" required value={policy.idleMinutes} onChange={(e) => {
         const idleMinutes = Number(e.target.value); setPolicy({ ...policy, idleMinutes, disconnectIdle: idleMinutes > 0 && policy.disconnectIdle, reconnect: idleMinutes > 0 && policy.reconnect });
       }} /></label>
       <label className="check"><input type="checkbox" disabled={!policy.idleMinutes} checked={policy.disconnectIdle} onChange={(e) => setPolicy({ ...policy, disconnectIdle: e.target.checked, reconnect: e.target.checked && policy.reconnect })} />{t("Disconnect safely after inactivity")}</label>
       <label className="check"><input type="checkbox" disabled={!policy.disconnectIdle} checked={policy.reconnect} onChange={(e) => setPolicy({ ...policy, reconnect: e.target.checked })} />{t("Reconnect idle-disconnected drives after unlock")}</label>
-      <p>{t("Open files, pending uploads or unknown cache state may prevent disconnection. Sign-in or recovery may be required after unlocking.")}</p>
+      <p>{t("Open files, pending uploads or unknown cache state may prevent disconnection. Sign-in or recovery may be required after unlocking.")}</p></fieldset>
     </fieldset></form>}
   </DialogLayout>;
 }

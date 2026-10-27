@@ -24,16 +24,16 @@ func TestFileAccessUnavailableNeverReportsAnUnusedFile(t *testing.T) {
 }
 
 func TestAccessRecordProtectionRoundTripAndTamperRejection(t *testing.T) {
-	sealed, err := ProtectData([]byte("synthetic record"))
+	sealed, err := ProtectData(t.TempDir(), []byte("synthetic record"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	plain, err := UnprotectData(sealed)
+	plain, err := UnprotectData(t.TempDir(), sealed)
 	if err != nil || string(plain) != "synthetic record" {
 		t.Fatal("protected record did not round trip")
 	}
 	sealed[len(sealed)-1] ^= 1
-	if _, err = UnprotectData(sealed); err == nil {
+	if _, err = UnprotectData(t.TempDir(), sealed); err == nil {
 		t.Fatal("tampered record accepted")
 	}
 }

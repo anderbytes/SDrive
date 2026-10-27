@@ -46,7 +46,7 @@ func (s *Service) Diagnostics() string {
 	b.WriteString("SDrive diagnostic report v1\nNo credentials, account names, destinations or file contents are included.\n")
 	for _, item := range []struct{ name, version string }{
 		{"SDrive", info.AppVersion}, {"rclone (running)", info.RcloneVersion},
-		{"Windows", info.WindowsVersion}, {"WinFsp (installed)", info.WinFspVersion}, {"WebView2 (installed)", info.WebView2Version},
+		{"Operating system", info.OSVersion}, {"WinFsp (installed)", info.WinFspVersion}, {"WebView2 (installed)", info.WebView2Version},
 	} {
 		fmt.Fprintf(&b, "%s: %s\n", item.name, diagnostics.Version(item.version))
 	}

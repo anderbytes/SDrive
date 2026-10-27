@@ -20,6 +20,7 @@ func selfCheck() error {
 		return err
 	}
 	defer os.RemoveAll(dir)
+	defer platform.CleanupProbeKey(dir)
 	if err = platform.ProtectDir(dir); err != nil {
 		return err
 	}
@@ -75,12 +76,12 @@ func selfCheck() error {
 	}
 	hasWinFsp := false
 	for _, kind := range mountTypes.MountTypes {
-		if kind == "cmount" {
+		if kind == platform.MountType {
 			hasWinFsp = true
 		}
 	}
 	if !hasWinFsp {
-		return fmt.Errorf("the engine was built without WinFsp mounting support")
+		return fmt.Errorf("the engine was built without native mounting support")
 	}
 	probe := filepath.Join(dir, "probe.txt")
 	if err = os.WriteFile(probe, []byte("sdrive-engine-check"), 0600); err != nil {
@@ -103,5 +104,5 @@ func selfCheck() error {
 	if bytes.Contains(conf, []byte(key)) {
 		return fmt.Errorf("key found in plain text")
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"profiles": len(core.Catalog()), "encryptedConfig": true, "dpapi": true, "authenticatedRPC": true, "winFsp": platform.WinFspInstalled(), "rclone": engine.Version})
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"profiles": len(core.Catalog()), "encryptedConfig": true, "credentialStore": platform.CredentialStore, "dpapi": platform.OS == "windows", "winFsp": platform.WinFspInstalled(), "authenticatedRPC": true, "mountAvailable": platform.MountAvailable(), "rclone": engine.Version})
 }

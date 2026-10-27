@@ -199,7 +199,7 @@
       "args": [
         "string"
       ],
-      "name": "OpenExplorer",
+      "name": "OpenMount",
       "returns": [
         "error"
       ]
@@ -413,7 +413,9 @@
       "windowsVersion": "",
       "winFspVersion": "",
       "webView2Version": "",
-      "architecture": ""
+      "architecture": "",
+      "platform": "",
+      "osVersion": ""
     },
     "accessStatus": {
       "setupPending": false,
@@ -428,7 +430,9 @@
       "retryAt": "2026-01-01T00:00:00Z",
       "error": "",
       "warning": "",
-      "theme": "system"
+      "theme": "system",
+      "platform": "",
+      "globalIdle": false
     },
     "configInput": {
       "importDraftID": "draft",
@@ -716,7 +720,9 @@
         "retryAt": "0001-01-01T00:00:00Z",
         "error": "",
         "warning": "",
-        "theme": ""
+        "theme": "",
+        "platform": "",
+        "globalIdle": false
       },
       "desktopWarning": "",
       "importDrafts": [],
@@ -742,7 +748,9 @@
       "maintenanceError": "",
       "startupWarning": "",
       "freeBytes": null,
-      "cacheLocation": ""
+      "cacheLocation": "",
+      "platform": "",
+      "mountAvailable": false
     },
     "snapshotFilled": {
       "access": {
@@ -758,7 +766,9 @@
         "retryAt": "0001-01-01T00:00:00Z",
         "error": "",
         "warning": "",
-        "theme": ""
+        "theme": "",
+        "platform": "",
+        "globalIdle": false
       },
       "desktopWarning": "",
       "importDrafts": [],
@@ -882,7 +892,9 @@
       "maintenanceError": "",
       "startupWarning": "",
       "freeBytes": 1024,
-      "cacheLocation": ""
+      "cacheLocation": "",
+      "platform": "",
+      "mountAvailable": false
     }
   }
 }

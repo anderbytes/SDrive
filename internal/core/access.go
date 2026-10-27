@@ -16,7 +16,7 @@ import (
 	"sdrive/internal/platform"
 )
 
-const accessFile = "application-lock.dpapi"
+const accessFile = platform.AccessFile
 
 type AccessPolicy struct {
 	IdleMinutes    int  `json:"idleMinutes"`
@@ -25,6 +25,8 @@ type AccessPolicy struct {
 }
 
 type AccessStatus struct {
+	Platform     string       `json:"platform"`
+	GlobalIdle   bool         `json:"globalIdle"`
 	Theme        string       `json:"theme"`
 	SetupPending bool         `json:"setupPending"`
 	Language     string       `json:"language"`
@@ -98,7 +100,7 @@ func (s *Service) loadAccess() {
 	s.access.locked = true
 	s.access.startupPending = true
 	if err == nil && len(b) <= 16384 {
-		b, err = platform.UnprotectData(b)
+		b, err = platform.UnprotectData(s.dir, b)
 		var record accessRecord
 		if err == nil && json.Unmarshal(b, &record) == nil && record.Version == 1 && len(record.Salt) == 16 && len(record.PIN) == 32 && len(record.Recovery) == 32 && record.Failures >= 0 && record.Failures <= 64 && validAccessPolicy(record.Policy) {
 			s.access.record = &record
@@ -111,7 +113,7 @@ func (s *Service) loadAccess() {
 func (s *Service) saveAccess(record accessRecord) error {
 	b, err := json.Marshal(record)
 	if err == nil {
-		b, err = platform.ProtectData(b)
+		b, err = platform.ProtectData(s.dir, b)
 	}
 	if err == nil {
 		err = atomicWrite(filepath.Join(s.dir, accessFile), b)
@@ -144,7 +146,7 @@ func (s *Service) AccessStatus() AccessStatus {
 }
 
 func (s *Service) accessStatus() AccessStatus {
-	status := AccessStatus{Theme: s.store.Settings.Theme, SetupPending: !s.access.locked && s.session != nil, Language: s.store.Settings.Language, Enabled: s.access.record != nil || s.store.AccessProtected || s.access.error != "", Locked: s.access.locked, Error: s.access.error, Warning: s.access.warning, Policy: AccessPolicy{IdleMinutes: 15}}
+	status := AccessStatus{Platform: platform.OS, GlobalIdle: platform.GlobalIdleSupported, Theme: s.store.Settings.Theme, SetupPending: !s.access.locked && s.session != nil, Language: s.store.Settings.Language, Enabled: s.access.record != nil || s.store.AccessProtected || s.access.error != "", Locked: s.access.locked, Error: s.access.error, Warning: s.access.warning, Policy: AccessPolicy{IdleMinutes: platform.DefaultIdleMinutes}}
 	if r := s.access.record; r != nil {
 		status.Policy, status.RetryAt = r.Policy, r.RetryAt
 	}
@@ -152,7 +154,7 @@ func (s *Service) accessStatus() AccessStatus {
 }
 
 func (s *Service) lockedView() View {
-	return View{Access: s.accessStatus(), Settings: Settings{Language: s.store.Settings.Language, Theme: s.store.Settings.Theme}, Providers: []Provider{}, Connections: []ConnectionView{}, ImportDrafts: []ImportDraft{}, Letters: []string{}}
+	return View{Platform: platform.OS, Access: s.accessStatus(), Settings: Settings{Language: s.store.Settings.Language, Theme: s.store.Settings.Theme}, Providers: []Provider{}, Connections: []ConnectionView{}, ImportDrafts: []ImportDraft{}, Letters: []string{}}
 }
 
 func (s *Service) lockManagement() {
@@ -222,7 +224,7 @@ func newAccessRecord(pin string, policy AccessPolicy) (accessRecord, string, err
 	if !validPIN(pin) {
 		return accessRecord{}, "", fmt.Errorf("Enter a PIN containing 6 to 12 digits.")
 	}
-	if !validAccessPolicy(policy) {
+	if !validAccessPolicy(policy) || (!platform.GlobalIdleSupported && policy.IdleMinutes != 0) {
 		return accessRecord{}, "", fmt.Errorf("Choose a valid inactivity policy between 0 and 1440 minutes.")
 	}
 	r := accessRecord{Version: 1, Salt: make([]byte, 16), Policy: policy}
@@ -253,7 +255,7 @@ func (s *Service) ConfigureAccess(currentPIN, newPIN string, policy AccessPolicy
 	if err := s.persistenceReady(); err != nil {
 		return "", err
 	}
-	if !validAccessPolicy(policy) {
+	if !validAccessPolicy(policy) || (!platform.GlobalIdleSupported && policy.IdleMinutes != 0) {
 		return "", fmt.Errorf("Choose a valid inactivity policy between 0 and 1440 minutes.")
 	}
 	if s.access.record != nil {

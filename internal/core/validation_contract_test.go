@@ -45,7 +45,7 @@ func TestStructuredMountErrorSnapshotAndRecoveryExit(t *testing.T) {
 	s := testService(t, nil)
 	connection := testConnection()
 	s.store.Connections = []Connection{connection}
-	s.winFsp = func() bool { return true }
+	s.mountAvailable = func() bool { return true }
 	s.driveUsed = func(string) bool { return true }
 	err := s.Mount(connection.ID)
 	if message := i18n.MessageOf(err); message == nil || message.Code != "drive.letter_in_use" || err.Error() != "letter S: is already in use" {

@@ -27,7 +27,7 @@ export function useConnectionWizard({
   const { t } = useLanguage();
   const serviceMethods = methods(data.providers);
   const firstBasic = serviceMethods.find((m) => !m.advanced);
-  const [connection, setConnection] = useState(initial.id || importDraft ? initial : { ...initial, provider: firstBasic?.provider.id || data.providers[0].id, authMethod: firstBasic?.authMethod || "oauth" });
+  const [connection, setConnection] = useState(initial.id || importDraft ? initial : { ...initial, ...(data.platform === "linux" ? { letter: "", mountFolder: "", mountMode: "local" } : {}), provider: firstBasic?.provider.id || data.providers[0].id, authMethod: firstBasic?.authMethod || "oauth" });
   const [category, setCategory] = useState((initial.id || importDraft) && data.providers.find((p) => p.id === initial.provider)?.oauth && initial.authMethod !== "serviceAccount" ? "advanced" : "basic");
   const [browsers, setBrowsers] = useState<Browser[]>([{ id: "", name: "Default browser" }]);
   const [forgetCredentials, setForgetCredentials] = useState(false);

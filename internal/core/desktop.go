@@ -9,6 +9,8 @@ import (
 )
 
 type AboutInfo struct {
+	Platform        string `json:"platform"`
+	OSVersion       string `json:"osVersion"`
 	AppVersion      string `json:"appVersion"`
 	RcloneVersion   string `json:"rcloneVersion"`
 	WindowsVersion  string `json:"windowsVersion"`
@@ -37,7 +39,10 @@ func (s *Service) About() AboutInfo {
 	rpc, version := s.rpc, s.appVersion
 	s.mu.Unlock()
 	windowsVersion, winFsp, webView := platform.ComponentVersions()
-	info := AboutInfo{AppVersion: version, WindowsVersion: windowsVersion, WinFspVersion: winFsp, WebView2Version: webView, Architecture: runtime.GOARCH}
+	info := AboutInfo{Platform: platform.OS, OSVersion: windowsVersion, AppVersion: version, WindowsVersion: windowsVersion, WinFspVersion: winFsp, WebView2Version: webView, Architecture: runtime.GOARCH}
+	if platform.OS != "windows" {
+		info.WindowsVersion = ""
+	}
 	if rpc != nil && rpc.Alive() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()

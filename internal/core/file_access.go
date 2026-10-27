@@ -21,6 +21,9 @@ func SetFileAccessPicker(s *Service, picker func(string) (string, error)) { s.pi
 // InspectFileAccess accepts only a relative file in the currently mounted connection.
 // An empty path asks the native picker; neither path is stored in diagnostics.
 func (s *Service) InspectFileAccess(id, relative string) (FileAccessView, error) {
+	if platform.OS == "linux" {
+		return FileAccessView{}, fmt.Errorf("File process inspection is unavailable on Linux.")
+	}
 	s.mu.Lock()
 	if err := s.requireUnlocked(); err != nil {
 		s.mu.Unlock()

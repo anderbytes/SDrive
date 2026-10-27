@@ -2578,3 +2578,15 @@ test.each(["en", "pt-BR"] as const)("cards keep full paths, a bold mount prefix 
   fireEvent.click(open);
   await waitFor(() => expect(api.open).toHaveBeenCalledWith(mounted.id));
 });
+
+test("Linux uses folder destinations without a missing-drive-letter warning", async () => {
+ vi.mocked(api.accessStatus).mockResolvedValue({ ...access, platform: "linux", globalIdle: false });
+ vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, platform: "linux", mountAvailable: true, winFsp: false, letters: [], connections: [], cacheLocation: "/home/synthetic/.local/share/SDrive/cache" });
+ render(<App />);
+ await screen.findByText("Your cloud files, right in your file manager.");
+ expect(screen.queryByText("No drive letters are available. Choose a new local subfolder or free a drive letter.")).toBeNull();
+ expect(screen.queryByText("Required components unavailable")).toBeNull();
+ fireEvent.click(screen.getByRole("button", { name: "+ New connection" }));
+ await screen.findByRole("dialog");
+ expect(screen.queryByLabelText("Windows drive letter")).toBeNull();
+});

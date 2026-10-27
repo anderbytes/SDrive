@@ -48,10 +48,10 @@ func (s *Service) reconcileDesktopAppearance() {
 func (s *Service) mountDesktopActions(id string) {
 	s.reconcileDesktopAppearance()
 	s.mu.Lock()
-	open := s.store.Settings.OpenExplorerAfterConnect
+	open := s.store.Settings.OpenMountAfterConnect
 	s.mu.Unlock()
 	if open {
-		err := s.OpenExplorer(id)
+		err := s.OpenMount(id)
 		s.mu.Lock()
 		s.explorerWarning = ""
 		if err != nil {

@@ -215,7 +215,7 @@ func TestIdleReconnectStillRequiresSessionAuthentication(t *testing.T) {
 	c.SessionOnly = true
 	s.store.Connections = []Connection{c}
 	s.access.reconnect = []string{c.ID}
-	s.winFsp = func() bool { return true }
+	s.mountAvailable = func() bool { return true }
 	s.driveUsed = func(string) bool { return false }
 	s.startConnection = func(Connection, string) (RPC, error) {
 		t.Fatal("reconnect bypassed session authentication")

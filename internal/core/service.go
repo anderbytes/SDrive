@@ -20,6 +20,8 @@ type RPC interface {
 	Alive() bool
 }
 type View struct {
+	Platform         string           `json:"platform"`
+	MountAvailable   bool             `json:"mountAvailable"`
 	Access           AccessStatus     `json:"access"`
 	DesktopWarning   string           `json:"desktopWarning"`
 	ImportDrafts     []ImportDraft    `json:"importDrafts"`
@@ -77,7 +79,7 @@ type Service struct {
 	maintenanceError     string
 	startupWarning       string
 	autoStart            func(bool) error
-	winFsp               func() bool
+	mountAvailable       func() bool
 	driveUsed            func(string) bool
 	engineError          string
 	mounted              map[string]bool
@@ -107,7 +109,7 @@ type Service struct {
 
 func New(dir string, rpc RPC, engineError string) (*Service, error) {
 	store, loadErr := loadStore(dir)
-	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, winFsp: platform.WinFspInstalled, driveUsed: platform.DriveUsed, mounted: map[string]bool{}, busy: map[string]bool{}, operations: map[string]string{}, errors: map[string]string{}}
+	s := &Service{dir: dir, store: store, rpc: rpc, engineError: engineError, autoStart: platform.AutoStart, mountAvailable: platform.MountAvailable, driveUsed: platform.DriveUsed, mounted: map[string]bool{}, busy: map[string]bool{}, operations: map[string]string{}, errors: map[string]string{}}
 	if location, err := readCacheLocation(dir); err == nil {
 		s.cacheRoot = location.Path
 	} else if !os.IsNotExist(err) {
@@ -227,7 +229,9 @@ func (s *Service) Snapshot() (v View) {
 	snapshotID := s.snapshotID
 	rpc := s.rpc
 	_, backupErr := s.backupStore()
-	v = View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.winFsp(), EngineError: s.engineError}
+	v = View{SettingsError: s.settingsError, BackupAvailable: backupErr == nil && !s.incompatibleSettings, RecoveryHold: s.recoveryHold, MaintenanceError: s.maintenanceError, StartupWarning: s.startupWarning, Providers: Catalog(), Connections: []ConnectionView{}, Settings: s.store.Settings, Letters: []string{}, WinFsp: s.mountAvailable(), EngineError: s.engineError}
+	v.Platform, v.MountAvailable = platform.OS, s.mountAvailable()
+	v.WinFsp = platform.OS == "windows" && v.MountAvailable
 	v.CacheLocation = s.dataPath()
 	v.ImportDrafts = append([]ImportDraft{}, s.store.ImportDrafts...)
 	v.DesktopWarning = s.desktopWarnings()
@@ -244,7 +248,7 @@ func (s *Service) Snapshot() (v View) {
 		reserved[c.Letter] = true
 	}
 	for letter := 'D'; letter <= 'Z'; letter++ {
-		if !s.driveUsed(string(letter)) && !reserved[string(letter)] {
+		if platform.OS == "windows" && !s.driveUsed(string(letter)) && !reserved[string(letter)] {
 			v.Letters = append(v.Letters, string(letter))
 		}
 	}
@@ -298,7 +302,7 @@ func (s *Service) Snapshot() (v View) {
 					cv.Error = "drive was unexpectedly unmounted; use Connect to recover pending files"
 				}
 				if active && !s.mountPresent(cv.Connection) {
-					cv.Error = "Engine reports a mount but the Windows destination is unavailable; try Disconnect and preserve the cache."
+					cv.Error = "Engine reports a mount but the destination is unavailable; try Disconnect and preserve the cache."
 				}
 				if !active && s.mountPresent(cv.Connection) {
 					cv.Error = "Mount destination is occupied outside this connection; preserve the cache."
@@ -574,7 +578,7 @@ func (s *Service) TestConnection(id string) error {
 	}
 	return nil
 }
-func (s *Service) OpenExplorer(id string) error {
+func (s *Service) OpenMount(id string) error {
 	s.mu.Lock()
 	if err := s.requireUnlocked(); err != nil {
 		s.mu.Unlock()

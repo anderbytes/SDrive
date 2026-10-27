@@ -85,8 +85,8 @@ func (s *Service) SaveSettings(settings Settings) error {
 	if err := saveStore(s.dir, s.store); err != nil {
 		s.store.Settings = old
 		if rollbackErr := s.setAutoStart(old.AutoStart); rollbackErr != nil {
-			s.startupWarning = "Windows startup may differ from saved preferences. Save preferences to reconcile it."
-			return fmt.Errorf("could not save preferences: %w; Windows startup rollback also failed: %v", err, rollbackErr)
+			s.startupWarning = "sign-in startup may differ from saved preferences. Save preferences to reconcile it."
+			return fmt.Errorf("could not save preferences: %w; sign-in startup rollback also failed: %v", err, rollbackErr)
 		}
 		return err
 	}

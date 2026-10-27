@@ -63,7 +63,7 @@ func bridgeMethods() map[string]any {
 		"begin": "BeginConfig", "status": "ConfigStatus", "answer": "AnswerConfig", "end": "EndConfig",
 		"folders": "ListConfigFolders", "confirm": "ConfirmConfig", "selectFile": "SelectCredentialFile",
 		"mount": "Mount", "unmount": "Unmount", "test": "TestConnection", "remove": "Remove",
-		"update": "UpdateConnection", "fields": "ConnectionFields", "settings": "SaveSettings", "open": "OpenExplorer",
+		"update": "UpdateConnection", "fields": "ConnectionFields", "settings": "SaveSettings", "open": "OpenMount",
 		"prerequisite": "Prerequisite", "probe": "ProbeSSH", "exit": "Exit", "restart": "RestartEngine",
 		"restoreSettings": "RestoreSettings", "verifyRecovery": "VerifyRecovery", "retryCleanup": "RetryCleanup",
 	}

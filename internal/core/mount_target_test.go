@@ -183,11 +183,11 @@ func TestExplorerUsesTheSavedFolderMountDestination(t *testing.T) {
 	s.mounted[c.ID] = true
 	opened := ""
 	s.open = func(target string) error { opened = target; return nil }
-	if err := s.OpenExplorer(c.ID); err != nil || opened != c.MountFolder {
+	if err := s.OpenMount(c.ID); err != nil || opened != c.MountFolder {
 		t.Fatal("Explorer received the wrong folder mount")
 	}
 	s.mounted[c.ID] = false
-	if err := s.OpenExplorer(c.ID); err == nil {
+	if err := s.OpenMount(c.ID); err == nil {
 		t.Fatal("Explorer opened a disconnected folder")
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"sdrive/internal/platform"
@@ -218,7 +217,7 @@ func (s *Service) changeCacheLocation(path string, restoreDefault bool) error {
 	if err := s.persistenceReady(); err != nil {
 		return err
 	}
-	if restoreDefault && strings.EqualFold(path, s.dataPath()) {
+	if restoreDefault && mountKey(path) == mountKey(s.dataPath()) {
 		return nil
 	}
 	if s.session != nil || s.recoveryHold || s.exiting {
@@ -244,7 +243,7 @@ func (s *Service) changeCacheLocation(path string, restoreDefault bool) error {
 	if err != nil {
 		return err
 	}
-	if pathsOverlap(path, s.dir) && !(restoreDefault && strings.EqualFold(path, filepath.Join(s.dir, "cache"))) {
+	if pathsOverlap(path, s.dir) && !(restoreDefault && mountKey(path) == mountKey(filepath.Join(s.dir, "cache"))) {
 		return fmt.Errorf("Choose an empty cache directory outside the profile.")
 	}
 	for _, c := range s.store.Connections {

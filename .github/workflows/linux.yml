@@ -1,0 +1,57 @@
+name: Linux
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['ubuntu:24.04', 'debian:13']
+    container:
+      image: ${{ matrix.image }}
+      options: --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor=unconfined
+    steps:
+      - name: Install build and native test dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y git ca-certificates build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev dpkg-dev zip fuse3 xdg-utils dbus-x11 gnome-keyring libsecret-tools xvfb xauth weston procps zenity desktop-file-utils
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.10'
+          cache: false
+      - name: Build, keyring, FUSE and native X11/Wayland checks
+        shell: bash
+        run: |
+          useradd --create-home --uid 1001 sdrive
+          chown -R sdrive:sdrive "$GITHUB_WORKSPACE"
+          chmod a+rw /dev/fuse
+          chmod +x scripts/build-linux.sh scripts/test-linux.sh
+          runuser -u sdrive -- env PATH="$PATH" HOME=/home/sdrive GOPATH=/home/sdrive/go GOCACHE=/home/sdrive/.cache/go-build dbus-run-session -- bash -c '
+            printf "\n" | gnome-keyring-daemon --unlock --components=secrets
+            ./scripts/build-linux.sh --check
+          '
+      - name: Verify package installation and removal
+        shell: bash
+        run: |
+          dpkg -i bin/linux-amd64/*.deb
+          desktop-file-validate /usr/share/applications/org.sdrive.SDrive.desktop
+          runuser -u sdrive -- dbus-run-session -- bash -c '
+            printf "\n" | gnome-keyring-daemon --unlock --components=secrets
+            /usr/lib/sdrive/SDrive --self-check
+          '
+          dpkg --remove sdrive
+          cd bin/linux-amd64
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SDrive-linux-amd64-${{ strategy.job-index }}
+          if-no-files-found: error
+          path: bin/linux-amd64/

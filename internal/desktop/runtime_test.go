@@ -33,6 +33,9 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
+	if nativeSmokeCommand() {
+		return
+	}
 	os.Exit(m.Run())
 }
 

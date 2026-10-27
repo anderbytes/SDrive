@@ -47,15 +47,15 @@ type Connection struct {
 	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
-	DriveStripeColorSource   string `json:"driveStripeColorSource,omitempty"`
-	Theme                    string `json:"theme"`
-	OpenExplorerAfterConnect bool   `json:"openExplorerAfterConnect"`
-	ShowServiceIcons         bool   `json:"showServiceIcons"`
-	Language                 string `json:"language"`
-	AutoStart                bool   `json:"autoStart"`
-	CacheGiB                 int    `json:"cacheGiB"`
-	CacheMaxAgeHours         *int   `json:"cacheMaxAgeHours,omitempty"`
-	WriteBackSeconds         *int   `json:"writeBackSeconds,omitempty"`
+	DriveStripeColorSource string `json:"driveStripeColorSource,omitempty"`
+	Theme                  string `json:"theme"`
+	OpenMountAfterConnect  bool   `json:"openExplorerAfterConnect"`
+	ShowServiceIcons       bool   `json:"showServiceIcons"`
+	Language               string `json:"language"`
+	AutoStart              bool   `json:"autoStart"`
+	CacheGiB               int    `json:"cacheGiB"`
+	CacheMaxAgeHours       *int   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds       *int   `json:"writeBackSeconds,omitempty"`
 }
 type Store struct {
 	AccessProtected bool          `json:"accessProtected,omitempty"`

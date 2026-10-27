@@ -277,7 +277,11 @@ func (d *desktop) trayMenu(view core.View, access core.AccessStatus) *applicatio
 			target = c.MountFolder
 		}
 		submenu := menu.AddSubmenu(strings.ReplaceAll(c.Name+" ("+target+")", "&", "&&"))
-		submenu.Add(t("Open in Explorer")).SetEnabled(c.Mounted && !busy).OnClick(func(*application.Context) { d.action(c.ID, func() error { return d.service.OpenExplorer(c.ID) }) })
+		openLabel := "Open in Explorer"
+		if platform.OS == "linux" {
+			openLabel = "Open in file manager"
+		}
+		submenu.Add(t(openLabel)).SetEnabled(c.Mounted && !busy).OnClick(func(*application.Context) { d.action(c.ID, func() error { return d.service.OpenMount(c.ID) }) })
 		label := "Connect"
 		if c.Mounted {
 			label = "Disconnect"
@@ -297,11 +301,21 @@ func (d *desktop) trayMenu(view core.View, access core.AccessStatus) *applicatio
 }
 
 func (d *desktop) updateTray() {
-	if d.stopped.Load() {
+	if d.stopped.Load() || d.tray == nil {
 		return
+	}
+	if platform.OS == "linux" && !platform.TrayAvailable() && !d.visible.Load() {
+		d.show()
 	}
 	view := d.latest()
 	status := statusForTray(view)
+	if platform.OS == "linux" {
+		if d.menu != nil {
+			d.menu.Destroy()
+		}
+		d.menu = d.trayMenu(view, d.service.AccessStatus())
+		d.tray.SetMenu(d.menu)
+	}
 	if d.iconState != status.State {
 		colors := map[string]color.RGBA{"Disconnected": {128, 140, 145, 255}, "Connected": {33, 185, 147, 255}, "Uploading or working": {65, 150, 230, 255}, "Recovery or unknown status": {235, 175, 40, 255}, "Attention required": {225, 75, 75, 255}}
 		d.tray.SetIcon(trayIconColor(colors[status.State]))
@@ -333,11 +347,19 @@ func setupDesktop(app *application.App, window *application.WebviewWindow, servi
 		application.InvokeAsync(overlay.render)
 		go service.Snapshot()
 	})
-	d.tray = app.SystemTray.New()
-	d.tray.SetIcon(trayIcon())
-	d.tray.SetTooltip("SDrive")
-	d.tray.OnClick(func() { application.InvokeAsync(d.show) })
-	d.tray.OnRightClick(func() { application.InvokeAsync(d.openMenu) })
+	if platform.TrayAvailable() {
+		d.tray = app.SystemTray.New()
+		d.tray.SetIcon(trayIcon())
+		d.tray.SetTooltip("SDrive")
+		d.tray.OnClick(func() { application.InvokeAsync(d.show) })
+		if platform.OS == "windows" {
+			d.tray.OnRightClick(func() { application.InvokeAsync(d.openMenu) })
+		}
+		if platform.OS == "linux" {
+			d.menu = d.trayMenu(service.Snapshot(), service.AccessStatus())
+			d.tray.SetMenu(d.menu)
+		}
+	}
 	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		event.Cancel()
 		application.InvokeAsync(func() {
@@ -346,6 +368,11 @@ func setupDesktop(app *application.App, window *application.WebviewWindow, servi
 			}
 			d.captureGeometry()
 			d.saveGeometry()
+			if platform.OS == "linux" && (d.tray == nil || !platform.TrayAvailable()) {
+				window.Minimise()
+				d.visibility(false)
+				return
+			}
 			window.Hide()
 			d.visibility(false)
 		})

@@ -17,6 +17,9 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	if processProbeCommand() {
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "rcd" && os.Getenv("SDRIVE_DIAGNOSTIC_HELPER") != "" {
 		diagnosticProcessHelper()
 		return
@@ -139,7 +142,7 @@ func TestConfigurationJobProtocolWithRclone(t *testing.T) {
 	if os.Getenv("SDRIVE_TEST_ENGINE") != "1" {
 		t.Skip("set SDRIVE_TEST_ENGINE=1 for disposable real-engine checks")
 	}
-	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", "rclone.exe"))
+	binary, err := filepath.Abs(filepath.Join("..", "..", ".tools", "rclone", binaryName()))
 	if err != nil {
 		t.Fatal(err)
 	}

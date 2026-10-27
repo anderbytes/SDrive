@@ -6,7 +6,6 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
-	"github.com/wailsapp/wails/v3/pkg/w32"
 	"sdrive/internal/core"
 )
 
@@ -47,18 +46,7 @@ func (o *disconnectOverlay) update(progress core.DisconnectProgress) {
 	o.last[progress.ID] = progress.Sequence
 	o.entries[progress.ID] = disconnectEntry{DisconnectProgress: progress}
 	if o.window == nil {
-		foreground := w32.GetForegroundWindow()
-		o.window = o.desktop.app.Window.NewWithOptions(application.WebviewWindowOptions{
-			Name: disconnectWindowName, Title: "SDrive", URL: "/?view=disconnect-progress",
-			Width: 380, Height: 280, Hidden: true, Frameless: true, AlwaysOnTop: true,
-			DisableResize: true, DefaultContextMenuDisabled: true,
-			Windows: application.WindowsWindow{HiddenOnTaskbar: true,
-				ExStyle: w32.WS_EX_CONTROLPARENT | w32.WS_EX_TOOLWINDOW | w32.WS_EX_TOPMOST | w32.WS_EX_NOACTIVATE},
-		})
-		// Wails applies the frameless frame with an activating SetWindowPos during creation.
-		if foreground != 0 && w32.GetForegroundWindow() == w32.HWND(uintptr(o.window.NativeWindow())) {
-			w32.SetForegroundWindow(foreground)
-		}
+		o.window = newDisconnectWindow(o.desktop.app)
 		o.window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 			event.Cancel()
 			application.InvokeAsync(func() { o.dismissCompleted(); o.render() })
@@ -136,19 +124,7 @@ func (o *disconnectOverlay) render() {
 		o.window.SetBounds(disconnectBounds(screen.WorkArea))
 	}
 	if !o.window.IsVisible() {
-		// Suppress activation only while showing; clicks and keyboard focus remain available.
-		foreground := w32.GetForegroundWindow()
-		handle := w32.HWND(uintptr(o.window.NativeWindow()))
-		style := w32.GetWindowLongPtr(handle, w32.GWL_EXSTYLE)
-		w32.SetWindowLongPtr(handle, w32.GWL_EXSTYLE, style|w32.WS_EX_NOACTIVATE)
-		o.window.Show()
-		if !o.window.IsVisible() {
-			o.window.Show()
-		}
-		w32.SetWindowLongPtr(handle, w32.GWL_EXSTYLE, style&^w32.WS_EX_NOACTIVATE)
-		if foreground != 0 && w32.GetForegroundWindow() == handle {
-			w32.SetForegroundWindow(foreground)
-		}
+		showDisconnectWindow(o.window)
 	}
 	var next time.Time
 	for _, entry := range o.entries {

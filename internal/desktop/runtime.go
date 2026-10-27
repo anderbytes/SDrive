@@ -34,7 +34,7 @@ func Run(assets fs.FS, prerequisiteManifest, packageMetadata []byte, smoke strin
 		return
 	}
 	if err = platform.ProtectDir(dir); err != nil {
-		platform.Alert("Could not restrict the data directory to the Windows user.")
+		platform.Alert("Could not restrict the data directory to your user.")
 		return
 	}
 	instanceID, err := platform.InstanceID(dir)
@@ -80,6 +80,7 @@ func Run(assets fs.FS, prerequisiteManifest, packageMetadata []byte, smoke strin
 			application.InvokeAsync(show)
 		}
 	}}}
+	options.Linux.ApplicationID = "org.sdrive.SDrive"
 	options.Windows.AdditionalBrowserArgs = smokeBrowserArgs(smoke)
 	app := application.New(options)
 	service, err := core.New(dir, nil, "")
@@ -148,7 +149,7 @@ func Run(assets fs.FS, prerequisiteManifest, packageMetadata []byte, smoke strin
 	})
 	defer core.CloseConnectionEngines(service)
 	core.StartEngine(service)
-	hidden := len(os.Args) > 1 && os.Args[1] == "--background" && service.Snapshot().SettingsError == ""
+	hidden := platform.TrayAvailable() && len(os.Args) > 1 && os.Args[1] == "--background" && service.Snapshot().SettingsError == ""
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "SDrive", Width: 1180, Height: 800, MinWidth: 850, MinHeight: 620, Hidden: hidden})
 	core.SetFilePicker(service, func(kind string) (string, error) {
 		dialog := app.Dialog.OpenFile().AttachToWindow(window).SetTitle(i18n.Text(core.Language(service), "Select credential file"))
@@ -190,7 +191,11 @@ func Run(assets fs.FS, prerequisiteManifest, packageMetadata []byte, smoke strin
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) { go core.AutoMount(service) })
 	if err = app.Run(); err != nil {
 		diagnosticLog.Operation("application", err)
-		platform.Alert("Could not open SDrive. Run the SDrive installer again to repair the required components.")
+		message := "Could not open SDrive. Run the SDrive installer again to repair the required components."
+		if platform.OS == "linux" {
+			message = "Could not open SDrive. Check the Linux installation guide and your desktop session."
+		}
+		platform.Alert(i18n.Text(core.Language(service), message))
 	}
 }
 

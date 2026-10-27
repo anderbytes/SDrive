@@ -108,7 +108,7 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
       )}
       {directPath !== path && <p role="status">{t("Destination not applied. Choose Open destination before connecting.")}</p>}
       <MountDestination wizard={wizard} collapsed />
-      {!data.winFsp && (
+      {!(data.mountAvailable ?? data.winFsp) && (
         <p role="alert">
           {t("Run the SDrive installer again to prepare drive mounting.")}
         </p>
@@ -121,7 +121,7 @@ export function FolderActions({ wizard }: { wizard: Wizard }) {
   const { t, busy, loading, directPath, path, fieldError, data, noLetters, connection, savedID, initial, connect, close, operation } = wizard;
   return <>
     <button disabled={busy} onClick={close}>{savedID ? t("Close") : t("Cancel")}</button>
-    <button className="primary" disabled={busy || loading || directPath !== path || fieldError?.field === "path" || !data.winFsp || noLetters || (connection.letter !== "" && !savedID && !initial.id && !data.letters.includes(connection.letter))}
+    <button className="primary" disabled={busy || loading || directPath !== path || fieldError?.field === "path" || !(data.mountAvailable ?? data.winFsp) || noLetters || (connection.letter !== "" && !savedID && !initial.id && !data.letters.includes(connection.letter))}
       onClick={() => void connect()}>{busy ? t(operation === "mounting" ? "Mounting drive…" : "Validating destination…") : savedID ? t("Retry connection") : t("Connect drive")}</button>
   </>;
 }

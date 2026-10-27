@@ -98,7 +98,7 @@ func (p ProxyConfig) URL() string {
 }
 func proxyCipher(dir string) (cipher.AEAD, error) {
 	if _, err := os.Stat(filepath.Join(dir, "proxy.enc")); err == nil {
-		if _, err = os.Stat(filepath.Join(dir, "key.dpapi")); err != nil {
+		if err = platform.CheckKey(dir); err != nil {
 			return nil, fmt.Errorf("Could not unlock proxy settings.")
 		}
 	}

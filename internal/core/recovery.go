@@ -232,7 +232,7 @@ func (s *Service) RestoreSettings() (resultErr error) {
 	s.inspections = nil
 	s.settingsError = ""
 	s.maintenanceError = ""
-	s.startupWarning = "Restored startup preferences have not been applied. Save preferences to reconcile Windows startup."
+	s.startupWarning = "Restored startup preferences have not been applied. Save preferences to reconcile sign-in startup."
 	if s.rpc == nil {
 		s.engineError = "Restart the engine to recover restored connections."
 	}

@@ -1,3 +1,5 @@
+//go:build windows
+
 package core
 
 import (
@@ -12,22 +14,6 @@ import (
 
 	"golang.org/x/sys/windows"
 )
-
-func writeFixture(t *testing.T, dir, name string, data []byte) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func readFixture(t *testing.T, dir, name string) []byte {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join(dir, name))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
 
 func TestIncompleteSettingsNeverAuthorizeCleanupOrWrites(t *testing.T) {
 	for _, data := range []string{

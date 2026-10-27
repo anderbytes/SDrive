@@ -16,11 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
-	"unsafe"
 
-	"golang.org/x/sys/windows"
 	"sdrive/internal/diagnostics"
 )
 
@@ -29,7 +26,7 @@ const Version = "v1.75.2"
 type Engine struct {
 	url, user, password string
 	cmd                 *exec.Cmd
-	job                 windows.Handle
+	process             processSupervisor
 	done                chan struct{}
 	client              *http.Client
 	mu                  sync.Mutex
@@ -46,12 +43,12 @@ func FindBinary() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, path := range []string{filepath.Join(filepath.Dir(exe), "rclone.exe"), filepath.Join(".tools", "rclone", "rclone.exe")} {
+	for _, path := range []string{filepath.Join(filepath.Dir(exe), binaryName()), filepath.Join(".tools", "rclone", binaryName())} {
 		if _, err = os.Stat(path); err == nil {
 			return filepath.Abs(path)
 		}
 	}
-	return "", fmt.Errorf("rclone not found; run scripts/bootstrap.ps1 or reinstall SDrive")
+	return "", fmt.Errorf("rclone not found; rebuild or reinstall SDrive")
 }
 func randomSecret() string {
 	b := make([]byte, 32)
@@ -90,7 +87,7 @@ func Init(binary, dir string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, binary, "config", "encryption", "set", "--config", path, "--password-command", quote(exe)+" --config-key "+quote(dir), "--ask-password=false")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	configureCommand(cmd)
 	cmd.Env = environment()
 	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("could not initialize encrypted configuration: %w", err)
@@ -139,7 +136,7 @@ func StartWithOptions(binary, dir string, log *diagnostics.Collector, options Op
 		args = append(args, "--timeout", strconv.Itoa(options.IdleTimeout)+"s")
 	}
 	cmd := exec.Command(binary, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	configureCommand(cmd)
 	cmd.Env = environment("RCLONE_RC_USER="+e.user, "RCLONE_RC_PASS="+e.password)
 	if options.ProxyURL != "" {
 		cmd.Env = append(cmd.Env, "RCLONE_HTTP_PROXY="+options.ProxyURL)
@@ -154,27 +151,9 @@ func StartWithOptions(binary, dir string, log *diagnostics.Collector, options Op
 		return nil, err
 	}
 	e.cmd = cmd
-	job, err := windows.CreateJobObject(nil, nil)
-	if err != nil {
-		return nil, e.supervisionFailure(cmd, logs)
-	}
-	e.job = job
-	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
-	info.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-	_, err = windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)))
-	if err == nil {
-		process, openErr := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(cmd.Process.Pid))
-		if openErr != nil {
-			err = openErr
-		} else {
-			err = windows.AssignProcessToJobObject(job, process)
-			windows.CloseHandle(process)
-		}
-	}
-	if err != nil {
+	if err = e.process.attach(cmd); err != nil {
 		failure := e.supervisionFailure(cmd, logs)
-		windows.CloseHandle(job)
-		e.job = 0
+		e.process.close()
 		return nil, failure
 	}
 	go e.wait(cmd, logs)
@@ -386,7 +365,7 @@ func (e *Engine) Close() {
 				e.statusMu.Lock()
 				e.forced = true
 				e.statusMu.Unlock()
-				_ = e.cmd.Process.Kill()
+				_ = e.process.kill(e.cmd)
 				select {
 				case <-e.done:
 				case <-time.After(time.Second):
@@ -395,8 +374,5 @@ func (e *Engine) Close() {
 		}
 		e.cmd = nil
 	}
-	if e.job != 0 {
-		windows.CloseHandle(e.job)
-		e.job = 0
-	}
+	e.process.close()
 }

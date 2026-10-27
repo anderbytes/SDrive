@@ -42,7 +42,7 @@ func TestAutoMountReportsEarlyFailuresAndContinues(t *testing.T) {
 			s.store.Connections = []Connection{c, other}
 			s.driveUsed = func(letter string) bool { return failure == "occupied letter" && letter == "S" }
 			checks := 0
-			s.winFsp = func() bool {
+			s.mountAvailable = func() bool {
 				checks++
 				return failure != "WinFsp" || checks > 1
 			}
@@ -218,7 +218,7 @@ func TestMountStagesAndDuplicateCallsDoNotOverwriteActiveOperation(t *testing.T)
 	c := testConnection()
 	c.Recovery = false
 	s.store.Connections = []Connection{c}
-	s.winFsp = func() bool { return true }
+	s.mountAvailable = func() bool { return true }
 	s.driveUsed = func(string) bool { return false }
 	s.errors[c.ID] = "previous failure"
 	done := make(chan error, 1)

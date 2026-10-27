@@ -113,7 +113,8 @@ export function Preferences({
             <label>{t("Drive card stripe")}<select aria-label={t("Drive card stripe")} disabled={busy} value={settings.driveStripeColorSource || "theme"} onChange={(e) => setSettings({ ...settings, driveStripeColorSource: e.target.value as "theme" | "drive" })}>
               <option value="theme">{t("Theme color")}</option><option value="drive">{t("Custom drive color")}</option>
             </select></label>
-            <label className="check"><input type="checkbox" checked={settings.showServiceIcons || false} onChange={(e) => setSettings({ ...settings, showServiceIcons: e.target.checked })} />{t("Show service icons for drive letters")}</label>
+            <label className="check"><input type="checkbox" disabled={data.platform === "linux"} checked={settings.showServiceIcons || false} onChange={(e) => setSettings({ ...settings, showServiceIcons: e.target.checked })} />{t("Show service icons for drive letters")}</label>
+            {data.platform === "linux" && <p>{t("Drive-letter icons are available only on Windows.")}</p>}
             <p>{t("Service icons are local monograms for SDrive drive letters. Existing customization takes precedence; mounted folders keep their icons.")}</p>
           </div>
           <div id={`${helpID}-Cache-panel`} role="tabpanel" aria-labelledby={`${helpID}-Cache-tab`} data-preference-tab="Cache" hidden={tab !== "Cache"}>
