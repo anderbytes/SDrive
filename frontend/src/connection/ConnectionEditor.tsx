@@ -21,92 +21,10 @@ export function ConnectionEditor(props: EditorProps) {
     setIdentity, trusted, setTrusted, session, busy, loading, error,
     fieldID, savedID, p, change, action, close, dialog,
     unavailable, noLetters, validationProps, fieldFeedback, begin, dispatch,
-    fieldsLoaded, editTab, setEditTab, operation,
+    fieldsLoaded, editTab, setEditTab, operation, requiresAuthentication,
   } = wizard;
-  const formID = `${fieldID}-form`;
-  const footer = step === "folder" ? <FolderActions wizard={wizard} /> : step === "auth" ? <AuthenticationActions wizard={wizard} /> : step === "complete" ? <>
-    <button onClick={close}>{t("Done")}</button><button className="primary" disabled={busy} title={t("Open in Explorer")} onClick={() => void action(() => api.open(savedID))}>{t("Open")}</button>
-  </> : <>
-    <button type="button" disabled={busy} onClick={() => step === "access" && !initial.id ? dispatch({ type: "service" }) : close()}>{step === "access" && !initial.id ? t("Back") : t("Cancel")}</button>
-    <button form={formID} className="primary" disabled={step === "service"
-      ? !wizard.serviceMethods.some((m) => m.key === methodKey(connection, data.providers) && m.advanced === (wizard.category === "advanced"))
-      : step === "access" ? busy || loading || !fieldsLoaded || noLetters || unavailable || (p.id === "sftp" && !trusted) : busy}>
-      {step === "edit" ? t("Save changes") : busy || loading ? t("Preparing…") : step === "access" && p.oauth && !values.service_account_file ? t("Sign in with {provider}", { provider: p.name }) : t("Continue")}
-    </button>
-  </>;
-  const setupSection = step === "service" ? "Service" : ["access", "auth"].includes(step) ? "Access"
-    : step === "complete" || savedID || busy && step === "folder" ? "Connect" : "Folder";
-  const navigation = step === "edit" ? <DialogNavigation label={t("Drive settings")} selected={editTab} onSelect={setEditTab}
-    items={["general", "files", "network"].filter((key) => key !== "network" || supportsNetworkOptions(connection.provider)).map((key) => ({ key, label: t(key === "general" ? "General" : key === "files" ? "Files" : "Network"),
-      id: `${fieldID}-edit-${key}-tab`, panel: `${fieldID}-edit-${key}-panel`, disabled: busy }))} />
-    : <DialogNavigation steps label={t("Connection setup")} selected={setupSection}
-      onSelect={(key) => { if (key === "Service" && step === "access" && !initial.id && !busy) dispatch({ type: "service" }); }}
-      items={["Service", "Access", "Folder", "Connect"].map((key) => ({ key, label: t(key),
-        disabled: key !== setupSection && !(key === "Service" && step === "access" && !initial.id && !busy) }))} />;
-  return (
-    <DialogLayout dialogRef={dialog} titleID="editor-title" title={initial.id ? auth ? t("Reconfigure account") : t("Edit drive") : t("New connection")}
-      navigation={navigation} eyebrow={auth ? undefined : t("CONFIGURE DRIVE")} onClose={close} closeDisabled={busy} closeLabel={t("Close setup")} footer={footer}>
-        {step !== "auth" && (busy || loading && step !== "folder") && <LoadingStatus>{t(operation === "mounting" ? "Mounting drive…" : operation === "validating" ? "Validating destination…" : "Operation in progress…")}</LoadingStatus>}
-        {(error || session?.error) && (
-          <div role="alert" className="alert error">
-            {t(error || session?.error || "")}
-          </div>
-        )}
-        {noLetters && <p role="alert">{t("No drive letters are available. Choose a new local subfolder or free a drive letter.")}</p>}
-        {savedID && step === "folder" && (
-          <p role="status" className="alert warning">{t("Configuration saved. Retry uses this connection without creating another. You can also close setup and connect from My drives.")}</p>
-        )}
-        {initial.recovery && (
-          <div className="alert warning">
-            {t(
-              "Only renew access to the same account. The original destination will be kept to recover your pending files.",
-            )}
-          </div>
-        )}
-        {step === "service" && (
-          <form
-            id={formID}
-            onSubmit={(e) => {
-              e.preventDefault();
-              advance();
-            }}
-          >
-            <label>
-              {t("Drive name")}
-              <input
-                {...validationProps("name")}
-                value={connection.name}
-                placeholder={t(p.name)}
-                onChange={(e) => change({ name: e.target.value })}
-              />
-            </label>
-            {fieldFeedback("name")}
-            <div role="tablist" aria-label={t("Connection setup category")}>
-              {["basic", "advanced"].map((category) => <button key={category} id={`${fieldID}-${category}-tab`} type="button" role="tab" aria-selected={wizard.category === category} aria-controls={`${fieldID}-services`} tabIndex={wizard.category === category ? 0 : -1}
-                onClick={() => wizard.selectCategory(category)}
-                onKeyDown={(e) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) { e.preventDefault(); const next = e.key === "Home" ? "basic" : e.key === "End" ? "advanced" : category === "basic" ? "advanced" : "basic"; wizard.selectCategory(next); document.getElementById(`${fieldID}-${next}-tab`)?.focus(); } }}>
-                {t(category === "basic" ? "Basic" : "Advanced")}
-              </button>)}
-            </div>
-            <div id={`${fieldID}-services`} role="tabpanel" aria-labelledby={`${fieldID}-${wizard.category}-tab`}>
-              {wizard.category === "advanced" && <p className="alert warning">{t(advancedDisclaimer)}</p>}
-              <label>{t("Connection type")}<select value={methodKey(connection, data.providers)} onChange={(e) => wizard.selectMethod(e.target.value)}>
-                {wizard.serviceMethods.filter((m) => m.advanced === (wizard.category === "advanced")).map((m) => <option key={m.key} value={m.key}>{t(m.label)}{m.provider.experimental ? ` (${t("experimental")})` : ""}</option>)}
-              </select></label>
-              {!wizard.serviceMethods.some((m) => m.advanced === (wizard.category === "advanced")) && <p>{t("No connection methods in this category.")}</p>}
-            </div>
-            {unavailable && <p role="status">{t(p.notice || "")}</p>}
-            <MountDestination wizard={wizard} />
-          </form>
-        )}
-        {step === "access" && (
-          <form
-            id={formID}
-            onSubmit={(e) => {
-              e.preventDefault();
-              void begin();
-            }}
-          >
+  const editing = !!initial.id && step === "edit";
+  const accessContent = <>
             <div className="access-intro"><h3>
               {p.id === "gcs" && connection.authMethod === "serviceAccount"
                 ? t("Access to {provider}", { provider: p.name })
@@ -230,7 +148,7 @@ export function ConnectionEditor(props: EditorProps) {
                   </>
                 )}
                 </fieldset>}
-                <fieldset className="option-group"><legend>{t("Drive behavior")}</legend>
+                {(!initial.id || connection.provider === "drive") && <fieldset className="option-group"><legend>{t("Drive behavior")}</legend>
                 <div className="option-with-help"><label className="check">
                   <input
                     type="checkbox"
@@ -242,7 +160,7 @@ export function ConnectionEditor(props: EditorProps) {
                   {t("Mount read only")}
                 </label>
                 <FieldHelp id={`${fieldID}-readonly-help`} label={t("Mount read only")}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</FieldHelp></div>
-                {!connection.sessionOnly && <>
+                {!initial.id && !connection.sessionOnly && <>
                 <div className="option-with-help"><label className="check">
                   <input
                     type="checkbox"
@@ -255,9 +173,95 @@ export function ConnectionEditor(props: EditorProps) {
                 </label>
                 <FieldHelp id={`${fieldID}-automount-help`} label={t("Connect automatically when SDrive starts")}>{t("SDrive attempts to connect this drive when it starts. Recovery may require your attention.")}</FieldHelp></div>
                 </>}
-                </fieldset>
+                </fieldset>}
                 </fieldset>
               </details>
+  </>;
+  const formID = `${fieldID}-form`;
+  const footer = step === "folder" ? <FolderActions wizard={wizard} /> : step === "auth" ? <AuthenticationActions wizard={wizard} /> : step === "complete" ? <>
+    <button onClick={close}>{t("Done")}</button><button className="primary" disabled={busy} title={t("Open in Explorer")} onClick={() => void action(() => api.open(savedID))}>{t("Open")}</button>
+  </> : <>
+    <button type="button" disabled={busy} onClick={() => step === "access" && !initial.id ? dispatch({ type: "service" }) : close()}>{step === "access" && !initial.id ? t("Back") : t("Cancel")}</button>
+    <button form={formID} className="primary" disabled={step === "service"
+      ? !wizard.serviceMethods.some((m) => m.key === methodKey(connection, data.providers) && m.advanced === (wizard.category === "advanced"))
+      : step === "access" ? busy || loading || !fieldsLoaded || noLetters || unavailable || (p.id === "sftp" && !trusted) : busy || editing && (editTab === "access" ? loading || !fieldsLoaded || (p.id === "sftp" && !trusted) : requiresAuthentication || initial.recovery)}>
+      {editing && editTab === "access" ? t("Renew access") : step === "edit" ? t("Save changes") : busy || loading ? t("Preparing…") : step === "access" && p.oauth && !values.service_account_file ? t("Sign in with {provider}", { provider: p.name }) : t("Continue")}
+    </button>
+  </>;
+  const setupSection = step === "service" ? "Service" : ["access", "auth"].includes(step) ? "Access"
+    : step === "complete" || savedID || busy && step === "folder" ? "Connect" : "Folder";
+  const navigation = step === "edit" ? <DialogNavigation label={t("Drive settings")} selected={editTab} onSelect={setEditTab}
+    items={["general", "access", "files", "network"].filter((key) => key !== "network" || supportsNetworkOptions(connection.provider)).map((key) => ({ key, label: t(key === "general" ? "General" : key === "access" ? "Access" : key === "files" ? "Files" : "Network"),
+      id: `${fieldID}-edit-${key}-tab`, panel: `${fieldID}-edit-${key}-panel`, disabled: busy }))} />
+    : <DialogNavigation steps label={t("Connection setup")} selected={setupSection}
+      onSelect={(key) => { if (key === "Service" && step === "access" && !initial.id && !busy) dispatch({ type: "service" }); }}
+      items={["Service", "Access", "Folder", "Connect"].map((key) => ({ key, label: t(key),
+        disabled: key !== setupSection && !(key === "Service" && step === "access" && !initial.id && !busy) }))} />;
+  return (
+    <DialogLayout dialogRef={dialog} titleID="editor-title" title={initial.id ? t("Edit drive") : t("New connection")}
+      navigation={navigation} eyebrow={auth ? undefined : t("CONFIGURE DRIVE")} onClose={close} closeDisabled={busy} closeLabel={t("Close setup")} footer={footer}>
+        {step !== "auth" && (busy || loading && step !== "folder") && <LoadingStatus>{t(operation === "mounting" ? "Mounting drive…" : operation === "validating" ? "Validating destination…" : "Operation in progress…")}</LoadingStatus>}
+        {(error || session?.error) && (
+          <div role="alert" className="alert error">
+            {t(error || session?.error || "")}
+          </div>
+        )}
+        {noLetters && <p role="alert">{t("No drive letters are available. Choose a new local subfolder or free a drive letter.")}</p>}
+        {savedID && step === "folder" && (
+          <p role="status" className="alert warning">{t("Configuration saved. Retry uses this connection without creating another. You can also close setup and connect from My drives.")}</p>
+        )}
+        {initial.recovery && (
+          <div className="alert warning">
+            {t(
+              "Only renew access to the same account. The original destination will be kept to recover your pending files.",
+            )}
+          </div>
+        )}
+        {step === "service" && (
+          <form
+            id={formID}
+            onSubmit={(e) => {
+              e.preventDefault();
+              advance();
+            }}
+          >
+            <label>
+              {t("Drive name")}
+              <input
+                {...validationProps("name")}
+                value={connection.name}
+                placeholder={t(p.name)}
+                onChange={(e) => change({ name: e.target.value })}
+              />
+            </label>
+            {fieldFeedback("name")}
+            <div role="tablist" aria-label={t("Connection setup category")}>
+              {["basic", "advanced"].map((category) => <button key={category} id={`${fieldID}-${category}-tab`} type="button" role="tab" aria-selected={wizard.category === category} aria-controls={`${fieldID}-services`} tabIndex={wizard.category === category ? 0 : -1}
+                onClick={() => wizard.selectCategory(category)}
+                onKeyDown={(e) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) { e.preventDefault(); const next = e.key === "Home" ? "basic" : e.key === "End" ? "advanced" : category === "basic" ? "advanced" : "basic"; wizard.selectCategory(next); document.getElementById(`${fieldID}-${next}-tab`)?.focus(); } }}>
+                {t(category === "basic" ? "Basic" : "Advanced")}
+              </button>)}
+            </div>
+            <div id={`${fieldID}-services`} role="tabpanel" aria-labelledby={`${fieldID}-${wizard.category}-tab`}>
+              {wizard.category === "advanced" && <p className="alert warning">{t(advancedDisclaimer)}</p>}
+              <label>{t("Connection type")}<select value={methodKey(connection, data.providers)} onChange={(e) => wizard.selectMethod(e.target.value)}>
+                {wizard.serviceMethods.filter((m) => m.advanced === (wizard.category === "advanced")).map((m) => <option key={m.key} value={m.key}>{t(m.label)}{m.provider.experimental ? ` (${t("experimental")})` : ""}</option>)}
+              </select></label>
+              {!wizard.serviceMethods.some((m) => m.advanced === (wizard.category === "advanced")) && <p>{t("No connection methods in this category.")}</p>}
+            </div>
+            {unavailable && <p role="status">{t(p.notice || "")}</p>}
+            <MountDestination wizard={wizard} />
+          </form>
+        )}
+        {step === "access" && (
+          <form
+            id={formID}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void begin();
+            }}
+          >
+            {accessContent}
           </form>
         )}
         {step === "auth" && <AuthenticationStep wizard={wizard} />}
@@ -285,9 +289,17 @@ export function ConnectionEditor(props: EditorProps) {
             }}
             onSubmit={(e) => {
               e.preventDefault();
-              void update();
+              if (editTab === "access") void begin();
+              else void update();
             }}
           >
+            {requiresAuthentication && editTab !== "access" && <p role="status">{t("Use Renew access in the Access section to apply authentication changes.")}</p>}
+            <div id={`${fieldID}-edit-access-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-access-tab`} data-edit-tab="access" hidden={editTab !== "access"}>
+              <fieldset disabled={editTab !== "access" || loading || busy} className="editor-section">
+                {accessContent}
+              </fieldset>
+            </div>
+            <fieldset disabled={!!initial.recovery || busy} className="editor-section">
             <div id={`${fieldID}-edit-general-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-general-tab`} data-edit-tab="general" hidden={editTab !== "general"}>
               <label>
                 {t("Drive name")}
@@ -300,18 +312,19 @@ export function ConnectionEditor(props: EditorProps) {
               </label>
               {fieldFeedback("name")}
               <MountDestination wizard={wizard} />
+              {connection.provider !== "drive" && <>
               <div className="option-with-help"><label className="check">
                 <input
                   type="checkbox"
                   aria-describedby={`${fieldID}-readonly-help`}
                   checked={connection.readOnly}
-                  disabled={connection.provider === "drive"}
                   onChange={(e) => change({ readOnly: e.target.checked })}
                 />
                 {t("Mount read only")}
               </label>
               <FieldHelp id={`${fieldID}-readonly-help`} label={t("Mount read only")}>{t("Prevents changes through this drive. Account permissions remain unchanged.")}</FieldHelp></div>
-              {connection.provider === "drive" && <p>{t("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")}</p>}
+              </>}
+              {connection.provider === "drive" && <p>{t("Use the Access section to change Google Drive access mode and update OAuth consent.")}</p>}
               {!connection.sessionOnly && <>
               <div className="option-with-help"><label className="check">
                 <input
@@ -341,6 +354,7 @@ export function ConnectionEditor(props: EditorProps) {
             <div id={`${fieldID}-edit-network-panel`} role="tabpanel" aria-labelledby={`${fieldID}-edit-network-tab`} data-edit-tab="network" hidden={editTab !== "network"}>
               <NetworkOptions wizard={wizard} />
             </div>
+            </fieldset>
           </form>
         )}
     </DialogLayout>

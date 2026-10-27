@@ -49,8 +49,8 @@ export function ConnectionOptions({ wizard }: { wizard: Wizard }) {
   const { t, connection: c, change, validationProps, fieldFeedback, browsers, initial, forgetCredentials, setForgetCredentials } = wizard;
   const sessionSupported = ["webdav", "nextcloud", "owncloud", "drive", "onedrive", "sharepoint"].includes(c.provider);
   return <>
-    <fieldset className="option-group"><legend>{t("Files and cache")}</legend><DirectoryCacheOptions wizard={wizard} /></fieldset>
-    {supportsNetworkOptions(c.provider) && <fieldset className="option-group"><legend>{t("Network")}</legend><NetworkOptions wizard={wizard} /></fieldset>}
+    {!initial.id && <fieldset className="option-group"><legend>{t("Files and cache")}</legend><DirectoryCacheOptions wizard={wizard} /></fieldset>}
+    {!initial.id && supportsNetworkOptions(c.provider) && <fieldset className="option-group"><legend>{t("Network")}</legend><NetworkOptions wizard={wizard} /></fieldset>}
     {wizard.auth && (sessionSupported || wizard.p.oauth && c.authMethod !== "serviceAccount") && <fieldset className="option-group">
       <legend>{t("Sign-in options")}</legend>
       {wizard.p.oauth && c.authMethod !== "serviceAccount" && <>

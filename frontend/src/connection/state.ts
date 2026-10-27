@@ -26,7 +26,7 @@ export function wizardReducer(state: WizardState, event: WizardEvent): WizardSta
     case "access":
       return state.step === "service" ? { step: "access" } : state;
     case "start":
-      return state.step === "access" && event.sessionID
+      return (state.step === "access" || state.step === "edit") && event.sessionID
         ? { step: "auth", sessionID: event.sessionID } : state;
     case "status":
       if (state.step !== "auth" || state.sessionID !== event.sessionID) return state;

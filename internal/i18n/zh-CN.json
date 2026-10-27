@@ -220,8 +220,8 @@
   "could not retrieve the SSH key": "无法检索 SSH 密钥",
   "connection operation in progress": "连接操作正在进行中",
   "unmount and resolve pending files before editing": "编辑前卸载并解决挂起的文件",
-  "use Reconfigure to change the provider": "使用重新配置来更改提供程序",
-  "use Reconfigure account to change access mode and update Google Drive OAuth consent": "使用重新配置帐户更改访问模式并更新 Google Drive OAuth 同意",
+  "Create a new connection to use another provider.": "请创建新连接以使用其他提供程序。",
+  "Use the Access section to change access mode and update Google Drive OAuth consent.": "请在“访问”部分更改访问模式并更新 Google Drive OAuth 授权。",
   "letter already reserved": "信函已预留",
   "complete or cancel reconfiguration": "完成或取消重新配置",
   "unmount and resolve pending files before removing": "删除之前卸载并解决挂起的文件",
@@ -907,5 +907,12 @@
   "Restored startup preferences have not been applied. Save preferences to reconcile sign-in startup.": "Restored startup preferences have not been applied. Save preferences to reconcile sign-in startup.",
   "sign-in startup may differ from saved preferences. Save preferences to reconcile it.": "sign-in startup may differ from saved preferences. Save preferences to reconcile it.",
   "could not save preferences: %w; sign-in startup rollback also failed: %v": "could not save preferences: %w; sign-in startup rollback also failed: %v",
-  "sign-in startup, proxy credentials and cache location stay local.": "sign-in startup, proxy credentials and cache location stay local."
+  "sign-in startup, proxy credentials and cache location stay local.": "sign-in startup, proxy credentials and cache location stay local.",
+  "Connect the drive to use this tool.": "连接此驱动器以使用此工具。",
+  "Disconnect the drive and wait for the current operation before editing.": "编辑前请断开驱动器，并等待当前操作完成。",
+  "Drive diagnostics": "驱动器诊断",
+  "Listing folders does not verify write permission.": "列出文件夹不会验证写入权限。",
+  "Refresh directory metadata to see remote changes. Local files and pending uploads are preserved.": "刷新目录元数据以查看远程更改。本地文件和待上传内容将予以保留。",
+  "Use Renew access in the Access section to apply authentication changes.": "请在“访问”部分使用“续订访问”来应用身份验证更改。",
+  "Use the Access section to change Google Drive access mode and update OAuth consent.": "请在“访问”部分更改 Google Drive 访问模式并更新 OAuth 授权。"
 }

@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AccessBoundary, AccessSettings } from "./AccessProtection";
-import { FileAccessDialog } from "./FileAccessDialog";
+import { FileAccessInspection } from "./FileAccessInspection";
 import { api, type AccessStatus } from "./api";
 import { LanguageProvider, languages, translate, type Language } from "./i18n";
 
@@ -44,7 +44,7 @@ test.each(["cancelled", "failed"])("file inspection removes the spinner when %s"
   vi.mocked(api.inspectFileAccess).mockImplementationOnce(() => new Promise((resolve, reject) => {
     finish = () => outcome === "failed" ? reject(new Error("Inspection unavailable")) : resolve({ state: "cancelled", path: "", checkedAt: "", processes: [] });
   }));
-  const view = render(<LanguageProvider><FileAccessDialog connectionID="drive" onClose={vi.fn()} /></LanguageProvider>);
+  const view = render(<LanguageProvider><FileAccessInspection connectionID="drive" disabled={false} onRun={async (work) => { await work(); }} /></LanguageProvider>);
   fireEvent.click(screen.getByRole("button", { name: "Select mounted file" }));
   expect(screen.getByRole("status").querySelector(".spinner")).not.toBeNull();
   await act(async () => finish());
@@ -120,7 +120,7 @@ test("recovery does not unlock until the replacement PIN is used and Portuguese 
 
 test("file access reports unknown separately from an empty Windows result and refreshes only the selected file", async () => {
   vi.mocked(api.inspectFileAccess).mockResolvedValueOnce({state:"unknown",processes:[],checkedAt:"2026-01-01T00:00:00Z",path:"file.txt"}).mockResolvedValueOnce({state:"reported",processes:[],checkedAt:"2026-01-01T00:00:01Z",path:"file.txt"});
-  render(<StrictMode><LanguageProvider><FileAccessDialog connectionID="drive" onClose={vi.fn()} /></LanguageProvider></StrictMode>);
+  render(<StrictMode><LanguageProvider><FileAccessInspection connectionID="drive" disabled={false} onRun={async (work) => { await work(); }} /></LanguageProvider></StrictMode>);
   fireEvent.click(screen.getByRole("button",{name:"Select mounted file"}));
   await screen.findByText("File access information is unknown. This does not mean the file is unused.");
   fireEvent.click(screen.getByRole("button",{name:"Refresh"}));

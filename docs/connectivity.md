@@ -34,7 +34,7 @@ For HTTPS WebDAV, Nextcloud and ownCloud, setup can verify an alternate address 
 
 Only a primary connection timeout/unreachable address during Connect can select the alternative. The alternative must still return the saved resource identity. Authentication, permission, certificate/protocol errors and changed/missing identities stop the connection. Requests never follow redirects with credentials. A healthy primary does not depend on the alternative being online.
 
-SDrive does not switch endpoints under an active mounted filesystem. If the network fails while mounted, pending data remain preserved; recover using the saved connection after the interrupted mount is gone, or wait for the primary. The canonical URL/destination hash and remote cache name remain stable even if an interrupted worker had selected the alternative. Changing addresses or the selected verified folder requires Reconfigure account and cannot bypass pending recovery.
+SDrive does not switch endpoints under an active mounted filesystem. If the network fails while mounted, pending data remain preserved; recover using the saved connection after the interrupted mount is gone, or wait for the primary. The canonical URL/destination hash and remote cache name remain stable even if an interrupted worker had selected the alternative. Changing addresses or the selected verified folder requires Edit drive → Access → Renew access and cannot bypass pending recovery.
 
 ## Protocol controls and unsupported charset conversion
 

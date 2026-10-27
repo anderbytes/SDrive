@@ -432,10 +432,10 @@ func (s *Service) updateConnection(c Connection) error {
 		return fmt.Errorf("unmount and resolve pending files before editing")
 	}
 	if c.Provider != old.Provider {
-		return fmt.Errorf("use Reconfigure to change the provider")
+		return fmt.Errorf("Create a new connection to use another provider.")
 	}
 	if c.Provider == "drive" && c.ReadOnly != old.ReadOnly {
-		return fmt.Errorf("use Reconfigure account to change access mode and update Google Drive OAuth consent")
+		return fmt.Errorf("Use the Access section to change access mode and update Google Drive OAuth consent.")
 	}
 	for _, other := range s.store.Connections {
 		if other.ID != c.ID && mountTargetsOverlap(other, c) {
@@ -458,7 +458,7 @@ func (s *Service) updateConnection(c Connection) error {
 		}
 	}
 	if c.SessionOnly != old.SessionOnly || c.AuthMethod != old.AuthMethod || c.AlternateURL != old.AlternateURL || ((old.SessionOnly || old.AlternateURL != "") && c.Path != old.Path) {
-		return fmt.Errorf("Use Reconfigure account to change authentication settings.")
+		return fmt.Errorf("Use Renew access in the Access section to apply authentication changes.")
 	}
 	s.stopConnection(old)
 	c.Remote = old.Remote

@@ -1,6 +1,6 @@
 import { errorMessage as message, localizedMessage, type LocalizedMessage } from "../messages";
 import { driveNameError, trimDriveName } from "./name";
-import { useEffect, useId, useState, useReducer } from "react";
+import { useEffect, useId, useState, useReducer, useRef } from "react";
 import { api, mountTarget, validationError, type Browser, type Connection, type FieldError, type Snapshot, type ImportDraft } from "../api";
 import { methods, methodKey, supportsNetworkOptions } from "./methods";
 import { useLanguage } from "../i18n";
@@ -19,12 +19,13 @@ export interface EditorProps {
 export function useConnectionWizard({
 	importDraft,
   initial,
-  auth,
+  auth: initialAuth,
   data,
   onRefresh,
   onClose,
 }: EditorProps) {
   const { t } = useLanguage();
+  const auth = !!initial.id || initialAuth;
   const serviceMethods = methods(data.providers);
   const firstBasic = serviceMethods.find((m) => !m.advanced);
   const [connection, setConnection] = useState(initial.id || importDraft ? initial : { ...initial, ...(data.platform === "linux" ? { letter: "", mountFolder: "", mountMode: "local" } : {}), provider: firstBasic?.provider.id || data.providers[0].id, authMethod: firstBasic?.authMethod || "oauth" });
@@ -33,9 +34,12 @@ export function useConnectionWizard({
   const [forgetCredentials, setForgetCredentials] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({ ...importDraft?.definition.values });
   useEffect(() => { let active = true; void api.browsers().then((value) => { if (active) setBrowsers(value); }).catch(() => {}); return () => { active = false; }; }, []);
-  const [state, dispatch] = useReducer(wizardReducer, initialWizardState(initial, auth));
+  const [state, dispatch] = useReducer(wizardReducer, initialWizardState(initial, initialAuth && !initial.id));
   const { step } = state;
-  const [editTab, setEditTab] = useState("general");
+  const [editTab, setEditTab] = useState(initial.id && (initialAuth || initial.recovery) ? "access" : "general");
+  const [accessRequested, setAccessRequested] = useState(!initial.id || initialAuth || initial.recovery);
+  useEffect(() => { if (editTab === "access") setAccessRequested(true); }, [editTab]);
+  const accessBaseline = useRef({ values: {} as Record<string, string>, transport: "explicit", authMethod: initial.authMethod });
   const sessionID = "sessionID" in state ? state.sessionID : "";
   const session = state.step === "auth" ? state.session : undefined;
   const saved = "saved" in state ? state.saved : undefined;
@@ -51,9 +55,9 @@ export function useConnectionWizard({
   const [answer, setAnswer] = useState("");
   const [operation, setOperation] = useState<"idle" | "working" | "validating" | "mounting">("idle");
   const busy = operation !== "idle";
-  const [accessLoad, setAccessLoad] = useState<"loading" | "ready" | "error">(initial.id && auth ? "loading" : "ready");
+  const [accessLoad, setAccessLoad] = useState<"loading" | "ready" | "error">(initial.id ? "loading" : "ready");
   const [folderLoad, setFolderLoad] = useState<"loading" | "ready" | "error">("ready");
-  const loading = step === "folder" ? folderLoad === "loading" : accessLoad === "loading";
+  const loading = step === "folder" ? folderLoad === "loading" : (!initial.id || editTab === "access") && accessLoad === "loading";
   const fieldsLoaded = accessLoad === "ready";
   const [error, setError] = useState<string | LocalizedMessage>("");
   const [folderError, setFolderError] = useState<string | LocalizedMessage>("");
@@ -88,12 +92,13 @@ export function useConnectionWizard({
   };
   useEffect(() => {
     let active = true;
-    if (initial.id && auth)
+    if (initial.id && accessRequested)
       void api
         .fields(initial.id)
         .then((fields) => {
           if (active) {
             setValues(fields.values);
+            accessBaseline.current = { values: fields.values, transport: fields.transport || "explicit", authMethod: initial.provider === "gcs" ? fields.values.service_account_file ? "serviceAccount" : "oauth" : initial.authMethod };
             if (initial.provider === "gcs") {
               const authMethod = fields.values.service_account_file ? "serviceAccount" : "oauth";
               setConnection((c) => ({ ...c, authMethod }));
@@ -109,7 +114,7 @@ export function useConnectionWizard({
     return () => {
       active = false;
     };
-  }, [initial.id, auth]);
+  }, [initial.id, accessRequested]);
   useEffect(() => {
     if (!sessionID) return;
     let active = true;
@@ -254,7 +259,20 @@ export function useConnectionWizard({
     const matching = serviceMethods.filter((m) => m.advanced === (next === "advanced"));
     if (!matching.some((m) => m.key === methodKey(connection, data.providers)) && matching[0]) selectMethod(matching[0].key);
   };
+  const requiresAuthentication = !!initial.id && (
+    Object.keys({ ...accessBaseline.current.values, ...values }).some((key) => {
+      const fallback = p.fields.find((field) => field.key === key)?.default || "";
+      return (values[key] ?? fallback) !== (accessBaseline.current.values[key] ?? fallback);
+    }) || transport !== accessBaseline.current.transport || insecure ||
+    connection.authMethod !== accessBaseline.current.authMethod || !!connection.sessionOnly !== !!initial.sessionOnly ||
+    (connection.alternateURL || "") !== (initial.alternateURL || "") || (connection.provider === "drive" && connection.readOnly !== initial.readOnly) ||
+    ((initial.sessionOnly || !!initial.alternateURL) && connection.path !== initial.path)
+  );
   const update = () => action(async () => {
+    if (requiresAuthentication || initial.recovery) {
+      setEditTab("access");
+      throw new Error("Use Renew access in the Access section to apply authentication changes.");
+    }
     if (!validateName()) return;
     await api.update({ ...connection, name: trimDriveName(connection.name) });
     onClose();
@@ -280,6 +298,7 @@ export function useConnectionWizard({
         guided: true,
         ...(forgetCredentials ? { forgetCredentials: true } : {}),
       });
+      if (initial.id) { setPath(connection.path); setDirectPath(connection.path); }
       setValues({});
       dispatch({ type: "start", sessionID: id });
     });
@@ -304,7 +323,7 @@ export function useConnectionWizard({
     }
   });
   return {
-    advance, update, initial, auth, data, t, connection,
+    advance, update, initial, auth, data, t, connection, requiresAuthentication,
     values, step, transport, setTransport, insecure, setInsecure, identity,
     setIdentity, trusted, setTrusted, sessionID, session, answer, setAnswer,
     busy, loading, error, fieldError, setFieldError, fieldID, folderError,

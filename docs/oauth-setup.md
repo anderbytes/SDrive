@@ -14,7 +14,7 @@ Keep credentials out of screenshots, source control and support reports. Persist
 4. Writable drives request `https://www.googleapis.com/auth/drive`; read-only drives request `https://www.googleapis.com/auth/drive.readonly`. Register/approve only the access you intend to use. Restricted scopes may require provider verification for wider publication.
 5. Authorize your original account and choose the intended shared drive, if applicable. An explicit root folder ID is available in Advanced options. Session-only access requires an explicit root/shared-drive identity; the default personal root does not prove account identity.
 
-Renew using **Reconfigure account**. External Testing consent can expire; revocation or policy changes can also require renewed authorization. Preserve pending files and the original root/shared drive.
+Renew using **Edit drive → Access → Renew access**. External Testing consent can expire; revocation or policy changes can also require renewed authorization. Preserve pending files and the original root/shared drive.
 
 Reference: [rclone custom Google Drive clients](https://rclone.org/drive/#making-your-own-client-id), [Google desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app).
 
@@ -25,7 +25,7 @@ Reference: [rclone custom Google Drive clients](https://rclone.org/drive/#making
 3. Add delegated Microsoft Graph file permissions matching the pinned backend's consent: `Files.Read`, `Files.ReadWrite`, `Files.Read.All`, `Files.ReadWrite.All`, `offline_access` and `User.Read`. Site search additionally uses `Sites.Read.All`. Obtain administrator approval when your tenant requires it. A read-only mount does not reduce this backend's OAuth scopes.
 4. Enter the Client ID and secret in SDrive, authorize the original account, and select the correct drive/library. SharePoint uses the same backend, with site/library selection.
 
-Before a secret expires, renew it in your own registration and use Reconfigure account. An expired/deleted registration or denied tenant consent is an application-setup failure, not a reason to use a shared client. Recovery must retain the original drive/library ID.
+Before a secret expires, renew it in your own registration and use Edit drive → Access → Renew access. An expired/deleted registration or denied tenant consent is an application-setup failure, not a reason to use a shared client. Recovery must retain the original drive/library ID.
 
 Reference: [rclone Microsoft registration instructions](https://rclone.org/onedrive/#getting-your-own-client-id-and-key).
 
@@ -36,7 +36,7 @@ Reference: [rclone Microsoft registration instructions](https://rclone.org/onedr
 3. Enable the file scopes needed for listing/reading and, for writable access, writing: `files.metadata.read`, `files.content.read`, `files.metadata.write` and `files.content.write`; include `account_info.read` for account information. Reauthorize after changing granted scopes. A read-only mount does not itself rewrite the registration's scopes.
 4. Authorize the intended account. Development-user limits and production approval remain your responsibility.
 
-Renew through Reconfigure account after revocation, permission changes or credential rotation. Session-only access is unavailable here because this delivery does not add an independent Dropbox namespace-identity probe.
+Renew through Edit drive → Access → Renew access after revocation, permission changes or credential rotation. Session-only access is unavailable here because this delivery does not add an independent Dropbox namespace-identity probe.
 
 Reference: [rclone Dropbox registration instructions](https://rclone.org/dropbox/#get-your-own-dropbox-app-id).
 
@@ -46,7 +46,7 @@ Reference: [rclone Dropbox registration instructions](https://rclone.org/dropbox
 2. Add `http://127.0.0.1:53682/` as an OAuth 2.0 redirect. Copy the Client ID and Client Secret.
 3. Enable the application file/folder read scope and write scope only when needed. Submit the application for your enterprise's approval when required, then authorize the intended account in SDrive.
 
-Use Reconfigure account after secret rotation or revoked consent. Session-only access remains unavailable without an independent root/account-identity probe.
+Use Edit drive → Access → Renew access after secret rotation or revoked consent. Session-only access remains unavailable without an independent root/account-identity probe.
 
 Reference: [rclone Box registration instructions](https://rclone.org/box/#get-your-own-box-app-id).
 
@@ -57,7 +57,7 @@ Reference: [rclone Box registration instructions](https://rclone.org/box/#get-yo
 3. Select the region matching the account: `api.pcloud.com` for US or `eapi.pcloud.com` for Europe. The backend uses pCloud's OAuth file-access grant rather than a configurable scope list.
 4. Authorize the intended account. Region selection is part of the destination and cannot be changed during pending recovery.
 
-Renew through Reconfigure account after revocation or application credential changes. Session-only access remains unavailable without independent account/root verification.
+Renew through Edit drive → Access → Renew access after revocation or application credential changes. Session-only access remains unavailable without independent account/root verification.
 
 Reference: [rclone pCloud](https://rclone.org/pcloud/), [pCloud OAuth](https://docs.pcloud.com/methods/oauth_2.0/).
 
@@ -67,7 +67,7 @@ For **OAuth**, enable Cloud Storage API, configure Google consent/audience and c
 
 For **service-account access**, choose the separate Basic entry and select a JSON key file for a service account authorized for the intended bucket. This does not use OAuth client registration or browser sign-in. Keep that file protected and available at the selected path. Listing the project's buckets may require broader permissions than accessing a known bucket directly; enter a known bucket when listing is denied.
 
-Renew OAuth consent or rotate the service-account key using Reconfigure account while preserving the original bucket/project. Session-only access is unavailable for GCS in this delivery.
+Renew OAuth consent or rotate the service-account key using Edit drive → Access → Renew access while preserving the original bucket/project. Session-only access is unavailable for GCS in this delivery.
 
 Reference: [rclone Google Cloud Storage](https://rclone.org/googlecloudstorage/).
 
@@ -90,7 +90,7 @@ Reference: [rclone Shared with me](https://rclone.org/drive/#drive-shared-with-m
 1. Register an application you control in [Yandex OAuth](https://oauth.yandex.com/), using the API-access application type for your own Disk data. See [Yandex application registration](https://yandex.com/dev/id/doc/en/register-client).
 2. Configure the callback `http://localhost:53682/` used by the pinned engine. Grant Disk API read access and the additional write permissions required for writable mounts; include storage-information access if you need quota reporting. Registration and available permissions depend on the provider.
 3. Select **Advanced → Yandex Disk**, enter the application's Client ID and Client Secret, then authorize your intended account. Both fields are required for new connections; shared rclone credentials are never used.
-4. Choose the destination folder and connect. Persistent secrets use the existing local encrypted storage. Use **Reconfigure account** to renew authorization; a blank secret is retained only for the same saved Client ID. Cancelled setup does not create a connection.
+4. Choose the destination folder and connect. Persistent secrets use the existing local encrypted storage. Use **Edit drive → Access → Renew access** to renew authorization; a blank secret is retained only for the same saved Client ID. Cancelled setup does not create a connection.
 
 Session-only access, proxy routing and independent bandwidth controls are unavailable for this profile. Portable files contain definitions without OAuth credentials; imports require a new sign-in. Automated tests exercise setup and credential handling, but live Yandex registration, account access, renewal and mounted read/write remain unverified.
 

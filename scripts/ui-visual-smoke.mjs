@@ -36,6 +36,7 @@ export const api = {
   preferenceDefaults: async () => ({ ...current().settings, cacheGiB: 2, cacheMaxAgeHours: 24, writeBackSeconds: 5 }), restoreDefaultCacheLocation: async () => current().cacheLocation,
   proxy: async () => ({ address: '', username: '', password: '', hasPassword: false }), browsers: async () => [{ id: '', name: 'Default browser' }],
   updateDriveAppearance: async (id, appearance) => { Object.assign(current().connections.find(c => c.id === id), appearance); },
+  test: async () => {}, refreshDirectoryCache: async () => {}, update: async connection => { Object.assign(current().connections.find(c => c.id === connection.id), connection); },
   fields: async () => ({ values: {}, transport: '' }), settings: async settings => { await wait('settings'); current().settings = settings; },
   begin: async () => 'synthetic-draft', status: async () => ({busy:false,authenticated:true,complete:false,error:''}), folders: async () => [{name:'Documents',path:'Documents'}], end: async () => {},
   selectDirectory: async () => 'C:\\\\Synthetic\\\\NewCache', selectFile: async () => ${JSON.stringify("C:\\Synthetic\\Credentials\\" + "long-directory\\".repeat(8) + "account.json")},
@@ -127,10 +128,6 @@ try {
   });
   await page.locator(".drive .spinner").waitFor({ state: "detached" });
   await page.setViewportSize({ width: 1440, height: 900 });
-  const details = async () => {
-    await page.locator(".drive > .actions > details > summary").first().click();
-    await page.getByRole("button", { name: "Drive details", exact: true }).click();
-  };
   const firstCard = page.locator(".drive").first();
   assert.equal(await firstCard.locator(".status-tag.connected").textContent(), "Connected");
   assert(await firstCard.locator(".status-tag, .type-tag").evaluateAll(tags => tags.every(tag => {
@@ -185,18 +182,84 @@ try {
     }), "U1 information must stay to the right of the letter");
     assert(await card.getByRole("button", { name: "Disconnect", exact: true }).evaluate(e => e.getBoundingClientRect().height >= 44));
     await capture("units-" + viewport.width);
-    await details();
-    for (const topic of ["Remote destination", "Connection options", "Upload details", "Local cache", "Remote capacity", "Connection security", "Alerts and recovery"]) {
-      const tab = page.getByRole("tab", { name: topic, exact: true });
-      const menu = page.locator(".dialog-navigation .navigation-toggle");
-      if (await menu.isVisible() && !await tab.isVisible()) await menu.click();
-      await tab.click(); await bounds();
-      assert.equal(await page.locator(".navigation-items button[aria-selected=true]").textContent().then(text => text.replace(/ !$/, "").trim()), topic);
+    for (const topic of ["Remote destination", "Connection options", "Local cache", "Remote capacity", "Connection security"]) {
+      const trigger = firstCard.getByRole("button", { name: topic, exact: true });
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.hover();
+      await page.getByRole("tooltip").waitFor();
+      assert.equal(await page.getByRole("tooltip").locator("strong").first().textContent(), topic);
+      assert.equal(await page.getByRole("dialog").count(), 0);
+      const box = await page.getByRole("tooltip").boundingBox();
+      assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1);
+      await page.keyboard.press("Escape");
     }
+    await firstCard.getByRole("button", { name: "Local cache", exact: true }).click();
     await capture("details-" + viewport.width);
-    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.keyboard.press("Escape");
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  const originalDrive = await page.evaluate(() => structuredClone(window.visualSnapshot.connections[0]));
+  const changeDrive = async patch => {
+    await page.evaluate(patch => {
+      Object.assign(window.visualSnapshot.connections[0], patch);
+      window.visualVisibility(false); window.visualVisibility(true);
+    }, patch);
+  };
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    for (const [state, tone] of [["encrypted", "success"], ["unencrypted", "inactive"], ["unknown", "warning"]]) {
+      await changeDrive({ transportSecurity: { ...originalDrive.transportSecurity, state } });
+      const shield = firstCard.getByRole("button", { name: "Connection security", exact: true });
+      await page.waitForFunction(tone => document.querySelector('[data-topic="security"]')?.dataset.tone === tone, tone);
+      assert.equal(await shield.isEnabled(), true, "Inactive security remains inspectable");
+      assert(await shield.evaluate(element => {
+        const box = element.getBoundingClientRect(), glyph = element.querySelector("svg").getBoundingClientRect();
+        return box.width === 32 && box.height === 32 && glyph.width === 16 && glyph.height === 16 && getComputedStyle(element.closest(".drive-details")).gap === "2px";
+      }), "Desktop icon and glyph dimensions");
+      const info = await firstCard.getByRole("button", { name: "Remote destination", exact: true }).evaluate(element => getComputedStyle(element).color);
+      const shieldColor = await shield.evaluate(element => getComputedStyle(element).color);
+      assert.notEqual(shieldColor, info, "Security state must have its own color");
+      if (state === "unencrypted") {
+        assert.equal(await shield.locator(".security-off-mark").count(), 1);
+        assert.notEqual(await shield.locator(".security-off-mark").evaluate(element => getComputedStyle(element).stroke), shieldColor);
+      }
+      await shield.click(); await page.getByRole("tooltip").waitFor();
+      await page.keyboard.press("Escape");
+      await bounds(); await capture("security-" + state + "-" + theme);
+    }
+  }
+  await changeDrive({ pending: 2, uploads: { active: 1, queued: 1, cacheErrors: 0 } });
+  const uploadIcon = firstCard.getByRole("button", { name: "Upload details", exact: true });
+  await uploadIcon.focus(); await page.getByRole("tooltip").waitFor();
+  await changeDrive({ pending: 0, uploads: { active: 0, queued: 0, cacheErrors: 0 } });
+  await uploadIcon.waitFor({ state: "detached" });
+  assert.equal(await firstCard.getByRole("button", { name: "Remote destination", exact: true }).evaluate(element => element === document.activeElement), true);
+  await page.keyboard.press("Escape");
+  await changeDrive({ mounted: false, recovery: false, cache: { ...originalDrive.cache, usedBytes: 0, pendingBytes: 0 } });
+  await firstCard.getByRole("button", { name: "Edit drive", exact: true }).waitFor();
+  assert.equal(await firstCard.locator(".drive-details button").count(), 2, "Disconnected clean drives only need destination and options");
+  await page.setViewportSize({ width: 420, height: 740 });
+  await bounds(); await capture("contextual-disconnected-narrow");
+  await changeDrive({ ...originalDrive, pending: null, recovery: true, mounted: false });
+  await firstCard.getByRole("button", { name: "Alerts and recovery", exact: true }).waitFor();
+  assert.equal(await firstCard.getByRole("button", { name: "Alerts and recovery", exact: true }).getAttribute("data-tone"), "danger");
+  await bounds(); await capture("contextual-recovery-narrow");
+  await changeDrive({ ...originalDrive, capacity: { ...originalDrive.capacity, state: "unsupported" } });
+  await firstCard.getByRole("button", { name: "Connection security", exact: true }).waitFor();
+  assert.equal(await firstCard.getByRole("button", { name: "Remote capacity", exact: true }).count(), 0);
+  await changeDrive(originalDrive);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { document.documentElement.dataset.theme = "light"; });
+  const touchPage = await browser.newPage({ hasTouch: true, viewport: { width: 420, height: 740 } });
+  try {
+    await touchPage.goto(server.resolvedUrls.local[0]);
+    await touchPage.getByRole("button", { name: "Drive diagnostics", exact: true }).first().waitFor();
+    assert(await touchPage.evaluate(() => matchMedia("(pointer: coarse)").matches));
+    await touchPage.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
+    assert.deepEqual(await touchPage.locator(".drive-detail-icon").first().evaluate(element => {
+      const box = element.getBoundingClientRect(); return { width: box.width, height: box.height };
+    }), { width: 44, height: 44 }, "Touch retains 44px icon controls");
+  } finally { await touchPage.close(); }
   await page.getByRole("button", { name: "+ New connection", exact: true }).click();
   await bounds(); await capture("connection-service");
   const help = page.getByRole("button", { name: "Help for Windows drive letter", exact: true });
@@ -259,7 +322,7 @@ try {
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   assert(await page.evaluate(() => window.visualMotion.some(event => event.name === "panel-enter")), "Drawers must animate on entry");
-  const menu = page.locator(".drive > .actions > details > summary").first();
+  const menu = page.locator(".drive-controls > .actions > details > summary").first();
   for (let opening = 0; opening < 2; opening++) {
     const count = await page.evaluate(() => window.visualMotion.filter(event => event.target === "dropdown").length);
     await menu.click(); await settle();
@@ -281,12 +344,26 @@ try {
   assert.equal(await page.locator(".dropdown:visible").evaluate(element => getComputedStyle(element).animationName), "none");
   await page.keyboard.press("Escape");
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.locator(".drive > .actions > details > summary").first().click();
-  await page.getByRole("button", { name: "Applications using a file", exact: true }).click();
+  await firstCard.getByRole("button", { name: "Drive diagnostics", exact: true }).click();
+  await page.getByRole("tab", { name: "Applications using a file", exact: true }).click();
+  await page.getByRole("tab", { name: "Test access", exact: true }).click();
+  await page.getByRole("button", { name: "Test access", exact: true }).click();
+  await page.getByText("Access test succeeded. Listing folders does not verify write permission.", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: "Refresh files in Explorer", exact: true }).click();
+  await page.getByRole("button", { name: "Refresh files in Explorer", exact: true }).click();
+  await page.getByText("Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.", { exact: true }).waitFor();
+  await capture("drive-diagnostics");
+  await page.getByRole("tab", { name: "Applications using a file", exact: true }).click();
   await page.getByRole("button", { name: "Select mounted file", exact: true }).click();
   await page.getByText("File access information is unknown.", { exact: false }).waitFor();
   await bounds(); await capture("file-access");
   await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.locator(".drive").nth(1).getByRole("button", { name: "Edit drive", exact: true }).click();
+  for (const section of ["General", "Access", "Files", "Network"]) {
+    await page.getByRole("tab", { name: section, exact: true }).click();
+    await bounds(); await capture("edit-drive-" + section.toLowerCase());
+  }
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: /Preferences/ }).click();
   for (const tab of ["General", "Appearance", "Cache", "Network", "Configuration"]) {
     await page.getByRole("tab", { name: tab, exact: true }).click(); await bounds(); await capture("preferences-" + tab.toLowerCase());
@@ -377,7 +454,7 @@ try {
   await page.getByRole("button", { name: /Preferences/ }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, theme/custom stripes and fallback, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, theme/custom stripes and fallback, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

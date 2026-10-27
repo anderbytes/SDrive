@@ -123,6 +123,12 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     await page.getByRole("button", { name: "Done", exact: true }).click();
     const drive = page.locator(".drive");
     await drive.getByText("Connected", { exact: true }).waitFor();
+    assert.equal(await drive.getByRole("button", { name: "Edit drive", exact: true }).count(), 0);
+    await page.waitForFunction(() => document.querySelector('.drive [data-topic="security"]')?.dataset.tone === "inactive");
+    const shield = drive.getByRole("button", { name: "Connection security", exact: true });
+    assert.equal(await shield.locator(".security-off-mark").count(), 1);
+    assert.equal(await shield.isEnabled(), true);
+
     assert.equal(await drive.locator(".letter svg").count(), 1);
     await drive.locator("summary").click();
     await drive.getByRole("button", { name: "Customize appearance", exact: true }).click();
@@ -144,11 +150,28 @@ await runSmoke(async ({ page, dav, child, exited, artifacts, profile }) => {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     assert.equal(await drive.getAttribute("data-card-style"), "amber");
     await page.screenshot({ path: path.join(artifacts, "drive-appearance.png") });
-    await drive.locator("summary").click();
-    await drive.getByRole("button", { name: "Refresh files in Explorer", exact: true }).click();
+    await drive.getByRole("button", { name: "Drive diagnostics", exact: true }).click();
+    await page.getByRole("tab", { name: "Refresh files in Explorer", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh files in Explorer", exact: true }).click();
     await page.getByText("Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
     await drive.getByRole("button", { name: "Disconnect", exact: true }).click();
     await drive.getByText("Disconnected", { exact: true }).waitFor();
+    await drive.getByRole("button", { name: "Remote destination", exact: true }).focus();
+    await page.getByRole("tooltip").waitFor();
+    await page.keyboard.press("Escape");
+    assert.equal(await page.getByRole("tooltip").count(), 0);
+    assert(await drive.getByRole("button", { name: "Edit drive", exact: true }).evaluate(element => {
+      const box = element.getBoundingClientRect(); return box.width === 32 && box.height === 32;
+    }));
+    await drive.getByRole("button", { name: "Edit drive", exact: true }).click();
+    for (const section of ["General", "Access", "Files", "Network"]) {
+      await page.getByRole("tab", { name: section, exact: true }).click();
+      assert.equal(await page.getByRole("tabpanel").count(), 1);
+    }
+    await page.screenshot({ path: path.join(artifacts, "unified-editor.png") });
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
   } else {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
   }

@@ -2,7 +2,7 @@ import { DriveIcon, DriveAppearanceDialog } from "./DriveAppearance";
 import { Preferences } from "./Preferences";
 import { ThemeProvider, useTheme } from "./theme";
 import { errorMessage as message, type LocalizedMessage } from "./messages";
-import { FileAccessDialog } from "./FileAccessDialog";
+import { DriveDiagnostics } from "./DriveDiagnostics";
 import { DriveDetails, type DriveDetailSelection } from "./DriveDetails";
 import { formatBytes as bytes } from "./formatBytes";
 import { AccessBoundary, AccessSettings } from "./AccessProtection";
@@ -142,6 +142,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
     action: () => Promise<void>,
     success = "",
     operation = "Operation in progress…",
+    propagate = false,
   ) => {
     ++snapshotRequest.current;
     setWorking((v) => ({ ...v, [key]: operation }));
@@ -156,6 +157,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
     } catch (e) {
       if (!snapshotActive.current) return;
       ++snapshotRequest.current;
+      if (propagate) throw e;
       setError(message(e));
     } finally {
       if (snapshotActive.current) setWorking((v) => {
@@ -381,6 +383,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
               busy={!!working[c.id] || c.busy}
               operation={operationText[c.operation] || working[c.id] || ""}
               onAction={(action, operation, success) => void run(c.id, () => action(c.id), success, operation)}
+              onDiagnostic={(work, operation) => run(c.id, work, "", operation, true)}
               onEdit={(auth) => setEditor({ connection: c, auth })}
               onAppearanceSaved={() => void refresh()}
             />
@@ -562,6 +565,7 @@ function Drive({
   operation,
   onAction,
   onEdit,
+  onDiagnostic,
   onAppearanceSaved,
 }: {
   connection: ConnectionView;
@@ -572,9 +576,10 @@ function Drive({
   operation: string;
   onAction: (action: (id: string) => Promise<void>, operation?: string, success?: string) => void;
   onEdit: (auth: boolean) => void;
+  onDiagnostic: (work: () => Promise<void>, operation: string) => Promise<void>;
   onAppearanceSaved: () => void;
 }) {
-  const { t, language, platform } = useLanguage();
+  const { t, language } = useLanguage();
   const { used, total } = c.capacity;
   const usage = used !== null && total !== null && Number.isFinite(used) && Number.isFinite(total) && total > 0 && used >= 0 && used <= total
     ? used / total * 100 : null;
@@ -582,7 +587,7 @@ function Drive({
     percent: new Intl.NumberFormat(language, { style: "percent", maximumFractionDigits: 1 }).format(usage / 100),
     used: bytes(used), total: bytes(total),
   });
-  const [fileAccess, setFileAccess] = useState(false);
+  const [diagnostics, setDiagnostics] = useState(false);
   const [appearance, setAppearance] = useState(false);
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
@@ -603,8 +608,7 @@ function Drive({
   return (
     <article className={`drive ${statusClass}`} data-card-style={c.cardStyle || ""}>
       {appearance && <DriveAppearanceDialog connection={c} unavailable={busy} onClose={() => setAppearance(false)} onSave={onAppearanceSaved} />}
-      {fileAccess && <FileAccessDialog connectionID={c.id} onClose={() => setFileAccess(false)} />}
-      {detailSelection?.connectionID === c.id && <DriveDetails connection={c} provider={p} selection={detailSelection} onSelect={onDetailSelect} />}
+      {diagnostics && <DriveDiagnostics connection={c} busy={busy} onRun={onDiagnostic} onClose={() => setDiagnostics(false)} />}
       {confirmRemoval && <RemoveConnectionDialog name={c.name} unavailable={busy || c.mounted || c.recovery} onClose={() => setConfirmRemoval(false)} onConfirm={() => { setConfirmRemoval(false); onAction(api.remove); }} />}
       <DriveIcon connection={c} />
       <div className="drive-info">
@@ -635,6 +639,13 @@ function Drive({
         {(!!c.cache.error || !!c.uploads?.cacheErrors) && <p className="inline-error">{t("Local cache needs attention.")}</p>}
         {c.mounted && c.transportSecurity?.state !== "encrypted" && <p className="inline-error">{t(c.transportSecurity?.state === "unencrypted" ? "Traffic unencrypted" : "Traffic encryption could not be verified")}</p>}
       </div>
+      <div className="drive-controls">
+        <div className="drive-tools">
+          <DriveDetails connection={c} provider={p} selection={detailSelection} onSelect={onDetailSelect} />
+          <button className="drive-detail-icon" data-tone={busy ? "inactive" : "info"} aria-label={t("Drive diagnostics")} title={t("Drive diagnostics")} onClick={() => { onDetailSelect(undefined); setDiagnostics(true); }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v4l5 12H4L9 7ZM7 14h10M10 3h4" /></svg>
+          </button>
+        </div>
       <div className="actions">
         {c.mounted && <button disabled={busy} title={t("Open in Explorer")} onClick={() => onAction(api.open)}>{t("Open")}</button>}
         <button
@@ -648,6 +659,11 @@ function Drive({
               ? t("Recover")
               : t("Connect")}
         </button>
+        {!busy && !c.mounted && <button className="drive-detail-icon" data-tone="info" aria-label={t("Edit drive")}
+          title={t("Edit drive")}
+          onClick={() => { onDetailSelect(undefined); onEdit(!!c.recovery); }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L21 7l-4-4ZM14 6l4 4" /></svg>
+        </button>}
         <details ref={menu}
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false;
@@ -665,22 +681,7 @@ function Drive({
           <div className="dropdown" onClickCapture={(event) => {
             if ((event.target as HTMLElement).closest("button:not(:disabled)")) closeMenu();
           }}>
-            <button onClick={() => { closeMenu(); onDetailSelect({ connectionID: c.id, topic: "destination" }); }}>{t("Drive details")}</button>
             <button disabled={busy} onClick={() => { closeMenu(); setAppearance(true); }}>{t("Customize appearance")}</button>
-            <button disabled={busy || !c.mounted || platform === "linux"} title={platform === "linux" ? t("File process inspection is unavailable on Linux.") : undefined} onClick={() => { closeMenu(); setFileAccess(true); }}>{t("Applications using a file")}</button>
-          <button disabled={busy || !c.mounted} onClick={() => onAction(api.refreshDirectoryCache, "Refreshing directory metadata…", "Directory metadata refreshed. Reopen the folder in Explorer to see remote changes.")}>{t("Refresh files in Explorer")}</button>
-            <button disabled={busy} onClick={() => onAction(api.test, "Validating account…", "Access test succeeded. Listing folders does not verify write permission.")}>
-              {t("Test access")}
-            </button>
-            <button
-              disabled={busy || c.mounted || c.recovery}
-              onClick={() => onEdit(false)}
-            >
-              {t("Edit drive")}
-            </button>
-            <button disabled={busy || c.mounted} onClick={() => onEdit(true)}>
-              {t("Reconfigure account")}
-            </button>
             <button
               disabled={busy || c.mounted || c.recovery}
               className="danger"
@@ -690,6 +691,7 @@ function Drive({
             </button>
           </div>
         </details>
+      </div>
       </div>
     </article>
   );

@@ -61,6 +61,10 @@ button > .spinner { margin-inline-end: 8px; }
   --popover: #293440;
   --shadow: #0003;
   --card-shadow: #0005;
+  --icon-info: #91bfff;
+  --icon-success: #7fd4a0;
+  --icon-warning: #f0c05a;
+  --icon-danger: #ff9292;
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -99,6 +103,10 @@ button > .spinner { margin-inline-end: 8px; }
   --popover: #fff;
   --shadow: #24334518;
   --card-shadow: #24334524;
+  --icon-info: #2b639f;
+  --icon-success: #227245;
+  --icon-warning: #876000;
+  --icon-danger: #b52b38;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -209,9 +217,40 @@ main > header p { margin: 0; }
 .drive .mount-folder > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .inline-error, .danger { color: var(--error-text); }
 .actions, .modal-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.drive > .actions { flex-wrap: nowrap; }
-.drive > .actions > button { white-space: nowrap; }
+.drive-controls > .actions { flex-wrap: nowrap; }
+.drive-controls > .actions > button { white-space: nowrap; }
 .actions > details { flex-shrink: 0; }
+.drive-controls { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.drive-tools, .drive-details { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; }
+.drive-tools { max-width: 100%; }
+.drive-details { min-width: 0; flex-shrink: 1; overflow-x: auto; padding: 5px; margin-block: -5px; }
+.drive-detail-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 7px; background: transparent; border-color: transparent; color: var(--icon-info); }
+.drive-detail-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.drive-detail-icon[data-tone="success"] { color: var(--icon-success); }
+.drive-detail-icon[data-tone="warning"] { color: var(--icon-warning); }
+.drive-detail-icon[data-tone="danger"], .drive-detail-icon .security-off-mark { color: var(--icon-danger); }
+.drive-detail-icon[data-tone="inactive"] { color: var(--muted); }
+.drive-detail-icon[data-tone="inactive"] svg > path:first-child { opacity: .45; }
+.drive-detail-icon .security-off-mark { stroke: currentColor; stroke-width: 2.2; }
+@media (pointer: coarse) {
+  .drive-detail-icon { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+}
+.detail-attention { position: absolute; top: 0; right: 1px; font-size: 11px; font-weight: bold; }
+.drive-tooltip { position: fixed; z-index: 10; width: 360px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--popover); color: var(--text); box-shadow: 0 8px 25px var(--shadow); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; user-select: text; }
+.drive-tooltip strong { display: block; }
+.drive-tooltip p { margin: 8px 0 0; }
+.drive-tooltip ul { padding-left: 18px; margin: 8px 0 0; }
+.editor-section { border: 0; padding: 0; margin: 0; min-width: 0; }
+@media (max-width: 1000px) {
+  .drive > .drive-controls { grid-column: 1 / -1; width: 100%; }
+}
+@media (forced-colors: active) {
+  .drive-tooltip { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
+  .drive-detail-icon { color: LinkText !important; }
+  .drive-detail-icon[data-tone="inactive"] { color: GrayText !important; }
+  .drive-detail-icon[data-tone="inactive"] svg > path:first-child { opacity: 1; }
+  .drive-detail-icon .security-off-mark { color: CanvasText; }
+}
 details { position: relative; }
 summary { min-height: 44px; padding: 10px 0; line-height: 24px; font-size: 14px; font-weight: 600; }
 .actions summary { width: 44px; text-align: center; padding: 10px 0; list-style: none; }
@@ -339,7 +378,7 @@ legend { color: var(--muted); font-size: 14px; padding: 0 8px; }
 @media (max-width: 1100px) {
   .shell { grid-template-columns: 190px minmax(0, 1fr); }
   .drive { grid-template-columns: 44px minmax(0, 1fr); }
-  .drive > .actions { grid-column: 2; justify-content: flex-end; flex-wrap: wrap; }
+  .drive-controls > .actions { grid-column: 2; justify-content: flex-end; flex-wrap: wrap; }
   .drive > .drive-info:first-child { grid-column: 1 / -1; }
 }
 @media (max-width: 650px) {

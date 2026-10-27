@@ -220,8 +220,8 @@
   "could not retrieve the SSH key": "Der Schlüssel SSH konnte nicht abgerufen werden",
   "connection operation in progress": "Verbindungsvorgang läuft",
   "unmount and resolve pending files before editing": "Hängen Sie ausstehende Dateien aus und lösen Sie sie auf, bevor Sie sie bearbeiten",
-  "use Reconfigure to change the provider": "Verwenden Sie Neu konfigurieren, um den Anbieter zu ändern",
-  "use Reconfigure account to change access mode and update Google Drive OAuth consent": "Verwenden Sie „Konto neu konfigurieren“, um den Zugriffsmodus zu ändern und die Google Drive OAuth-Zustimmung zu aktualisieren",
+  "Create a new connection to use another provider.": "Erstellen Sie eine neue Verbindung, um einen anderen Anbieter zu verwenden.",
+  "Use the Access section to change access mode and update Google Drive OAuth consent.": "Verwenden Sie den Bereich Zugriff, um den Zugriffsmodus zu ändern und die OAuth-Zustimmung für Google Drive zu erneuern.",
   "letter already reserved": "Laufwerksbuchstabe bereits reserviert",
   "complete or cancel reconfiguration": "Neukonfiguration abschließen oder abbrechen",
   "unmount and resolve pending files before removing": "Hängen Sie ausstehende Dateien aus und lösen Sie sie auf, bevor Sie sie entfernen",
@@ -907,5 +907,12 @@
   "Restored startup preferences have not been applied. Save preferences to reconcile sign-in startup.": "Restored startup preferences have not been applied. Save preferences to reconcile sign-in startup.",
   "sign-in startup may differ from saved preferences. Save preferences to reconcile it.": "sign-in startup may differ from saved preferences. Save preferences to reconcile it.",
   "could not save preferences: %w; sign-in startup rollback also failed: %v": "could not save preferences: %w; sign-in startup rollback also failed: %v",
-  "sign-in startup, proxy credentials and cache location stay local.": "sign-in startup, proxy credentials and cache location stay local."
+  "sign-in startup, proxy credentials and cache location stay local.": "sign-in startup, proxy credentials and cache location stay local.",
+  "Connect the drive to use this tool.": "Verbinden Sie das Laufwerk, um dieses Werkzeug zu verwenden.",
+  "Disconnect the drive and wait for the current operation before editing.": "Trennen Sie das Laufwerk und warten Sie vor dem Bearbeiten auf das Ende des aktuellen Vorgangs.",
+  "Drive diagnostics": "Laufwerkdiagnose",
+  "Listing folders does not verify write permission.": "Das Auflisten von Ordnern prüft keine Schreibberechtigung.",
+  "Refresh directory metadata to see remote changes. Local files and pending uploads are preserved.": "Aktualisieren Sie die Ordnermetadaten, um entfernte Änderungen zu sehen. Lokale Dateien und ausstehende Uploads bleiben erhalten.",
+  "Use Renew access in the Access section to apply authentication changes.": "Verwenden Sie Zugriff erneuern im Bereich Zugriff, um Änderungen an der Authentifizierung anzuwenden.",
+  "Use the Access section to change Google Drive access mode and update OAuth consent.": "Verwenden Sie den Bereich Zugriff, um den Google-Drive-Zugriffsmodus zu ändern und die OAuth-Zustimmung zu erneuern."
 }

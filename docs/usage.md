@@ -25,9 +25,13 @@ Open, edit and save files in Explorer or your usual applications. Files are acce
 
 Before disconnecting or exiting, close open files and wait for uploads. If SDrive reports pending recovery or cannot confirm that files are safe, resolve the condition before exiting. **Closing the window keeps drives active in the tray.** Right-click the tray icon to open SDrive, connect or disconnect a drive, or choose **Exit safely**.
 
-Cards show connection status and, when available, remote storage usage. Choose **… → Drive details** for upload, cache, security and recovery information. Capacity may describe the account rather than the selected folder. Missing information is shown as unavailable or unknown.
+Cards show connection status and, when available, remote storage usage. Hover, focus or click the icons above the action buttons for destination, options, uploads, cache, capacity, security and recovery details. The icon strip is contextual: idle uploads, empty disconnected caches, unsupported capacity and irrelevant disconnected details are hidden. Capacity may describe the account rather than the selected folder. Unknown pending files and failed inspections remain visible; they never imply a clean cache. Blue identifies available information or active uploads, green confirms encrypted transport, yellow marks unknown or waiting states, and red marks errors or recovery. Unencrypted transport uses a muted shield with a red slash; its tooltip remains accessible. Icons use 32-pixel desktop controls and 44-pixel touch targets.
 
 You can choose network-drive or local-disk presentation, or mount into a new local subfolder. Read-only access and automatic connection are configured per drive. Automatic connection is optional and disabled initially. See [mounting, cache and browsing](mount-runtime.md) for limits and details, including refreshing files changed elsewhere.
+
+Use the **Drive diagnostics** icon beside the detail icons for **Test access**, **Refresh files in Explorer** and **Applications using a file**. Results stay available while switching diagnostic sections. Refresh requires a connected drive; file inspection additionally requires Windows and checks only the selected file.
+
+The pencil beside **Connect** opens **Edit drive**, with **General**, **Access**, **Files** and, when supported, **Network** sections. The pencil appears only while disconnected and idle. **Save changes** applies settings without signing in or connecting. Authentication changes require **Access → Renew access**, followed by destination confirmation and **Connect drive**; settings and access changes are applied together. Cancel before confirmation preserves the previous saved connection. The **…** menu contains only **Customize appearance** and **Remove connection**.
 
 ## Personalize SDrive
 
@@ -69,7 +73,7 @@ The maintainer cannot personally test every connection type, feature or environm
 
 ## Recover after an interruption
 
-Never delete the cache while recovery is pending. Use **Recover** on the original connection and keep its original account and destination available. To renew credentials, use **Reconfigure account**, preserving the server, username, folder and access mode. Destination changes and removal remain blocked until recovery finishes.
+Never delete the cache while recovery is pending. Use **Recover** on the original connection and keep its original account and destination available. To renew credentials, use **Edit drive → Access → Renew access**, preserving the server, username, folder and access mode. Destination changes and removal remain blocked until recovery finishes.
 
 Keep the profile and cache together with their binding information. The default profile is `%LOCALAPPDATA%\SDrive`; it holds preferences, encrypted credentials, keys and recovery information. The cache initially lives there and can be changed through Preferences after clean disconnection. SDrive uses its own configuration rather than modifying your regular `rclone.conf`.
 

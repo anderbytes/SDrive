@@ -27,18 +27,18 @@ const selectAvailableCategory = () => {
   if (select instanceof HTMLSelectElement && !select.options.length) fireEvent.click(screen.getByRole("tab", { name: /^(Advanced|Avançados)$/ }));
 };
 async function selectDriveDetail(topic: string, index = 0) {
-  if (!screen.queryByRole("dialog", { name: /^(Drive details|Detalhes da unidade)/ })) {
-    if (!document.querySelectorAll(".drive > .actions > details")[index]) {
-      await waitFor(() => expect(document.querySelectorAll(".drive > .actions > details")[index]).toBeDefined());
-    }
-    const menu = document.querySelectorAll<HTMLDetailsElement>(".drive > .actions > details")[index];
-    fireEvent.click(menu.querySelector("summary")!);
-    act(() => menu.querySelector("summary")!.focus());
-    fireEvent.click(within(menu).getByRole("button", { name: /^(Drive details|Detalhes da unidade)$/ }));
-  }
-  const tab = screen.getByRole("tab", { name: topic });
-  fireEvent.click(tab);
-  return tab;
+  if (!document.querySelectorAll(".drive")[index]) await waitFor(() => expect(document.querySelectorAll(".drive")[index]).toBeDefined());
+  const button = within(document.querySelectorAll<HTMLElement>(".drive")[index]).getByRole("button", { name: topic });
+  fireEvent.click(button);
+  return button;
+}
+async function openAccessEditor(language: Language = "en") {
+  fireEvent.click(await screen.findByRole("button", { name: translate(language, "Edit drive") }));
+  fireEvent.click(screen.getByRole("tab", { name: translate(language, "Access") }));
+}
+async function openDriveDiagnostics(language: Language = "en", section = "Test access") {
+  fireEvent.click(await screen.findByRole("button", { name: translate(language, "Drive diagnostics") }));
+  fireEvent.click(screen.getByRole("tab", { name: translate(language, section) }));
 }
 
 const cancelDialog = () => fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
@@ -145,6 +145,7 @@ beforeEach(() => {
   vi.mocked(api.onDesktopVisibility).mockReturnValue(() => {});
   vi.mocked(api.snapshot).mockResolvedValue(snapshot);
   vi.mocked(api.end).mockResolvedValue();
+  vi.mocked(api.fields).mockResolvedValue({ values: {}, transport: "" });
   vi.mocked(api.folders).mockResolvedValue([]);
   vi.mocked(api.confirm).mockResolvedValue("connected-id");
   vi.mocked(api.mount).mockResolvedValue();
@@ -393,7 +394,7 @@ test("Connect on a session-only drive requests authentication instead of mountin
   vi.mocked(api.fields).mockResolvedValue({ values: { root_folder_id: "synthetic-root" }, transport: "" });
   render(<App />);
   fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
-  await screen.findByRole("heading", { name: "Reconfigure account" });
+  await screen.findByRole("heading", { name: "Edit drive" });
   expect(api.mount).not.toHaveBeenCalled();
   expect(screen.queryByLabelText("Connect automatically when SDrive starts")).toBeNull();
 });
@@ -403,7 +404,7 @@ test("network form converts KiB limits to independent byte rates", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [webdav], connections: [{ ...connection, provider: "webdav" }] });
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   fireEvent.click(screen.getByRole("tab", { name: "Network" }));
   fireEvent.change(screen.getByLabelText("Download limit (KiB/s)"), { target: { value: "512" } });
   fireEvent.change(screen.getByLabelText("Upload limit (KiB/s)"), { target: { value: "128" } });
@@ -501,7 +502,7 @@ test("editing uses the same Unicode limit and preserves an invalid name for corr
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   const input = screen.getByLabelText("Drive name") as HTMLInputElement;
   fireEvent.change(input, { target: { value: "é".repeat(81) } });
   fireEvent.click(screen.getByText("Save changes"));
@@ -531,7 +532,7 @@ test("structured field errors keep their field association and translate by code
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, connections: [connection] });
   vi.mocked(api.update).mockRejectedValue(new Error(cause.message, { cause }));
   render(<App />);
-  fireEvent.click(await screen.findByText("Editar unidade"));
+  fireEvent.click(await screen.findByRole("button", { name: "Editar unidade" }));
   fireEvent.click(screen.getByText("Salvar alterações"));
   const error = await screen.findByText("preencha Server");
   const input = screen.getByLabelText("Nome da unidade") as HTMLInputElement;
@@ -816,9 +817,10 @@ test("recovery prevents deleting or changing destination", async () => {
   });
   render(<App />);
   await screen.findByText("Recovery required");
-  expect((screen.getByText("Edit drive") as HTMLButtonElement).disabled).toBe(
-    true,
-  );
+  expect((screen.getByRole("button", { name: "Edit drive" }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Edit drive" }));
+  expect(screen.getByRole("tab", { name: "Access" }).getAttribute("aria-selected")).toBe("true");
+  expect(screen.getByLabelText("Drive name").matches(":disabled")).toBe(true);
   expect(
     (screen.getByText("Remove connection") as HTMLButtonElement).disabled,
   ).toBe(true);
@@ -898,8 +900,8 @@ test.each(["en", "pt-BR"])("drive labels and experimental text follow %s without
   expect(document.querySelector(".server-path")?.textContent).toBe("My drives");
   expect(screen.getByText("Experimental", { exact: true })).toBeDefined();
   await selectDriveDetail(language === "en" ? "Remote destination" : "Destino remoto");
-  expect(screen.getByRole("tabpanel").textContent).toContain("Google Drive · My drives");
-  cancelDialog();
+  expect(screen.getByRole("tooltip").textContent).toContain("Google Drive · My drives");
+  fireEvent.keyDown(document, { key: "Escape" });
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "+ New connection" : "+ Nova conexão" }));
   selectAvailableCategory();
   expect(screen.getByRole("option", { name: "Google Drive (experimental)" })).toBeDefined();
@@ -951,7 +953,7 @@ test("drive action disclosure closes on Escape, outside interaction, focus depar
   const details = summary.closest("details")!;
   fireEvent.click(summary);
   expect(details.open).toBe(true);
-  screen.getByRole("button", { name: "Test access" }).focus();
+  screen.getByRole("button", { name: "Customize appearance" }).focus();
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(details.open).toBe(false);
   expect(document.activeElement).toBe(summary);
@@ -966,10 +968,9 @@ test("drive action disclosure closes on Escape, outside interaction, focus depar
   outside.focus();
   expect(details.open).toBe(false);
   fireEvent.click(summary);
-  fireEvent.click(screen.getByRole("button", { name: "Test access" }));
-  expect(api.test).toHaveBeenCalledWith(connection.id);
+  fireEvent.click(screen.getByRole("button", { name: "Customize appearance" }));
+  expect(screen.getByRole("dialog")).toBeDefined();
   expect(details.open).toBe(false);
-  expect(document.activeElement).toBe(summary);
   await act(async () => {});
 });
 
@@ -980,12 +981,12 @@ test("field help survives validation and secret reveal, and security consequence
   vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "explicit" });
   vi.mocked(api.begin).mockRejectedValue(new Error("invalid password", { cause: { field: "pass", message: "invalid password" } }));
   render(<App />);
-  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await openAccessEditor();
   await waitFor(() => expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("original"));
   const password = screen.getByLabelText("Password");
   const help = screen.getByText("Password instructions");
   expect(password.getAttribute("aria-describedby")).toBe(help.id);
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Renew access" }));
   const error = await screen.findByText("invalid password");
   expect(password.getAttribute("aria-describedby")?.split(" ")).toEqual([help.id, error.id]);
   fireEvent.click(screen.getByRole("button", { name: "Show Password" }));
@@ -1039,7 +1040,7 @@ test.each(["explicit", "implicit", "plain"])("FTP renewal restores %s and requir
   vi.mocked(api.begin).mockResolvedValue("renew");
   vi.mocked(api.status).mockResolvedValue({ authenticated: false, connectionID: "", id: "renew", busy: true, complete: false, question: null, error: "" });
   render(<App />);
-  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await openAccessEditor();
   await waitFor(() => expect((screen.getByLabelText("Server") as HTMLInputElement).value).toBe("example.test"));
   expect((screen.getByLabelText("Access type") as HTMLSelectElement).value).toBe(transport);
   const consent = screen.getByLabelText("Allow unencrypted connection (HTTP / FTP)") as HTMLInputElement;
@@ -1049,7 +1050,7 @@ test.each(["explicit", "implicit", "plain"])("FTP renewal restores %s and requir
     expect(screen.getByText("This connection uses unencrypted FTP. Confirm permission in Advanced options before continuing.")).toBeDefined();
     fireEvent.click(consent);
   }
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Renew access" }));
   await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ transport, allowInsecure: transport === "plain", values: { host: "example.test", user: "original", pass: "synthetic-secret" } })));
 });
 
@@ -1057,9 +1058,9 @@ test("failed credential loading prevents renewal with default transport", async 
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider: "ftp" }] });
   vi.mocked(api.fields).mockRejectedValue(new Error("Could not load access details. Cancel and try again."));
   render(<App />);
-  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await openAccessEditor();
   await screen.findByText("Could not load access details. Cancel and try again.");
-  expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Renew access" }) as HTMLButtonElement).disabled).toBe(true);
   expect(api.begin).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -1095,9 +1096,9 @@ test("existing user-owned OAuth connection can renew with its saved identity", a
   vi.mocked(api.begin).mockResolvedValue("custom");
   vi.mocked(api.status).mockResolvedValue({ authenticated: false, connectionID: "", id: "custom", busy: true, complete: false, question: null, error: "" });
   render(<App />);
-  fireEvent.click(await screen.findByText("Reconfigure account"));
-  await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: "Sign in with Google Drive" }));
+  await openAccessEditor();
+  await waitFor(() => expect((screen.getByRole("button", { name: "Renew access" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Renew access" }));
   await waitFor(() => expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ values: { client_id: "custom-public-id" } })));
 });
 
@@ -1105,7 +1106,7 @@ test("password controls and FTP warning follow the saved Portuguese language", a
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language: "pt-BR" }, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider: "ftp" }] });
   vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "plain" });
   render(<App />);
-  fireEvent.click(await screen.findByText("Reconfigurar conta"));
+  await openAccessEditor("pt-BR");
   await screen.findByText("Esta conexão usa FTP sem criptografia. Confirme a autorização nas opções avançadas antes de continuar.");
   fireEvent.click(screen.getByRole("button", { name: "Mostrar Senha" }));
   expect(screen.getByLabelText("Senha").getAttribute("type")).toBe("text");
@@ -1357,12 +1358,10 @@ test.each(["en", "pt-BR"] as const)("mounted cache protection is not a recovery 
     }],
   });
   render(<App />);
-  const alerts = await selectDriveDetail(language === "en" ? "Alerts and recovery" : "Alertas e recuperação");
+  await screen.findByRole("heading", { name: connection.name });
   expect(document.querySelector(".drive.attention")).toBeNull();
-  expect(alerts.classList.contains("attention")).toBe(false);
+  expect(screen.queryByRole("button", { name: language === "en" ? "Alerts and recovery" : "Alertas e recuperação" })).toBeNull();
   expect(screen.queryByText(language === "en" ? "Recovery required" : "Recuperação necessária")).toBeNull();
-  fireEvent.click(alerts);
-  expect(screen.getByText(language === "en" ? "No alerts or recovery required." : "Nenhum alerta ou recuperação necessária.")).toBeDefined();
   expect(screen.queryByText(/Preserved destination:|Destino preservado:/)).toBeNull();
 });
 
@@ -1377,7 +1376,7 @@ test("mounted cache protection keeps actual upload errors visible", async () => 
   const alerts = await selectDriveDetail("Alerts and recovery");
   expect(alerts.classList.contains("attention")).toBe(true);
   fireEvent.click(alerts);
-  expect(screen.getByRole("tabpanel").textContent).toContain("Pending uploads unknown");
+  expect(screen.getByRole("tooltip").textContent).toContain("Pending uploads unknown");
   expect(screen.getByText("0 uploading · 0 queued · 1 cache errors")).toBeDefined();
   expect(screen.queryByText(/Recover using the original account and destination/)).toBeNull();
 });
@@ -1737,9 +1736,10 @@ test("remote unknown capacity stays separate from pending local files and refres
   render(<App />);
   await selectDriveDetail("Remote capacity");
   await screen.findByText("Remote capacity: — · Used: — · Available: 0 B");
+  await openDriveDiagnostics("en", "Refresh files in Explorer");
   fireEvent.click(screen.getByRole("button", { name: "Refresh files in Explorer" }));
   await waitFor(() => expect(api.refreshDirectoryCache).toHaveBeenCalledExactlyOnceWith(connection.id));
-  expect(screen.getByText("1 pending upload(s)")).toBeDefined();
+  expect(screen.getAllByText("1 pending upload(s)").length).toBeGreaterThan(0);
 });
 
 test("wizard uses a chosen letter for its first mount", async () => {
@@ -1806,10 +1806,10 @@ test.each(["drive", "ftp"])("edit read-only control follows provider rules (%s)"
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, ftpProvider], connections: [{ ...connection, provider }] });
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   const mode = screen.getByLabelText("Mount read only") as HTMLInputElement;
-  expect(mode.disabled).toBe(provider === "drive");
-  if (provider === "drive") expect(screen.getByText("Use Reconfigure account to change Google Drive access mode and update OAuth consent.")).toBeDefined();
+  expect(mode.matches(":disabled")).toBe(provider === "drive");
+  if (provider === "drive") expect(screen.getByText("Use the Access section to change Google Drive access mode and update OAuth consent.")).toBeDefined();
   else fireEvent.click(mode);
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ readOnly: provider !== "drive" })));
@@ -1819,7 +1819,8 @@ test.each(["en", "pt-BR"])("successful access test explains the write-permission
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection], settings: { ...snapshot.settings, language: language as "en" | "pt-BR" } });
   vi.mocked(api.test).mockResolvedValue();
   render(<App />);
-  fireEvent.click(await screen.findByText(language === "en" ? "Test access" : "Testar acesso"));
+  await openDriveDiagnostics(language as Language);
+  fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Test access" : "Testar acesso" }));
   await screen.findByText(language === "en"
     ? "Access test succeeded. Listing folders does not verify write permission."
     : "Teste de acesso concluído com sucesso. A listagem de pastas não verifica a permissão de escrita.");
@@ -1830,7 +1831,8 @@ test("failed access test never displays success", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   vi.mocked(api.test).mockRejectedValue(new Error("Account unavailable"));
   render(<App />);
-  fireEvent.click(await screen.findByText("Test access"));
+  await openDriveDiagnostics();
+  fireEvent.click(screen.getByRole("button", { name: "Test access" }));
   await screen.findByText("Account unavailable");
   expect(screen.queryByText("Access test succeeded. Listing folders does not verify write permission.")).toBeNull();
 });
@@ -2009,11 +2011,11 @@ test.each([
   vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "explicit" });
   vi.mocked(api.begin).mockRejectedValue(new Error(message, { cause: { field, message } }));
   render(<App />);
-  fireEvent.click(await screen.findByText("Reconfigure account"));
+  await openAccessEditor();
   await waitFor(() => expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("original"));
   const input = screen.getByLabelText(label) as HTMLInputElement;
   fireEvent.change(input, { target: { value } });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Renew access" }));
   const error = await screen.findByText(message);
   await waitFor(() => expect(document.activeElement).toBe(input));
   expect(input.value).toBe(value);
@@ -2085,7 +2087,7 @@ test("edit path errors remain associated with the entered path", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   vi.mocked(api.update).mockRejectedValue(new Error("path must not contain ..", { cause: { field: "path", message: "path must not contain .." } }));
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   fireEvent.click(screen.getByRole("tab", { name: "Files" }));
   const input = screen.getByLabelText("Folder / bucket / share") as HTMLInputElement;
   fireEvent.change(input, { target: { value: "../outside" } });
@@ -2110,10 +2112,10 @@ test.each(["en", "pt-BR"])("URL errors are accessible and preserve the address (
   vi.mocked(api.fields).mockResolvedValue({ values: { url: value }, transport: "" });
   vi.mocked(api.begin).mockRejectedValue(new Error(message, { cause: { field: "url", message } }));
   render(<App />);
-  fireEvent.click(await screen.findByText(english ? "Reconfigure account" : "Reconfigurar conta"));
+  await openAccessEditor(language as Language);
   const input = await screen.findByLabelText(english ? "WebDAV HTTPS URL" : "URL HTTPS do WebDAV") as HTMLInputElement;
   await waitFor(() => expect(input.value).toBe(value));
-  fireEvent.click(screen.getByRole("button", { name: english ? "Continue" : "Continuar" }));
+  fireEvent.click(screen.getByRole("button", { name: english ? "Renew access" : "Renovar acesso" }));
   const error = await screen.findByText(english ? message : "url deve ser uma URL HTTPS sem credenciais embutidas");
   await waitFor(() => expect(document.activeElement).toBe(input));
   expect(input.getAttribute("aria-invalid")).toBe("true");
@@ -2128,9 +2130,9 @@ test("recovery keeps its original folder and disables all breadcrumb destination
   vi.mocked(api.begin).mockResolvedValue("recovery");
   vi.mocked(api.status).mockResolvedValue({connectionID: "", id: "recovery", busy: false, complete: false, authenticated: true, question: null, error: "" });
   render(<App />);
-  fireEvent.click(await screen.findByText("Reconfigure account"));
-  await waitFor(() => expect((screen.getByRole("button", { name: "Sign in with Google Drive" }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(await screen.findByRole("button", { name: "Sign in with Google Drive" }));
+  await openAccessEditor();
+  await waitFor(() => expect((screen.getByRole("button", { name: "Renew access" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(await screen.findByRole("button", { name: "Renew access" }));
   await screen.findByRole("heading", { name: "Choose what to connect" });
   await waitFor(() => expect(api.folders).toHaveBeenCalledExactlyOnceWith("recovery", "Original/library"));
   for (const name of ["Entire storage", "Original", "library"]) {
@@ -2258,8 +2260,8 @@ test("a locked snapshot removes management even if the native lock event was mis
 });
 
 
-test("drive details open from the menu and expose all seven topics in one drawer", async () => {
-  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, path: "Team files", mounted: true,
+test("drive detail icons expose all seven topics without opening a dialog", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, path: "Team files", mounted: true, pending: null,
     transportSecurity: { state: "encrypted", protocol: "https", source: "configuration", checkedAt: null },
   }] });
   render(<App />);
@@ -2269,39 +2271,34 @@ test("drive details open from the menu and expose all seven topics in one drawer
     ["Remote destination", "Google Drive · Team files"], ["Connection options", "Automatic mounting disabled"],
     ["Upload details", "Upload activity is currently unknown."], ["Local cache", "Approximate cache used: 0 B · Pending file sizes: 0 B"],
     ["Remote capacity", "Remote capacity is currently unknown."], ["Connection security", "Traffic encrypted · HTTPS"],
-    ["Alerts and recovery", "No alerts or recovery required."],
+    ["Alerts and recovery", "Pending uploads unknown"],
   ]) {
     const tab = await selectDriveDetail(label);
-    expect(screen.getByRole("tabpanel").textContent).toContain(detail);
-    expect(tab.getAttribute("aria-controls")).toBe(screen.getByRole("tabpanel").id);
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("tooltip").textContent).toContain(detail);
+    expect(tab.getAttribute("aria-describedby")).toBe(screen.getByRole("tooltip").id);
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
   }
-  expect(screen.getAllByRole("tab")).toHaveLength(7);
+  expect(screen.getByRole("group", { name: "Drive details" }).querySelectorAll("button")).toHaveLength(7);
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-test("drive detail tabs navigate by keyboard and Escape returns focus to the menu", async () => {
-  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+test("drive details support hover, focus, selection and Escape without moving focus", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true }] });
   render(<App />);
-  const tab = await selectDriveDetail("Remote destination");
-  act(() => tab.focus());
-  fireEvent.keyDown(tab, { key: "End" });
-  expect(screen.getByRole("tab", { name: "Alerts and recovery" }).getAttribute("aria-selected")).toBe("true");
-  expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Alerts and recovery" }));
-  fireEvent.keyDown(document.activeElement!, { key: "Home" });
-  expect(screen.getByRole("tab", { name: "Remote destination" }).getAttribute("aria-selected")).toBe("true");
-  cancelDialog();
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(document.activeElement?.tagName).toBe("SUMMARY");
-});
-
-test("drive details remain open while reading and selecting their content", async () => {
-  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
-  render(<App />);
-  await selectDriveDetail("Local cache");
-  fireEvent.mouseLeave(screen.getByRole("tabpanel"));
-  expect(screen.getByRole("tabpanel").textContent).toContain("Pending sizes are whole local files");
-  fireEvent.click(screen.getByRole("button", { name: "Close" }));
-  expect(screen.queryByRole("dialog")).toBeNull();
+  const trigger = await selectDriveDetail("Local cache");
+  act(() => trigger.focus());
+  expect(screen.getByRole("tooltip").textContent).toContain("Pending sizes are whole local files");
+  fireEvent.mouseEnter(screen.getByRole("tooltip"));
+  fireEvent.mouseLeave(trigger.closest(".drive-details")!);
+  fireEvent.mouseEnter(screen.getByRole("tooltip"));
+  expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+  fireEvent.keyDown(trigger, { key: "Escape" });
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  fireEvent.mouseEnter(trigger);
+  expect(screen.getByRole("tooltip")).toBeDefined();
+  fireEvent.pointerDown(screen.getByRole("button", { name: "+ New connection" }));
+  expect(screen.queryByRole("tooltip")).toBeNull();
 });
 
 test("removing a connection requires the explicit confirmation and cancellation preserves it", async () => {
@@ -2319,7 +2316,7 @@ test("removing a connection requires the explicit confirmation and cancellation 
   await waitFor(() => expect(api.remove).toHaveBeenCalledExactlyOnceWith(connection.id));
 });
 
-test("one drive detail drawer follows refreshed snapshots without switching connections", async () => {
+test("one drive detail tooltip follows refreshed snapshots without switching connections", async () => {
   let current: Snapshot = { ...snapshot, connections: [
     { ...connection, name: "First drive", path: "First library" },
     { ...connection, id: "second", name: "Second drive", path: "Second library" },
@@ -2330,15 +2327,15 @@ test("one drive detail drawer follows refreshed snapshots without switching conn
     render(<App />);
     await act(async () => {});
     await selectDriveDetail("Remote destination", 0);
-    expect(screen.getByRole("tabpanel").textContent).toContain("First library");
-    cancelDialog();
+    expect(screen.getByRole("tooltip").textContent).toContain("First library");
+    fireEvent.keyDown(document, { key: "Escape" });
     await selectDriveDetail("Remote destination", 1);
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("tabpanel").textContent).toContain("Second library");
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip").textContent).toContain("Second library");
     current = { ...current, connections: current.connections.map((c) => c.id === "second" ? { ...c, path: "Updated library" } : c) };
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
-    expect(screen.getByRole("tabpanel").textContent).toContain("Updated library");
-    expect(screen.getByRole("tabpanel").textContent).not.toContain("First library");
+    expect(screen.getByRole("tooltip").textContent).toContain("Updated library");
+    expect(screen.getByRole("tooltip").textContent).not.toContain("First library");
   } finally { vi.useRealTimers(); }
 });
 
@@ -2346,15 +2343,17 @@ test.each(["en", "pt-BR"] as const)("edit tabs group settings and support keyboa
   const english = language === "en";
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection], settings: { ...snapshot.settings, language } });
   render(<App />);
-  fireEvent.click(await screen.findByText(english ? "Edit drive" : "Editar unidade"));
+  fireEvent.click(await screen.findByRole("button", { name: english ? "Edit drive" : "Editar unidade" }));
   const general = screen.getByRole("tab", { name: english ? "General" : "Geral" });
   const files = screen.getByRole("tab", { name: english ? "Files" : "Arquivos" });
   const network = screen.getByRole("tab", { name: english ? "Network" : "Rede" });
-  expect(screen.getAllByRole("tab")).toHaveLength(3);
+  expect(screen.getAllByRole("tab")).toHaveLength(4);
   expect(general.getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("tabpanel").id).toBe(general.getAttribute("aria-controls"));
   expect(within(screen.getByRole("tabpanel")).getByLabelText(english ? "Drive name" : "Nome da unidade")).toBeTruthy();
   fireEvent.keyDown(general, { key: "ArrowDown" });
+  expect(document.activeElement).toBe(screen.getByRole("tab", { name: english ? "Access" : "Acesso" }));
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
   expect(document.activeElement).toBe(files);
   expect(screen.getByRole("tabpanel").id).toBe(files.getAttribute("aria-controls"));
   const panel = screen.getByRole("tabpanel");
@@ -2376,7 +2375,7 @@ test("editing preserves values across tabs and saves them together", async () =>
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "Renamed drive" } });
   fireEvent.click(screen.getByLabelText("Connect automatically when SDrive starts"));
   fireEvent.click(screen.getByRole("tab", { name: "Files" }));
@@ -2396,7 +2395,7 @@ test("server errors reveal the network tab and focus the invalid field", async (
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   vi.mocked(api.update).mockRejectedValue(new Error("Invalid bandwidth", { cause: { field: "bandwidth", message: "Invalid bandwidth" } }));
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByText("Invalid bandwidth");
   await waitFor(() => expect(screen.getByRole("tab", { name: "Network" }).getAttribute("aria-selected")).toBe("true"));
@@ -2408,7 +2407,7 @@ test("server errors reveal the network tab and focus the invalid field", async (
 test.each(["name", "directoryCacheSeconds", "bandwidth"])("native validation reveals a hidden invalid field (%s)", async (field) => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   const dialog = screen.getByRole("dialog");
   const input = dialog.querySelector<HTMLInputElement>(`[data-field="${field}"]`)!;
   const panel = input.closest<HTMLElement>('[role="tabpanel"]')!;
@@ -2423,7 +2422,7 @@ test.each(["name", "directoryCacheSeconds", "bandwidth"])("native validation rev
 test("multiple invalid panels keep the first invalid field visible", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
   render(<App />);
-  fireEvent.click(await screen.findByText("Edit drive"));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
   fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "" } });
   fireEvent.click(screen.getByRole("tab", { name: "Files" }));
   fireEvent.change(screen.getByLabelText("Directory metadata lifetime (seconds)"), { target: { value: "-1" } });
@@ -2524,7 +2523,7 @@ test("Shared with me selection reaches setup and stays locked during recovery", 
   vi.mocked(api.fields).mockResolvedValue({values:{shared_with_me:"true"},transport:""});
   render(<App />);
   fireEvent.click(await screen.findByLabelText("More actions for My Drive"));
-  fireEvent.click(screen.getByRole("button", {name:"Reconfigure account"}));
+  await openAccessEditor();
   const selection=await screen.findByLabelText("Google Drive contents") as HTMLSelectElement;
   await waitFor(()=>expect(selection.value).toBe("true"));
   expect(selection.disabled).toBe(true);
@@ -2535,7 +2534,7 @@ test.each(["en", "pt-BR"] as const)("hidden file visibility defaults on and save
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection], settings: { ...snapshot.settings, language } });
   vi.mocked(api.update).mockResolvedValue();
   render(<App />);
-  fireEvent.click(await screen.findByText(t("Edit drive")));
+  fireEvent.click(await screen.findByRole("button", { name: t("Edit drive") }));
   fireEvent.click(screen.getByRole("tab", { name: t("Files") }));
   const checkbox = screen.getByLabelText(t("Show hidden files")) as HTMLInputElement;
   expect(checkbox.checked).toBe(true);
@@ -2586,7 +2585,158 @@ test("Linux uses folder destinations without a missing-drive-letter warning", as
  await screen.findByText("Your cloud files, right in your file manager.");
  expect(screen.queryByText("No drive letters are available. Choose a new local subfolder or free a drive letter.")).toBeNull();
  expect(screen.queryByText("Required components unavailable")).toBeNull();
- fireEvent.click(screen.getByRole("button", { name: "+ New connection" }));
+ const create = screen.getByRole("button", { name: "+ New connection" });
+ await waitFor(() => expect(create.matches(":disabled")).toBe(false));
+ fireEvent.click(create);
  await screen.findByRole("dialog");
  expect(screen.queryByLabelText("Windows drive letter")).toBeNull();
+});
+
+
+test("drive menu contains only appearance and removal, and mounted drives hide the pencil", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true }] });
+  render(<App />);
+  const summary = await screen.findByLabelText("More actions for My Drive");
+  expect(screen.queryByRole("button", { name: "Edit drive" })).toBeNull();
+  fireEvent.click(summary);
+  expect(within(summary.closest("details")!).getAllByRole("button").map(button => button.textContent)).toEqual(["Customize appearance", "Remove connection"]);
+});
+
+test.each([true, false])("idle disconnected drives show a pencil and busy drives hide it (%s)", async (busy) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, busy }] });
+  render(<App />);
+  await screen.findByRole("heading", { name: connection.name });
+  expect(!!screen.queryByRole("button", { name: "Edit drive" })).toBe(!busy);
+  expect(screen.getByRole("button", { name: "Drive diagnostics" }).getAttribute("data-tone")).toBe(busy ? "inactive" : "info");
+});
+
+test("diagnostics preserve section results, serialize operations and reset on reopen", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true }] });
+  let finish!: () => void;
+  vi.mocked(api.test).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  vi.mocked(api.inspectFileAccess).mockResolvedValue({ path: "S:/file.txt", state: "unknown", checkedAt: "2026-10-27T00:00:00Z", processes: [] });
+  render(<App />);
+  await openDriveDiagnostics();
+  fireEvent.click(screen.getByRole("button", { name: "Test access" }));
+  expect(api.test).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("tab", { name: "Refresh files in Explorer" }));
+  expect(screen.getByRole("button", { name: "Refresh files in Explorer" }).matches(":disabled")).toBe(true);
+  fireEvent.click(screen.getByRole("tab", { name: "Applications using a file" }));
+  expect(screen.getByRole("button", { name: "Select mounted file" }).matches(":disabled")).toBe(true);
+  await act(async () => finish());
+  fireEvent.click(screen.getByRole("button", { name: "Select mounted file" }));
+  await screen.findByText("File access information is unknown. This does not mean the file is unused.");
+  fireEvent.click(screen.getByRole("tab", { name: "Test access" }));
+  expect(screen.getByText("Access test succeeded. Listing folders does not verify write permission.")).toBeDefined();
+  fireEvent.click(screen.getByRole("tab", { name: "Applications using a file" }));
+  expect(screen.getByText("S:/file.txt")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  await openDriveDiagnostics();
+  expect(screen.queryByText("Access test succeeded. Listing folders does not verify write permission.")).toBeNull();
+  expect(screen.queryByText("S:/file.txt")).toBeNull();
+});
+
+test.each(["windows", "linux"])("diagnostics explain unavailable file tools on %s", async (platform) => {
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, platform });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, platform, connections: [{ ...connection, mounted: platform === "linux" }] });
+  render(<App />);
+  await openDriveDiagnostics("en", "Applications using a file");
+  expect(screen.getByRole("button", { name: "Select mounted file" }).matches(":disabled")).toBe(true);
+  expect(within(screen.getByRole("tabpanel")).getByText(platform === "linux" ? "File process inspection is unavailable on Linux." : "Connect the drive to use this tool.")).toBeDefined();
+});
+
+test("closing diagnostics while a request is pending releases the card when it finishes", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  let fail!: (error: Error) => void;
+  vi.mocked(api.test).mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+  render(<App />);
+  await openDriveDiagnostics();
+  fireEvent.click(screen.getByRole("button", { name: "Test access" }));
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.getByRole("button", { name: "Connect" }).matches(":disabled")).toBe(true);
+  await act(async () => fail(new Error("Request failed after closing")));
+  expect(screen.getByRole("button", { name: "Connect" }).matches(":disabled")).toBe(false);
+  expect(screen.queryByText("Request failed after closing")).toBeNull();
+});
+
+test("the unified editor loads access lazily and saves settings without authentication", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  vi.mocked(api.update).mockResolvedValue();
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
+  expect(api.fields).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "Renamed drive" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({ name: "Renamed drive" })));
+  expect(api.begin).not.toHaveBeenCalled();
+  expect(api.mount).not.toHaveBeenCalled();
+});
+
+test("the unified editor preserves access and settings drafts through explicit renewal and mount retry", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [ftpProvider], connections: [{ ...connection, provider: "ftp", path: "Original" }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "explicit" });
+  vi.mocked(api.begin).mockResolvedValue("unified-session");
+  vi.mocked(api.status).mockResolvedValue({ ...bridgeFixtures.samples.sessionEmpty, id: "unified-session", authenticated: true, busy: false });
+  vi.mocked(api.mount).mockRejectedValueOnce(new Error("Mount unavailable")).mockResolvedValueOnce();
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit drive" }));
+  fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "Renamed drive" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+  fireEvent.change(screen.getByLabelText("Folder / bucket / share"), { target: { value: "New folder" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Access" }));
+  await waitFor(() => expect(screen.getByLabelText("Username")).toHaveProperty("value", "original"));
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "synthetic-new-secret" } });
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  expect(screen.getByRole("button", { name: "Save changes" }).matches(":disabled")).toBe(true);
+  expect(screen.getByLabelText("Drive name")).toHaveProperty("value", "Renamed drive");
+  fireEvent.click(screen.getByRole("tab", { name: "Access" }));
+  expect(screen.getByLabelText("Password")).toHaveProperty("value", "synthetic-new-secret");
+  fireEvent.click(screen.getByRole("button", { name: "Renew access" }));
+  await screen.findByRole("heading", { name: "Choose what to connect" });
+  expect(api.begin).toHaveBeenCalledWith(expect.objectContaining({ connection: expect.objectContaining({ name: "Renamed drive", path: "New folder" }), values: expect.objectContaining({ pass: "synthetic-new-secret" }) }));
+  expect(api.update).not.toHaveBeenCalled();
+  expect(api.mount).not.toHaveBeenCalled();
+  expect(api.folders).toHaveBeenCalledWith("unified-session", "New folder");
+  fireEvent.click(screen.getByRole("button", { name: "Connect drive" }));
+  await screen.findByText("Mount unavailable");
+  fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
+  await screen.findByText("Drive connected");
+  expect(api.confirm).toHaveBeenCalledExactlyOnceWith("unified-session", "New folder", { letter: "S", folder: "", mode: "" });
+});
+
+test("failed access loading leaves general settings available and cancellation never applies a draft", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [connection] });
+  vi.mocked(api.fields).mockRejectedValue(new Error("Access details unavailable"));
+  render(<App />);
+  await openAccessEditor();
+  await screen.findByText("Access details unavailable");
+  expect(screen.getByRole("button", { name: "Renew access" }).matches(":disabled")).toBe(true);
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  expect(screen.getByRole("button", { name: "Save changes" }).matches(":disabled")).toBe(false);
+  fireEvent.change(screen.getByLabelText("Drive name"), { target: { value: "Discard me" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(api.update).not.toHaveBeenCalled();
+  expect(api.begin).not.toHaveBeenCalled();
+});
+
+
+test("restoring access fields and credential storage to their initial values permits settings-only saving", async () => {
+  const provider = { ...ftpProvider, id: "webdav", name: "WebDAV", backend: "webdav" };
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [provider], connections: [{ ...connection, provider: "webdav" }] });
+  vi.mocked(api.fields).mockResolvedValue({ values: { host: "example.test", user: "original" }, transport: "explicit" });
+  vi.mocked(api.update).mockResolvedValue();
+  render(<App />);
+  await openAccessEditor();
+  await waitFor(() => expect(screen.getByLabelText("Username")).toHaveProperty("value", "original"));
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "temporary-secret" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "" } });
+  const sessionOnly = screen.getByLabelText("Sign in on every connection (credentials only in memory)");
+  fireEvent.click(sessionOnly);
+  fireEvent.click(sessionOnly);
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  expect(screen.getByRole("button", { name: "Save changes" }).matches(":disabled")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledOnce());
+  expect(api.begin).not.toHaveBeenCalled();
 });

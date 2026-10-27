@@ -220,8 +220,8 @@
   "could not retrieve the SSH key": "no se pudo recuperar la clave SSH",
   "connection operation in progress": "operación de conexión en curso",
   "unmount and resolve pending files before editing": "desmontar y resolver archivos pendientes antes de editarlos",
-  "use Reconfigure to change the provider": "use Reconfigure para cambiar el proveedor",
-  "use Reconfigure account to change access mode and update Google Drive OAuth consent": "use Reconfigurar cuenta para cambiar el modo de acceso y actualizar el consentimiento Google Drive OAuth",
+  "Create a new connection to use another provider.": "Crea una nueva conexión para usar otro proveedor.",
+  "Use the Access section to change access mode and update Google Drive OAuth consent.": "Usa la sección Acceso para cambiar el modo de acceso y actualizar el consentimiento OAuth de Google Drive.",
   "letter already reserved": "carta ya reservada",
   "complete or cancel reconfiguration": "completar o cancelar la reconfiguración",
   "unmount and resolve pending files before removing": "desmontar y resolver archivos pendientes antes de eliminarlos",
@@ -907,5 +907,12 @@
   "Restored startup preferences have not been applied. Save preferences to reconcile sign-in startup.": "Restored startup preferences have not been applied. Save preferences to reconcile sign-in startup.",
   "sign-in startup may differ from saved preferences. Save preferences to reconcile it.": "sign-in startup may differ from saved preferences. Save preferences to reconcile it.",
   "could not save preferences: %w; sign-in startup rollback also failed: %v": "could not save preferences: %w; sign-in startup rollback also failed: %v",
-  "sign-in startup, proxy credentials and cache location stay local.": "sign-in startup, proxy credentials and cache location stay local."
+  "sign-in startup, proxy credentials and cache location stay local.": "sign-in startup, proxy credentials and cache location stay local.",
+  "Connect the drive to use this tool.": "Conecta la unidad para usar esta herramienta.",
+  "Disconnect the drive and wait for the current operation before editing.": "Desconecta la unidad y espera a que termine la operación actual antes de editar.",
+  "Drive diagnostics": "Diagnósticos de la unidad",
+  "Listing folders does not verify write permission.": "La lista de carpetas no verifica el permiso de escritura.",
+  "Refresh directory metadata to see remote changes. Local files and pending uploads are preserved.": "Actualiza los metadatos de las carpetas para ver cambios remotos. Se conservan los archivos locales y las cargas pendientes.",
+  "Use Renew access in the Access section to apply authentication changes.": "Usa Renovar acceso en la sección Acceso para aplicar cambios de autenticación.",
+  "Use the Access section to change Google Drive access mode and update OAuth consent.": "Usa la sección Acceso para cambiar el modo de acceso a Google Drive y actualizar el consentimiento OAuth."
 }
