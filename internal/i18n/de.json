@@ -865,5 +865,7 @@
   "Custom drive color": "Benutzerdefinierte Laufwerksfarbe",
   "Mounted at:": "Eingehängt unter:",
   "unsupported drive stripe color source": "Nicht unterstützte Quelle der Streifenfarbe",
-  "Open": "Öffnen"
+  "Open": "Öffnen",
+  "{percent} used · {used} of {total}": "{percent} belegt · {used} von {total}",
+  "Space used on {name}": "Belegter Speicher auf {name}"
 }

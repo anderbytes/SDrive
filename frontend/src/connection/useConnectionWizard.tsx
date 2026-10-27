@@ -243,7 +243,7 @@ export function useConnectionWizard({
   const selectMethod = (key: string) => {
     const method = serviceMethods.find((m) => m.key === key);
     if (!method) return;
-    change({ provider: method.provider.id, authMethod: method.authMethod, name: "", sessionOnly: false, alternateURL: "", connectTimeout: 0, idleTimeout: 0, useProxy: false,
+    change({ provider: method.provider.id, authMethod: method.authMethod, sessionOnly: false, alternateURL: "", connectTimeout: 0, idleTimeout: 0, useProxy: false,
       ...(!supportsNetworkOptions(method.provider.id) ? { uploadLimit: 0, downloadLimit: 0 } : {}),
       ...(!method.provider.oauth || method.authMethod === "serviceAccount" ? { browser: "", privateBrowser: false } : {}),
     });

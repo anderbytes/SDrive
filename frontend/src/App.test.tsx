@@ -1668,6 +1668,69 @@ test("cache location failure keeps the current location visible", async () => {
   expect(api.settings).not.toHaveBeenCalled();
 });
 
+test("drive name precedes connection type and survives method and category changes", async () => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, providers: [...snapshot.providers, {
+    ...snapshot.providers[0], id: "sftp", name: "SFTP", backend: "sftp", oauth: false,
+  }, { ...snapshot.providers[0], id: "webdav", name: "WebDAV", backend: "webdav", oauth: false }] });
+  render(<App />);
+  const create = await screen.findByRole("button", { name: "+ New connection" });
+  await waitFor(() => expect(create).toHaveProperty("disabled", false));
+  fireEvent.click(create);
+  const name = screen.getByLabelText("Drive name");
+  const type = screen.getByLabelText("Connection type");
+  expect(name.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.change(name, { target: { value: "My documents" } });
+  fireEvent.change(type, { target: { value: "webdav" } });
+  expect(name).toHaveProperty("value", "My documents");
+  fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+  expect(name).toHaveProperty("value", "My documents");
+  fireEvent.click(screen.getByRole("tab", { name: "Basic" }));
+  expect(name).toHaveProperty("value", "My documents");
+  fireEvent.change(name, { target: { value: "" } });
+  fireEvent.change(type, { target: { value: "sftp" } });
+  expect(name).toHaveProperty("value", "");
+  expect(name).toHaveProperty("placeholder", "SFTP");
+});
+
+test.each([
+  [0, "0% used · 0 B of 1.0 GiB"],
+  [256 * 1024 ** 2, "25% used · 256.0 MiB of 1.0 GiB"],
+  [1024 ** 3, "100% used · 1.0 GiB of 1.0 GiB"],
+])("drive card shows remote usage and sizes (%s bytes)", async (used, text) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection,
+    virtualCapacityGiB: 256, cache: { ...connection.cache, usedBytes: 123 },
+    capacity: { total: 1024 ** 3, used, free: null, checkedAt: null, state: "available" },
+  }] });
+  render(<App />);
+  const progress = await screen.findByRole("progressbar", { name: "Space used on My Drive" });
+  expect(progress).toHaveProperty("value", used / 1024 ** 3 * 100);
+  expect(progress).toHaveProperty("max", 100);
+  expect(progress.getAttribute("aria-valuetext")).toBe(text);
+  expect(screen.getByText(text)).toBeDefined();
+});
+
+test.each([
+  [null, 100], [0, null], [null, null], [0, 0], [1, 0], [-1, 100], [101, 100],
+  [Number.NaN, 100], [0, Number.POSITIVE_INFINITY], [Number.POSITIVE_INFINITY, 100], [0, -100],
+])("drive card hides invalid or unknown usage (%s of %s)", async (used, total) => {
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection,
+    capacity: { total, used, free: 0, checkedAt: null, state: "available" },
+  }] });
+  render(<App />);
+  await screen.findByRole("heading", { name: connection.name });
+  expect(screen.queryByRole("progressbar")).toBeNull();
+});
+
+test.each(["en", "pt-BR"] as const)("drive usage formats fractional percentages in %s", async (language) => {
+  vi.mocked(api.accessStatus).mockResolvedValue({ ...access, language });
+  vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language }, connections: [{ ...connection,
+    capacity: { total: 2000, used: 253, free: null, checkedAt: null, state: "available" },
+  }] });
+  render(<App />);
+  const progress = await screen.findByRole("progressbar", { name: language === "en" ? "Space used on My Drive" : "Espaço usado em My Drive" });
+  expect(progress.getAttribute("aria-valuetext")).toBe(language === "en" ? "12.7% used · 253 B of 2.0 KiB" : "12,7% usado · 253 B de 2.0 KiB");
+});
+
 test("remote unknown capacity stays separate from pending local files and refresh", async () => {
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, connections: [{ ...connection, mounted: true, pending: 1, capacity: { total: null, used: null, free: 0, checkedAt: null, state: "available" } }] });
   vi.mocked(api.refreshDirectoryCache).mockResolvedValue();

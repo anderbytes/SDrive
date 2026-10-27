@@ -865,5 +865,7 @@
   "Custom drive color": "Color personalizado de la unidad",
   "Mounted at:": "Montado en:",
   "unsupported drive stripe color source": "Origen del color de la franja no compatible",
-  "Open": "Abrir"
+  "Open": "Abrir",
+  "{percent} used · {used} of {total}": "{percent} usado · {used} de {total}",
+  "Space used on {name}": "Espacio usado en {name}"
 }

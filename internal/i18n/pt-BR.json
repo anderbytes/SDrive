@@ -865,5 +865,7 @@
   "Custom drive color": "Cor personalizada do drive",
   "Mounted at:": "Montado em:",
   "unsupported drive stripe color source": "Origem da cor da tarja não suportada",
-  "Open": "Abrir"
+  "Open": "Abrir",
+  "{percent} used · {used} of {total}": "{percent} usado · {used} de {total}",
+  "Space used on {name}": "Espaço usado em {name}"
 }

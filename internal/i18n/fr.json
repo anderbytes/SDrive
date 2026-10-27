@@ -865,5 +865,7 @@
   "Custom drive color": "Couleur personnalisée du lecteur",
   "Mounted at:": "Monté dans :",
   "unsupported drive stripe color source": "Source de couleur de bande non prise en charge",
-  "Open": "Ouvrir"
+  "Open": "Ouvrir",
+  "{percent} used · {used} of {total}": "{percent} utilisé · {used} sur {total}",
+  "Space used on {name}": "Espace utilisé sur {name}"
 }

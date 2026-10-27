@@ -71,6 +71,16 @@ export function ConnectionEditor(props: EditorProps) {
               advance();
             }}
           >
+            <label>
+              {t("Drive name")}
+              <input
+                {...validationProps("name")}
+                value={connection.name}
+                placeholder={t(p.name)}
+                onChange={(e) => change({ name: e.target.value })}
+              />
+            </label>
+            {fieldFeedback("name")}
             <div role="tablist" aria-label={t("Connection setup category")}>
               {["basic", "advanced"].map((category) => <button key={category} id={`${fieldID}-${category}-tab`} type="button" role="tab" aria-selected={wizard.category === category} aria-controls={`${fieldID}-services`} tabIndex={wizard.category === category ? 0 : -1}
                 onClick={() => wizard.selectCategory(category)}
@@ -85,16 +95,6 @@ export function ConnectionEditor(props: EditorProps) {
               </select></label>
               {!wizard.serviceMethods.some((m) => m.advanced === (wizard.category === "advanced")) && <p>{t("No connection methods in this category.")}</p>}
             </div>
-            <label>
-              {t("Drive name")}
-              <input
-                {...validationProps("name")}
-                value={connection.name}
-                placeholder={t(p.name)}
-                onChange={(e) => change({ name: e.target.value })}
-              />
-            </label>
-            {fieldFeedback("name")}
             {unavailable && <p role="status">{t(p.notice || "")}</p>}
             <MountDestination wizard={wizard} />
           </form>

@@ -164,6 +164,9 @@ main > header p { margin: 0; }
 .letter span { font-size: inherit; }
 .drives[data-stripe-source="drive"] .drive { border-left-color: var(--drive-color, var(--accent)); }
 .drive-info { min-width: 0; }
+.drive-capacity { margin-top: 8px; }
+.drive-capacity progress { display: block; width: 100%; height: 6px; accent-color: var(--accent); }
+.drive .drive-capacity p { margin-top: 4px; color: var(--muted); font-size: 12px; }
 .drive h2 { font-size: 16px; line-height: 1.3; font-weight: 600; margin: 0; overflow-wrap: anywhere; }
 .drive-metadata { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; }
 .drive p, .state { font-size: 14px; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }

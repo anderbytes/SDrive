@@ -865,5 +865,7 @@
   "Custom drive color": "驱动器自定义颜色",
   "Mounted at:": "挂载位置：",
   "unsupported drive stripe color source": "不支持的色条颜色来源",
-  "Open": "打开"
+  "Open": "打开",
+  "{percent} used · {used} of {total}": "已使用 {percent} · {used}，共 {total}",
+  "Space used on {name}": "{name} 的已用空间"
 }

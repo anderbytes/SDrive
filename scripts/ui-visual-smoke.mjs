@@ -20,7 +20,7 @@ const snapshot = { ...fixtures.snapshotEmpty, access, settings: { ...fixtures.sn
     fields: [field("url", "WebDAV HTTPS URL"), field("user", "Username"), field("pass", "Password / app password", true)] },
     { ...fixtures.providerEmpty, id: "gcs", name: "Google Cloud Storage", backend: "google cloud storage", transportEncryption: "required", available: true, oauth: true,
       fields: [{ ...field("service_account_file", "Service account JSON file (optional)"), file: true }] }],
-  connections: [connection, { ...connection, id: "visual-second", name: "Team library", letter: "", mountFolder: "C:\\Synthetic\\Team\\" + "Long local directory\\".repeat(12), cardStyle: "violet", serverPath: "https://files.example.test/dav/Projects", path: "Projects", mounted: false },
+  connections: [{ ...connection, capacity: { total: 100 * 1024 ** 3, used: 25 * 1024 ** 3, free: 75 * 1024 ** 3, checkedAt: null, state: "available" } }, { ...connection, id: "visual-second", name: "Team library", letter: "", mountFolder: "C:\\Synthetic\\Team\\" + "Long local directory\\".repeat(12), cardStyle: "violet", serverPath: "https://files.example.test/dav/Projects", path: "Projects", mounted: false },
     { ...connection, id: "visual-long", name: "Shared documents and administrative projects with a deliberately long name", letter: "U", serverPath: "https://files.example.test/dav/" + "Long remote directory/".repeat(8), path: "Long remote directory/".repeat(8), pending: null, recovery: true }],
   importDrafts: [], letters: ["V", "W"], winFsp: true, engineError: "", settingsError: "", desktopWarning: "", startupWarning: "", maintenanceError: "", recoveryHold: false };
 const apiSource = `window.visualSnapshot = ${JSON.stringify(snapshot)};
@@ -161,6 +161,12 @@ try {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 1180, height: 800 }, { width: 850, height: 620 }, { width: 420, height: 740 }]) {
     await page.setViewportSize(viewport);
     await bounds();
+    assert.equal(await firstCard.getByRole("progressbar").getAttribute("value"), "25");
+    assert(await firstCard.getByText("25% used · 25.0 GiB of 100.0 GiB", { exact: true }).isVisible());
+    assert(await firstCard.locator(".drive-capacity").evaluate(element => {
+      const box = element.getBoundingClientRect(), card = element.closest(".drive").getBoundingClientRect();
+      return box.width > 0 && box.left >= card.left && box.right <= card.right && box.bottom <= card.bottom;
+    }), "Remote usage must fit inside the drive card");
     assert(await page.locator(".server-path, .mount-folder > span").evaluateAll(paths => paths.every(element => {
       const style = getComputedStyle(element);
       const box = element.getBoundingClientRect();

@@ -574,7 +574,14 @@ function Drive({
   onEdit: (auth: boolean) => void;
   onAppearanceSaved: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { used, total } = c.capacity;
+  const usage = used !== null && total !== null && Number.isFinite(used) && Number.isFinite(total) && total > 0 && used >= 0 && used <= total
+    ? used / total * 100 : null;
+  const usageText = usage === null ? "" : t("{percent} used · {used} of {total}", {
+    percent: new Intl.NumberFormat(language, { style: "percent", maximumFractionDigits: 1 }).format(usage / 100),
+    used: bytes(used), total: bytes(total),
+  });
   const [fileAccess, setFileAccess] = useState(false);
   const [appearance, setAppearance] = useState(false);
   const [confirmRemoval, setConfirmRemoval] = useState(false);
@@ -617,6 +624,10 @@ function Drive({
                   : t("Disconnected")}
         </div></div>
         <div className="drive-metadata"><span className={`type-tag type-${["smb", "sftp", "ftp"].includes(p.id) ? "network" : ["webdav", "nextcloud", "owncloud"].includes(p.id) ? "webdav" : ["s3", "b2", "azureblob", "gcs"].includes(p.id) ? "object" : "cloud"}`}>{t(p.name)}</span><span className="server-path" title={c.serverPath || c.path || t("Root")}>{c.serverPath || c.path || t("Root")}</span></div>
+        {usage !== null && <div className="drive-capacity">
+          <progress max={100} value={usage} aria-label={t("Space used on {name}", { name: c.name })} aria-valuetext={usageText} />
+          <p>{usageText}</p>
+        </div>}
         {p.experimental && <p className="drive-secondary">{t("Experimental")}</p>}
         {c.mountFolder && <p className="mount-folder"><strong>{t("Mounted at:")}</strong>{" "}<span title={c.mountFolder}>{c.mountFolder}</span></p>}
         {c.recovery && !c.mounted && (busy || c.pending === null) && <p className="inline-error">{t("Recovery required")}</p>}
