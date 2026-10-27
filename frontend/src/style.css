@@ -5,12 +5,20 @@
 .disconnect-row { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; overflow-wrap: anywhere; }
 .disconnect-row p { margin: 4px 0 0; font-size: 13px; }
 .disconnect-indicator { flex: 0 0 18px; width: 18px; height: 18px; text-align: center; }
-.disconnect-row:not(.succeeded):not(.failed) .disconnect-indicator { box-sizing: border-box; border: 2px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: disconnect-spin 1s linear infinite; }
 .disconnect-overlay footer { display: flex; gap: 8px; }
 .disconnect-overlay footer button { flex: 1; }
-@keyframes disconnect-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .disconnect-indicator { animation: none !important; } }
-@media (forced-colors: active) { .disconnect-overlay { border-color: CanvasText; } .disconnect-row:not(.succeeded):not(.failed) .disconnect-indicator { border-color: GrayText; border-top-color: CanvasText; } }
+@media (forced-colors: active) { .disconnect-overlay { border-color: CanvasText; } }
+
+.spinner { display: inline-block; flex: 0 0 auto; width: 18px; height: 18px; box-sizing: border-box; border: 2px solid var(--border); border-top-color: currentColor; border-radius: 50%; animation: spinner-rotate 1s linear infinite; vertical-align: middle; }
+.spinner-large { width: 40px; height: 40px; border-width: 3px; color: var(--accent); }
+.loading-status { display: flex; align-items: center; gap: 10px; }
+.loading-status-large { flex: 1; min-height: 240px; flex-direction: column; justify-content: center; gap: 20px; text-align: center; color: var(--muted); }
+.startup-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.state .spinner { margin-right: 6px; }
+button > .spinner { margin-inline-end: 8px; }
+@keyframes spinner-rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none !important; } }
+@media (forced-colors: active) { .spinner { border-color: GrayText; border-top-color: CanvasText; } }
 
 :root {
   font-family: "Segoe UI", system-ui, sans-serif;

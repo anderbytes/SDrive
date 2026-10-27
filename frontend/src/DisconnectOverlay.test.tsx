@@ -36,10 +36,12 @@ test("subscribes before requesting initial progress and ignores stale updates", 
 test("shows concurrent stages, success and persistent failure actions", () => {
   render(<DisconnectOverlay />);
   publish(1, [{ name: "One", stage: "checkingUploads" }, { name: "Two", stage: "unmounting" }]);
+  expect(screen.getByRole("status").querySelectorAll(".spinner")).toHaveLength(2);
   expect(screen.getByText("Checking pending uploads…")).toBeDefined();
   expect(screen.getByText("Unmounting drive…")).toBeDefined();
   expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
   publish(2, [{ name: "One", stage: "succeeded" }, { name: "Two", stage: "failed" }]);
+  expect(screen.getByRole("status").querySelectorAll(".spinner")).toHaveLength(0);
   expect(screen.getByText("Drive disconnected.")).toBeDefined();
   expect(screen.getByText("Attention required")).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Open SDrive" }));

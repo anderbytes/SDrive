@@ -1,5 +1,6 @@
 import { SecretInput } from "./SecretInput";
 import type { Wizard } from "./useConnectionWizard";
+import { LoadingStatus } from "../Spinner";
 
 export function AuthenticationStep({ wizard }: { wizard: Wizard }) {
   const {
@@ -10,7 +11,7 @@ export function AuthenticationStep({ wizard }: { wizard: Wizard }) {
     <div className="auth-flow">
       {!session || session.busy ? (
         <>
-          <h3>{t("Waiting for authentication…")}</h3>
+          <LoadingStatus>{t("Waiting for authentication…")}</LoadingStatus>
           <p>
             {t(
               "Complete sign-in in your browser if prompted, then return to SDrive.",
@@ -28,6 +29,7 @@ export function AuthenticationStep({ wizard }: { wizard: Wizard }) {
               void answerQuestion();
             }}
           >
+            {busy && <LoadingStatus>{t("Preparing…")}</LoadingStatus>}
             <h3>{t("Continue setup")}</h3>
             <p id={`${fieldID}-question-help`}>{t(question.Help)}</p>
             {question.IsPassword || question.Sensitive ? (

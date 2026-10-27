@@ -4,6 +4,7 @@ import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
 import { useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
+import { LoadingStatus } from "./Spinner";
 
 export function ConfigurationPortability({ data, onRefresh }: { data: Snapshot; onRefresh: () => Promise<void> }) {
   const { t } = useLanguage();
@@ -16,6 +17,7 @@ export function ConfigurationPortability({ data, onRefresh }: { data: Snapshot; 
   };
   return <section aria-label={t("Portable configuration")}>
     <h3>{t("Portable configuration")}</h3>
+    {busy && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
     <p>{t("Exports contain names, servers and paths, but no credentials. Keep the file private. Importing does not restore a local backup or connect drives.")}</p>
     <button disabled={busy || !!data.settingsError} onClick={() => void run(api.exportConfiguration)}>{t("Export configuration")}</button>{" "}
     <button disabled={busy || !!data.settingsError || data.recoveryHold} onClick={() => void run(async () => { const next = await api.previewImport(); if (next) setPreview(next); })}>{t("Import configuration")}</button>
@@ -54,6 +56,7 @@ export function ImportConfigurationDialog({ preview, data, onClose, onSaved }: {
   const patch = (index: number, values: Partial<typeof document.connections[number]>) => setDocument((d) => ({ ...d, connections: d.connections.map((c, i) => i === index ? { ...c, ...values } : c) }));
   return <DialogLayout dialogRef={dialog} titleID="import-title" title={t("Review imported configuration")} onClose={onClose} closeDisabled={busy}
     footer={<><button disabled={busy} onClick={onClose}>{t("Cancel")}</button><button className="primary" disabled={busy || invalid.some(Boolean) || (!definitions.length && !preferences)} onClick={() => void save()}>{t("Save imported drafts")}</button></>}>
+    {busy && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
     <p>{t("Selected entries are saved as drafts. Supply application credentials and authenticate each draft before connecting. Existing recovery data stays in its original profile.")}</p>
     {document.connections.map((entry, index) => <fieldset key={index} disabled={busy}>
       <legend><label><input type="checkbox" checked={selected[index]} onChange={(e) => setSelected((s) => s.map((value, i) => i === index ? e.target.checked : value))} />{entry.name || t("Imported connection")}</label></legend>

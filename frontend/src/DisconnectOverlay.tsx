@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { LanguageProvider, isLanguage, useLanguage } from "./i18n";
 import { ThemeProvider, useTheme, type Theme } from "./theme";
+import { Spinner } from "./Spinner";
 
 const stages = {
   checkingUploads: "Checking pending uploads…",
@@ -45,7 +46,7 @@ function DisconnectStatus() {
     <header><strong>SDrive</strong><span>{t(active ? "Disconnecting drives…" : failed ? "Attention required" : "Disconnection complete")}</span></header>
     <div className="disconnect-rows" role="status" aria-live="polite" aria-atomic="true" tabIndex={0}>
       {view?.rows.map((row, index) => <div className={`disconnect-row ${row.stage}`} key={index}>
-        <span className="disconnect-indicator" aria-hidden="true">{row.stage === "succeeded" ? "✓" : row.stage === "failed" ? "!" : ""}</span>
+        <span className="disconnect-indicator" aria-hidden="true">{row.stage === "succeeded" ? "✓" : row.stage === "failed" ? "!" : <Spinner />}</span>
         <div><strong>{row.name || t("Drive")}</strong><p>{t(stages[row.stage])}</p></div>
       </div>)}
     </div>

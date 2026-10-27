@@ -4,6 +4,7 @@ import { DialogLayout } from "./DialogLayout";
 import { useDialog } from "./useDialog";
 import { useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
+import { LoadingStatus } from "./Spinner";
 
 const styles = [["", "Default"], ["blue", "Blue"], ["violet", "Violet"], ["teal", "Teal"], ["amber", "Amber"]] as const;
 
@@ -74,6 +75,7 @@ export function DriveAppearanceDialog({ connection, unavailable, onClose, onSave
   return <DialogLayout dialogRef={dialog} titleID="appearance-title" title={t("Customize appearance")} onClose={close} closeDisabled={busy}
     footer={<><button disabled={busy} onClick={close}>{t("Cancel")}</button><button className="primary" disabled={busy || unavailable} onClick={() => void save()}>{t("Save changes")}</button></>}>
     <p>{connection.name}</p>
+    {busy && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
     <fieldset disabled={busy || unavailable} className="appearance-styles"><legend>{t("Card background")}</legend>
       {styles.map(([value, label]) => <label key={value} className="appearance-swatch" data-card-style={value}>
         <input type="radio" name="card-style" checked={appearance.cardStyle === value} onChange={() => setAppearance({ ...appearance, cardStyle: value })} />{t(label)}

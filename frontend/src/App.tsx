@@ -9,6 +9,7 @@ import { AccessBoundary, AccessSettings } from "./AccessProtection";
 import { ConnectionEditor } from "./connection/ConnectionEditor";
 import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
+import { LoadingStatus, Spinner } from "./Spinner";
 import { LanguageProvider, isLanguage, useLanguage } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -56,6 +57,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
   const { t, setLanguage } = useLanguage();
   const { setTheme } = useTheme();
   const [data, setData] = useState<Snapshot>();
+  const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [error, setError] = useState<string | LocalizedMessage>("");
   const [notice, setNotice] = useState("");
   const [editor, setEditor] = useState<{
@@ -87,6 +89,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
   const refresh = async () => {
     if (!snapshotActive.current) return;
     const request = ++snapshotRequest.current;
+    setLoadingSnapshot(true);
     try {
       const snapshot = await api.snapshot();
       if (!snapshotActive.current || request !== snapshotRequest.current) return;
@@ -96,6 +99,8 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
       setLanguage(isLanguage(snapshot.settings.language) ? snapshot.settings.language : "en");
     } catch (e) {
       if (snapshotActive.current && request === snapshotRequest.current) setError(message(e));
+    } finally {
+      if (snapshotActive.current && request === snapshotRequest.current) setLoadingSnapshot(false);
     }
   };
   useEffect(() => {
@@ -236,7 +241,9 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             {t(notice)}
           </div>
         )}
-        {!data && <p role="status">{t("Preparing your drives…")}</p>}
+        {!data && loadingSnapshot && <LoadingStatus large>{t("Preparing your drives…")}</LoadingStatus>}
+        {Object.entries(working).filter(([key]) => key !== "restore" && !data?.connections.some((c) => c.id === key)).map(([key, operation]) =>
+          <LoadingStatus key={key}>{t(operation)}</LoadingStatus>)}
         {data?.settingsError && (
           <section className="alert error" role="alert">
             <div>
@@ -503,7 +510,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
   return <DialogLayout dialogRef={dialog} titleID="about-title" title={t("About SDrive")} onClose={onClose} footer={<button onClick={onClose}>{t("Close")}</button>}>
     <p>{t("Open source · GPLv3")}</p>
     {error && <p role="alert" className="alert error">{t(error)}</p>}
-    {!info && !error && <p role="status">{t("Loading component versions…")}</p>}
+    {!info && !error && <LoadingStatus>{t("Loading component versions…")}</LoadingStatus>}
     {info && <dl className="about-versions">{([
       ["SDrive", info.appVersion], ["rclone (running)", info.rcloneVersion],
       ["Windows", info.windowsVersion], ["WinFsp (installed)", info.winFspVersion],
@@ -511,12 +518,12 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
     ]).map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || t("Unavailable or not installed")}</dd></div>)}</dl>}
     <p>{t("Updates are installed manually. Use Exit safely and wait for uploads before running an installer.")}</p>
     <p>{t("Minimal diagnostics are kept locally with fixed limits. Nothing is sent automatically. Review the report before sharing.")}</p>
-    <button disabled={loadingReport || copying} onClick={() => void loadReport()}>{t(loadingReport ? "Loading diagnostic report…" : "View diagnostics")}</button>
+    <button disabled={loadingReport || copying} aria-live="polite" onClick={() => void loadReport()}>{loadingReport && <Spinner />}{t(loadingReport ? "Loading diagnostic report…" : "View diagnostics")}</button>
     {reportError && <p role="alert" className="alert error">{t(reportError)}</p>}
     {report && <>
       <label htmlFor="diagnostic-report">{t("Diagnostic report (technical text in English)")}</label>
       <textarea id="diagnostic-report" className="diagnostic-report" readOnly value={report} spellCheck={false} />
-      <button disabled={copying || loadingReport} onClick={() => void copyReport()}>{t("Copy report")}</button>
+      <button disabled={copying || loadingReport} onClick={() => void copyReport()}>{copying && <Spinner />}{t("Copy report")}</button>
     </>}
     {copied && <p role="status">{t("Report copied.")}</p>}
   </DialogLayout>;
@@ -537,6 +544,7 @@ function RestoreSettingsDialog({
   return (
     <DialogLayout dialogRef={dialog} titleID="restore-title" title={t("Restore settings backup?")} onClose={onClose} closeDisabled={busy} centered
       footer={<><button disabled={busy} onClick={onClose}>{t("Cancel")}</button><button disabled={busy} className="primary" onClick={onConfirm}>{t("Confirm restoration")}</button></>}>
+        {busy && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
         {error && <div className="alert error" role="alert">{t(error)}</div>}
         <p>
           {t("The backup may omit newer connections. Damaged settings will be archived; credentials and cache will be preserved. Automatic connection and cleanup will remain suspended until recovery is verified.")}
@@ -594,7 +602,8 @@ function Drive({
       <DriveIcon connection={c} />
       <div className="drive-info">
         <div className="drive-heading"><h2>{c.name}</h2>
-        <div className={`state status-tag ${busy ? "operating" : c.pending === null || c.recovery && !c.mounted || !!c.pending ? "attention" : c.mounted ? "connected" : "disconnected"}`}>
+        <div role={busy ? "status" : undefined} className={`state status-tag ${busy ? "operating" : c.pending === null || c.recovery && !c.mounted || !!c.pending ? "attention" : c.mounted ? "connected" : "disconnected"}`}>
+          {busy && <Spinner />}
           {busy
             ? t(operation || "Operation in progress…")
             : c.pending === null

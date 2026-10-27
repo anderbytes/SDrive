@@ -4,6 +4,7 @@ import { useLanguage } from "./i18n";
 import { errorMessage } from "./messages";
 import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
+import { LoadingStatus } from "./Spinner";
 
 export function FileAccessDialog({ connectionID, onClose }: { connectionID: string; onClose: () => void }) {
   const { t } = useLanguage();
@@ -24,7 +25,7 @@ export function FileAccessDialog({ connectionID, onClose }: { connectionID: stri
   return <DialogLayout dialogRef={dialog} titleID="file-access-title" title={t("Applications using a file")} onClose={onClose} footer={<button onClick={onClose}>{t("Close")}</button>}>
     <p>{t("Select one file in this connected drive. Windows reports applications using that file; reading or writing activity is unknown. This is not a scan of the entire drive.")}</p>
     <button disabled={busy} onClick={() => void query("")}>{t("Select mounted file")}</button>
-    {busy && <p role="status">{t("Checking file access…")}</p>}
+    {busy && <LoadingStatus>{t("Checking file access…")}</LoadingStatus>}
     {error && <p role="alert">{error}</p>}
     {result && <section><p>{result.path}</p><p>{t("Checked at: {time}", { time: new Date(result.checkedAt).toLocaleTimeString() })}</p>
       {result.state === "reported" ? <>{result.processes.length ? <ul>{result.processes.map((process) => <li key={`${process.pid}:${process.startedAt}`}>{process.name || t("Unknown application")} · PID {process.pid}</li>)}</ul> : <p>{t("Windows reported no applications for this file. Other access may still exist.")}</p>}</> : <p role="status">{t("File access information is unknown. This does not mean the file is unused.")}</p>}

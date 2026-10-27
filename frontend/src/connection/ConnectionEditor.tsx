@@ -11,6 +11,7 @@ import { FolderActions, FolderStep } from "./FolderStep";
 import { DialogLayout } from "../DialogLayout";
 import { DialogNavigation } from "../DialogNavigation";
 import { FieldHelp } from "../FieldHelp";
+import { LoadingStatus } from "../Spinner";
 
 export function ConnectionEditor(props: EditorProps) {
   const wizard = useConnectionWizard(props);
@@ -20,7 +21,7 @@ export function ConnectionEditor(props: EditorProps) {
     setIdentity, trusted, setTrusted, session, busy, loading, error,
     fieldID, savedID, p, change, action, close, dialog,
     unavailable, noLetters, validationProps, fieldFeedback, begin, dispatch,
-    fieldsLoaded, editTab, setEditTab,
+    fieldsLoaded, editTab, setEditTab, operation,
   } = wizard;
   const formID = `${fieldID}-form`;
   const footer = step === "folder" ? <FolderActions wizard={wizard} /> : step === "auth" ? <AuthenticationActions wizard={wizard} /> : step === "complete" ? <>
@@ -45,6 +46,7 @@ export function ConnectionEditor(props: EditorProps) {
   return (
     <DialogLayout dialogRef={dialog} titleID="editor-title" title={initial.id ? auth ? t("Reconfigure account") : t("Edit drive") : t("New connection")}
       navigation={navigation} eyebrow={auth ? undefined : t("CONFIGURE DRIVE")} onClose={close} closeDisabled={busy} closeLabel={t("Close setup")} footer={footer}>
+        {step !== "auth" && (busy || loading && step !== "folder") && <LoadingStatus>{t(operation === "mounting" ? "Mounting drive…" : operation === "validating" ? "Validating destination…" : "Operation in progress…")}</LoadingStatus>}
         {(error || session?.error) && (
           <div role="alert" className="alert error">
             {t(error || session?.error || "")}

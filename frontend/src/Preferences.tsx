@@ -9,6 +9,7 @@ import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
 import { DialogNavigation } from "./DialogNavigation";
 import { useTheme, type Theme } from "./theme";
+import { LoadingStatus } from "./Spinner";
 
 const tabs = ["General", "Appearance", "Cache", "Network", "Configuration"] as const;
 
@@ -47,6 +48,7 @@ export function Preferences({
       navigation={<DialogNavigation label={t("Preferences categories")} selected={tab} onSelect={(key) => setTab(key as typeof tab)}
         items={tabs.map((name) => ({ key: name, label: t(name), id: `${helpID}-${name}-tab`, panel: `${helpID}-${name}-panel`, disabled: busy }))} />}
       footer={<><button type="button" disabled={busy} onClick={onClose}>{t("Cancel")}</button><button form={`${helpID}-form`} className="primary" disabled={busy}>{t("Save")}</button></>}>
+        {(busy || !error && (tab === "Cache" && !defaults || tab === "Network" && !proxyReady)) && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
         {error && (
           <div role="alert" className="alert error">
             {t(error)}

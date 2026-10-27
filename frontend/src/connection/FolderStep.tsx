@@ -1,5 +1,6 @@
 import { MountDestination } from "./MountDestination";
 import type { Wizard } from "./useConnectionWizard";
+import { LoadingStatus } from "../Spinner";
 
 export function FolderStep({ wizard }: { wizard: Wizard }) {
   const {
@@ -46,7 +47,7 @@ export function FolderStep({ wizard }: { wizard: Wizard }) {
           onChange={(e) => setFilter(e.target.value)} />
       </label>}
       {loading ? (
-        <p role="status">{t("Loading folders…")}</p>
+        <LoadingStatus>{t("Loading folders…")}</LoadingStatus>
       ) : (
         <div className="folder-list" aria-label={t("Available folders")}>
           {path && !initial.recovery && (

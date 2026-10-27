@@ -21,6 +21,37 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+test("startup spinner stops on failure and returns only during a retry", async () => {
+  let reject!: (error: Error) => void;
+  vi.mocked(api.accessStatus).mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
+  const view = render(<LanguageProvider><AccessBoundary>{() => <p>management</p>}</AccessBoundary></LanguageProvider>);
+  expect(screen.getByRole("status").querySelector(".spinner-large")).not.toBeNull();
+  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  await act(async () => reject(new Error("Startup unavailable")));
+  expect(screen.getByRole("alert").textContent).toBe("Startup unavailable");
+  expect(view.container.querySelector(".spinner")).toBeNull();
+  let resolve!: (next: AccessStatus) => void;
+  vi.mocked(api.accessStatus).mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(view.container.querySelector(".spinner-large")).not.toBeNull();
+  await act(async () => resolve(status));
+  expect(screen.getByText("management")).toBeDefined();
+  expect(view.container.querySelector(".spinner")).toBeNull();
+});
+
+test.each(["cancelled", "failed"])("file inspection removes the spinner when %s", async (outcome) => {
+  let finish!: () => void;
+  vi.mocked(api.inspectFileAccess).mockImplementationOnce(() => new Promise((resolve, reject) => {
+    finish = () => outcome === "failed" ? reject(new Error("Inspection unavailable")) : resolve({ state: "cancelled", path: "", checkedAt: "", processes: [] });
+  }));
+  const view = render(<LanguageProvider><FileAccessDialog connectionID="drive" onClose={vi.fn()} /></LanguageProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "Select mounted file" }));
+  expect(screen.getByRole("status").querySelector(".spinner")).not.toBeNull();
+  await act(async () => finish());
+  expect(view.container.querySelector(".spinner")).toBeNull();
+  expect(screen.getByRole("button", { name: "Select mounted file" }).hasAttribute("disabled")).toBe(false);
+});
+
 test.each(Object.keys(languages) as Language[])("locked startup retains the saved %s language", async (language) => {
   vi.mocked(api.accessStatus).mockResolvedValue({ ...status, locked: true, language });
   render(<LanguageProvider><AccessBoundary>{() => <p>private management</p>}</AccessBoundary></LanguageProvider>);

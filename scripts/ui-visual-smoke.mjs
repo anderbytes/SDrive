@@ -25,17 +25,22 @@ const snapshot = { ...fixtures.snapshotEmpty, access, settings: { ...fixtures.sn
   importDrafts: [], letters: ["V", "W"], winFsp: true, engineError: "", settingsError: "", desktopWarning: "", startupWarning: "", maintenanceError: "", recoveryHold: false };
 const apiSource = `window.visualSnapshot = ${JSON.stringify(snapshot)};
 const current = () => window.visualSnapshot;
+const wait = async name => {
+  if (window.visualWaits?.[name]) await new Promise(resolve => {
+    (window.visualRelease ||= {})[name] = () => { delete window.visualWaits[name]; resolve(); };
+  });
+};
 export const api = {
-  accessStatus: async () => current().access, snapshot: async () => structuredClone(current()), desktopVisible: async () => true,
+  accessStatus: async () => { await wait('accessStatus'); return current().access; }, snapshot: async () => { await wait('snapshot'); return structuredClone(current()); }, desktopVisible: async () => true,
   onDesktopVisibility: cb => { window.visualVisibility = cb; return () => {}; }, onAccessChanged: cb => {window.visualAccess = cb; return () => {};},
   preferenceDefaults: async () => ({ ...current().settings, cacheGiB: 2, cacheMaxAgeHours: 24, writeBackSeconds: 5 }), restoreDefaultCacheLocation: async () => current().cacheLocation,
   proxy: async () => ({ address: '', username: '', password: '', hasPassword: false }), browsers: async () => [{ id: '', name: 'Default browser' }],
   updateDriveAppearance: async (id, appearance) => { Object.assign(current().connections.find(c => c.id === id), appearance); },
-  fields: async () => ({ values: {}, transport: '' }), settings: async settings => { current().settings = settings; },
+  fields: async () => ({ values: {}, transport: '' }), settings: async settings => { await wait('settings'); current().settings = settings; },
   begin: async () => 'synthetic-draft', status: async () => ({busy:false,authenticated:true,complete:false,error:''}), folders: async () => [{name:'Documents',path:'Documents'}], end: async () => {},
   selectDirectory: async () => 'C:\\\\Synthetic\\\\NewCache', selectFile: async () => ${JSON.stringify("C:\\Synthetic\\Credentials\\" + "long-directory\\".repeat(8) + "account.json")},
   about: async () => ({appVersion:'fixture',rcloneVersion:'fixture',windowsVersion:'fixture',winFspVersion:'fixture',webView2Version:'fixture',architecture:'amd64'}),
-  diagnostics: async () => 'Synthetic diagnostic report. No credentials or personal paths.', copyDiagnostics: async () => {},
+  diagnostics: async () => { await wait('diagnostics'); return 'Synthetic diagnostic report. No credentials or personal paths.'; }, copyDiagnostics: async () => {},
   inspectFileAccess: async () => ({path:'S:\\\\Synthetic.txt',state:'unknown',checkedAt:new Date().toISOString(),processes:[]}),
   previewImport: async () => ({id:'synthetic-import',document:{format:'sdrive',version:1,connections:[{name:'Imported documents',provider:'webdav',path:'Documents',letter:'V',mountMode:'network',values:{},readOnly:false,autoMount:false}],preferences:current().settings}}),
   lock: async () => {current().access={...current().access,enabled:true,locked:true};window.visualAccess(true);},
@@ -58,14 +63,14 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.addInitScript(() => {
+    window.visualWaits = { accessStatus: true, snapshot: true };
     window.visualMotion = [];
     document.addEventListener("animationstart", event => window.visualMotion.push({ name: event.animationName, target: event.target.className }));
   });
   page.setDefaultTimeout(8000);
   page.on("pageerror", e => errors.push(e.message));
   await page.goto(server.resolvedUrls.local[0]);
-  await page.getByRole("heading", { name: "Documents", exact: true }).waitFor();
-  const settle = () => page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
+  const settle = () => page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
   const capture = async name => { await settle(); return page.screenshot({ path: path.join(artifacts, name + ".png"), fullPage: true }); };
   const bounds = async () => {
     await settle();
@@ -84,6 +89,44 @@ try {
       }), "Field actions must share a horizontal row with usable input space");
     }
   };
+  const largeSpinner = page.locator(".spinner-large");
+  await largeSpinner.waitFor();
+  assert.equal(await largeSpinner.evaluate(element => getComputedStyle(element).width), "40px");
+  assert.equal(await largeSpinner.evaluate(element => getComputedStyle(element).animationName), "spinner-rotate");
+  assert(await largeSpinner.evaluate(element => {
+    const ring = element.getBoundingClientRect(), main = element.closest("main").getBoundingClientRect();
+    return Math.abs((ring.left + ring.right - main.left - main.right) / 2) <= 1;
+  }), "Startup spinner must be centered");
+  await capture("startup-loading");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  assert.equal(await largeSpinner.evaluate(element => getComputedStyle(element).animationName), "none");
+  await page.emulateMedia({ reducedMotion: "no-preference", forcedColors: "active" });
+  assert(await largeSpinner.evaluate(element => getComputedStyle(element).borderTopColor !== getComputedStyle(element).borderRightColor), "Spinner arc must remain visible in forced colors");
+  await capture("startup-forced-colors");
+  await page.emulateMedia({ forcedColors: "none" });
+  await page.evaluate(() => window.visualRelease.accessStatus());
+  await page.getByRole("heading", { name: "My drives", exact: true }).waitFor();
+  await largeSpinner.waitFor();
+  await bounds(); await capture("snapshot-loading");
+  await page.evaluate(() => window.visualRelease.snapshot());
+  await page.getByRole("heading", { name: "Documents", exact: true }).waitFor();
+  assert.equal(await page.locator(".spinner").count(), 0, "Startup spinner must disappear when ready");
+  await page.evaluate(() => {
+    window.visualSnapshot.connections[0].busy = true;
+    window.visualSnapshot.connections[0].operation = "mounting";
+    window.visualVisibility(false); window.visualVisibility(true);
+  });
+  await page.locator(".drive .spinner").waitFor();
+  assert.equal(await page.locator(".drive .spinner").evaluate(element => getComputedStyle(element).width), "18px");
+  await page.setViewportSize({ width: 420, height: 740 });
+  await bounds(); await capture("drive-operation-narrow");
+  await page.evaluate(() => {
+    window.visualSnapshot.connections[0].busy = false;
+    window.visualSnapshot.connections[0].operation = "";
+    window.visualVisibility(false); window.visualVisibility(true);
+  });
+  await page.locator(".drive .spinner").waitFor({ state: "detached" });
+  await page.setViewportSize({ width: 1440, height: 900 });
   const details = async () => {
     await page.locator(".drive > .actions > details > summary").first().click();
     await page.getByRole("button", { name: "Drive details", exact: true }).click();
@@ -264,7 +307,13 @@ try {
   await bounds(); await capture("access-settings");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "About SDrive", exact: true }).click();
+  await page.evaluate(() => { window.visualWaits.diagnostics = true; });
   await page.getByRole("button", { name: "View diagnostics", exact: true }).click();
+  const diagnosticsButton = page.getByRole("button", { name: /Loading diagnostic report/ });
+  await diagnosticsButton.locator(".spinner").waitFor();
+  assert.equal(await diagnosticsButton.getAttribute("aria-live"), "polite");
+  await bounds(); await capture("diagnostics-loading");
+  await page.evaluate(() => window.visualRelease.diagnostics());
   await page.getByLabel("Diagnostic report (technical text in English)").waitFor();
   await bounds(); await capture("diagnostics");
   await page.getByRole("button", { name: "Close", exact: true }).click();
@@ -309,9 +358,20 @@ try {
   await bounds(); await capture("dark-drawer");
   await page.emulateMedia({ forcedColors: "active" }); await bounds(); await capture("forced-colors");
   await page.emulateMedia({ forcedColors: "none" });
+  await page.evaluate(() => { window.visualWaits.settings = true; });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.locator(".loading-status .spinner").waitFor();
+  assert.equal(await page.locator(".loading-status .spinner").evaluate(element => getComputedStyle(element).width), "18px");
+  await capture("saving-dark");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  assert.equal(await page.locator(".loading-status .spinner").evaluate(element => getComputedStyle(element).animationName), "none");
+  await page.evaluate(() => window.visualRelease.settings());
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.getByRole("button", { name: /Preferences/ }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Single-line local/remote paths with full hover text, bold mount prefix, short Open action, theme/custom stripes and fallback, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, theme/custom stripes and fallback, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, seven topics, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

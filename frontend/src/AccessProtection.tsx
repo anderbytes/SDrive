@@ -6,6 +6,7 @@ import { errorMessage } from "./messages";
 import { SecretInput } from "./connection/SecretInput";
 import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
+import { LoadingStatus } from "./Spinner";
 
 const lockLimit = "The lock protects SDrive management controls. Drives that remain connected are still accessible in Explorer.";
 
@@ -14,11 +15,14 @@ export function AccessBoundary({ children }: { children: (showLocked: () => void
   const { setTheme } = useTheme();
   const [status, setStatus] = useState<AccessStatus>();
   const [failure, setFailure] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
   const generation = useRef(0);
   const mounted = useRef(true);
   const refresh = async () => {
     if (!mounted.current) return;
     const request = ++generation.current;
+    setLoading(true);
     try {
       const next = await api.accessStatus();
       if (request !== generation.current) return;
@@ -27,6 +31,7 @@ export function AccessBoundary({ children }: { children: (showLocked: () => void
       setLanguage(isLanguage(next.language) ? next.language : "en");
       setFailure("");
     } catch (e) { if (request === generation.current) setFailure(t(errorMessage(e))); }
+    finally { if (mounted.current && request === generation.current) setLoading(false); }
   };
   const showLocked = () => {
     ++generation.current;
@@ -45,9 +50,9 @@ export function AccessBoundary({ children }: { children: (showLocked: () => void
     });
     return () => { active = false; mounted.current = false; ++generation.current; unsubscribe(); };
   }, []);
-  if (!status) return <main><p role="status">{t("Preparing your drives…")}</p>{failure && <p role="alert">{failure}</p>}<button onClick={() => void refresh()}>{t("Try again")}</button></main>;
+  if (!status) return <main className="startup-screen">{loading && <LoadingStatus large>{t("Preparing your drives…")}</LoadingStatus>}{failure && <p role="alert">{failure}</p>}{!loading && <button onClick={() => void refresh()}>{t("Try again")}</button>}</main>;
   if (status.locked) return <Unlock status={status} onUnlocked={refresh} />;
-  return <>{failure && <p role="alert">{failure}</p>}{status.setupPending && <button onClick={async () => { try { await api.end(""); await refresh(); } catch (e) { setFailure(t(errorMessage(e))); } }}>{t("Cancel unfinished setup")}</button>}{status.warning && <p role="status" className="alert warning">{t(status.warning)}</p>}{children(showLocked)}</>;
+  return <>{failure && <p role="alert">{failure}</p>}{cancelling && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}{status.setupPending && <button disabled={cancelling} onClick={async () => { setCancelling(true); try { await api.end(""); await refresh(); } catch (e) { setFailure(t(errorMessage(e))); } finally { setCancelling(false); } }}>{t("Cancel unfinished setup")}</button>}{status.warning && <p role="status" className="alert warning">{t(status.warning)}</p>}{children(showLocked)}</>;
 }
 
 function Unlock({ status, onUnlocked }: { status: AccessStatus; onUnlocked: () => Promise<void> }) {
@@ -59,6 +64,7 @@ function Unlock({ status, onUnlocked }: { status: AccessStatus; onUnlocked: () =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return <main className="access-screen"><h1>{t("SDrive is locked")}</h1><p>{t(lockLimit)}</p>
+    {busy && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
     {status.error && <p role="alert">{t(status.error)}</p>}
     {error && <p role="alert">{error}</p>}
     {replacement ? <RecoveryCode code={replacement} onDone={() => { setReplacement(""); setRecovering(false); setPIN(""); setCode(""); }} /> :
@@ -79,7 +85,7 @@ function Unlock({ status, onUnlocked }: { status: AccessStatus; onUnlocked: () =
         </fieldset>
       </form>}
     <p>{t("If the PIN and recovery code are lost, follow the application lock recovery instructions. Do not delete connection data or cache.")}</p>
-    <button disabled={busy} onClick={async () => { try { await api.exit(); } catch (e) { setError(t(errorMessage(e))); } }}>{t("Exit safely")}</button>
+    <button disabled={busy} onClick={async () => { setBusy(true); try { await api.exit(); } catch (e) { setError(t(errorMessage(e))); } finally { setBusy(false); } }}>{t("Exit safely")}</button>
   </main>;
 }
 
@@ -112,6 +118,7 @@ export function AccessSettings({ onClose }: { onClose: () => void }) {
       <button disabled={busy} type="button" onClick={onClose}>{t("Cancel")}</button>
       <button disabled={busy || !status} className="primary" type="submit" form={formID}>{t("Save")}</button>
     </>}><p>{t(lockLimit)}</p>
+    {(busy || !status && !error) && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
     {error && <p role="alert">{error}</p>}
     {code ? <RecoveryCode code={code} onDone={onClose} hideButton /> : <form id={formID} onSubmit={async (event) => {
       event.preventDefault();

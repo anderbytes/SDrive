@@ -151,6 +151,53 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
+test("initial snapshot shows a large spinner but background refreshes remain silent", async () => {
+  let resolve!: (next: Snapshot) => void;
+  vi.mocked(api.snapshot).mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  const view = render(<App />);
+  await screen.findByRole("heading", { name: "My drives" });
+  expect(screen.getByText("Preparing your drives…").closest("[role=status]")?.querySelector(".spinner-large")).not.toBeNull();
+  await act(async () => resolve(snapshot));
+  expect(view.container.querySelector(".spinner")).toBeNull();
+  vi.mocked(api.snapshot).mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  act(() => {
+    const changed = vi.mocked(api.onDesktopVisibility).mock.calls[0][0];
+    changed(false); changed(true);
+  });
+  expect(view.container.querySelector(".spinner")).toBeNull();
+  await act(async () => resolve(snapshot));
+});
+
+test("snapshot loading stops on error and resumes during a fresh attempt", async () => {
+  vi.mocked(api.snapshot).mockRejectedValueOnce(new Error("Snapshot unavailable"));
+  const view = render(<App />);
+  await screen.findByText("Snapshot unavailable");
+  expect(view.container.querySelector(".spinner")).toBeNull();
+  let resolve!: (next: Snapshot) => void;
+  vi.mocked(api.snapshot).mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  act(() => {
+    const changed = vi.mocked(api.onDesktopVisibility).mock.calls[0][0];
+    changed(false); changed(true);
+  });
+  expect(view.container.querySelector(".spinner-large")).not.toBeNull();
+  await act(async () => resolve(snapshot));
+  expect(view.container.querySelector(".spinner")).toBeNull();
+});
+
+test.each([false, true])("preference saving clears its spinner after success or failure: %s", async (fail) => {
+  let finish!: () => void;
+  vi.mocked(api.settings).mockImplementationOnce(() => new Promise((resolve, reject) => {
+    finish = () => fail ? reject(new Error("Save unavailable")) : resolve();
+  }));
+  const view = render(<App />);
+  await openPreferences();
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(screen.getByRole("dialog").querySelector(".loading-status .spinner")).not.toBeNull();
+  await act(async () => finish());
+  expect(view.container.querySelector(".spinner")).toBeNull();
+  expect(!!screen.queryByRole("dialog")).toBe(fail);
+});
+
 async function openPreferences() {
   const button = await screen.findByRole("button", { name: /Preferences/ });
   await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
@@ -576,6 +623,7 @@ test("closing About ignores a late diagnostic response", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "About SDrive" }));
   fireEvent.click(screen.getByRole("button", { name: "View diagnostics" }));
   expect((screen.getByRole("button", { name: "Loading diagnostic report…" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole("button", { name: "Loading diagnostic report…" }).querySelector(".spinner")).not.toBeNull();
   cancelDialog();
   await act(async () => { resolve("late report"); });
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -757,6 +805,7 @@ test("cancel OAuth cleans up draft", async () => {
   fireEvent.click(screen.getByText("Continue"));
   fireEvent.click(screen.getByText("Sign in with Google Drive"));
   await screen.findByText("Waiting for authentication…");
+  expect(screen.getByText("Waiting for authentication…").closest("[role=status]")?.querySelector(".spinner")).not.toBeNull();
   fireEvent.click(screen.getByText("Cancel setup"));
   await waitFor(() => expect(api.end).toHaveBeenCalledWith("draft"));
 });
@@ -1845,6 +1894,7 @@ test("listing retries cannot overlap and late results are ignored after closing"
   fireEvent.click(retry);
   fireEvent.click(retry);
   await screen.findByText("Loading folders…");
+  expect(screen.getByText("Loading folders…").closest("[role=status]")?.querySelector(".spinner")).not.toBeNull();
   expect(api.folders).toHaveBeenCalledTimes(2);
   fireEvent.click(screen.getByRole("button", { name: "Close setup" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
