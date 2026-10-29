@@ -30,6 +30,10 @@ func (s *Service) PreferenceDefaults() (Settings, error) {
 	return settings, nil
 }
 
+func validDensity(value string) bool {
+	return value == "compact" || value == "balanced" || value == "comfortable"
+}
+
 func validTheme(theme string) bool { return theme == "system" || theme == "light" || theme == "dark" }
 
 func (s *Service) SaveSettings(settings Settings) error {
@@ -39,6 +43,12 @@ func (s *Service) SaveSettings(settings Settings) error {
 	defer s.reconcileDesktopAppearance()
 	if err := validateCacheDurations(settings); err != nil {
 		return err
+	}
+	if settings.Density == "" {
+		settings.Density = "balanced"
+	}
+	if !validDensity(settings.Density) {
+		return fmt.Errorf("unsupported spacing")
 	}
 	if settings.Theme == "" {
 		settings.Theme = "system"

@@ -48,6 +48,7 @@ type Connection struct {
 	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
+	Density          string `json:"density"`
 	Theme            string `json:"theme"`
 	ShowServiceIcons bool   `json:"showServiceIcons"`
 	Language         string `json:"language"`
@@ -66,7 +67,7 @@ type Store struct {
 var errSettingsVersion = errors.New("unsupported settings format; preserve the data directory and use a compatible SDrive version")
 
 func defaultStore() Store {
-	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en", Theme: "system"}}
+	return Store{Connections: []Connection{}, Settings: Settings{CacheGiB: 2, Language: "en", Theme: "system", Density: "balanced"}}
 }
 
 func loadStore(dir string) (Store, error) {
@@ -115,6 +116,9 @@ func decodeStore(b []byte) (Store, error) {
 		return s, invalid
 	}
 	var err error
+	if !validDensity(s.Settings.Density) {
+		s.Settings.Density = "balanced"
+	}
 	if !validTheme(s.Settings.Theme) {
 		s.Settings.Theme = "system"
 	}

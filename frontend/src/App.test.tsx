@@ -256,11 +256,11 @@ test.each([false, true])("preference saving clears its spinner after success or 
   expect(!!screen.queryByRole("dialog")).toBe(fail);
 });
 
-async function openPreferences() {
-  const button = await screen.findByRole("button", { name: /Preferences/ });
+async function openPreferences(section = "Configuration") {
+  const button = await screen.findByRole("button", { name: section });
   await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(button);
-  await screen.findByRole("dialog", { name: "Preferences" });
+  await screen.findByRole("dialog", { name: section });
 }
 
 test("preference tabs preserve edits, navigate by keyboard and reveal invalid fields", async () => {
@@ -270,8 +270,7 @@ test("preference tabs preserve edits, navigate by keyboard and reveal invalid fi
   expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
   expect(screen.getByRole("tabpanel", { name: "General" })).toBeDefined();
   fireEvent.keyDown(screen.getByRole("tab", { name: "General" }), { key: "ArrowDown" });
-  expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Appearance" }));
-  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+  expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Cache" }));
   fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
   fireEvent.change(screen.getByLabelText("Cache target per connection (GiB)"), { target: { value: "0" } });
   fireEvent.keyDown(screen.getByRole("tab", { name: "Cache" }), { key: "End" });
@@ -281,8 +280,7 @@ test("preference tabs preserve edits, navigate by keyboard and reveal invalid fi
   expect(document.activeElement).toBe(screen.getByLabelText("Cache target per connection (GiB)"));
   expect(api.settings).not.toHaveBeenCalled();
   fireEvent.keyDown(screen.getByRole("tab", { name: "Cache" }), { key: "Home" });
-  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
-  expect((screen.getByLabelText("Theme") as HTMLSelectElement).value).toBe("dark");
+  expect(screen.queryByRole("tab", { name: "Appearance" })).toBeNull();
 });
 
 test("theme previews survive polling and failed saves, cancel restores and save persists", async () => {
@@ -291,7 +289,7 @@ test("theme previews survive polling and failed saves, cancel restores and save 
   vi.mocked(api.snapshot).mockImplementation(async () => ({ ...snapshot, settings: saved }));
   const view = render(<App />);
   await screen.findByRole("heading", { name: "My drives" });
-  await openPreferences();
+  await openPreferences("Customize");
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
   fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
   expect(document.documentElement.dataset.theme).toBe("dark");
@@ -302,12 +300,12 @@ test("theme previews survive polling and failed saves, cancel restores and save 
   expect(document.documentElement.dataset.theme).toBe("dark");
   cancelDialog();
   expect(document.documentElement.dataset.theme).toBe("light");
-  await openPreferences();
+  await openPreferences("Customize");
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
   fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(document.documentElement.dataset.theme).toBe("light");
-  await openPreferences();
+  await openPreferences("Customize");
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
   fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
   vi.mocked(api.settings).mockImplementation(async (settings) => { saved = { ...settings }; });
@@ -317,8 +315,7 @@ test("theme previews survive polling and failed saves, cancel restores and save 
   view.unmount();
   render(<App />);
   await screen.findByRole("heading", { name: "My drives" });
-  await openPreferences();
-  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  await openPreferences("Customize");
   expect((screen.getByLabelText("Theme") as HTMLSelectElement).value).toBe("dark");
   expect(document.documentElement.dataset.theme).toBe("dark");
 });
@@ -1063,8 +1060,8 @@ test("native dialog cancellation keeps a busy preference save open", async () =>
   let finish!: () => void;
   vi.mocked(api.settings).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
   render(<App />);
-  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
+  await waitFor(() => expect((screen.getByRole("button", { name: /^Configuration$/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /^Configuration$/ }));
   const cache = screen.getByLabelText("Cache target per connection (GiB)");
   expect(document.getElementById(cache.getAttribute("aria-describedby")!)?.textContent).toContain("Applied on the next mount");
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -1508,8 +1505,8 @@ test.each(Object.keys(languages) as Language[])("language %s is saved, applied a
     saved = { ...settings, language: settings.language || "en" };
   });
   const view = render(<App />);
-  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
+  await waitFor(() => expect((screen.getByRole("button", { name: /^Configuration$/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /^Configuration$/ }));
   fireEvent.change(screen.getByLabelText("Language"), {
     target: { value: language },
   });
@@ -1525,8 +1522,8 @@ test.each(Object.keys(languages) as Language[])("language %s is saved, applied a
   await waitFor(() => expect(document.documentElement.lang).toBe(language));
   view.unmount();
   render(<App />);
-  await waitFor(() => expect((screen.getByRole("button", { name: new RegExp(translate(language, "Preferences")) }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: new RegExp(translate(language, "Preferences")) }));
+  await waitFor(() => expect((screen.getByRole("button", { name: new RegExp(translate(language, "Configuration")) }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(translate(language, "Configuration")) }));
   expect((screen.getByLabelText(translate(language, "Language")) as HTMLSelectElement).value).toBe(language);
   expect(screen.getAllByRole("option")).toHaveLength(Object.keys(languages).length);
   fireEvent.change(screen.getByLabelText(translate(language, "Language")), {
@@ -1548,7 +1545,7 @@ test("Portuguese drive UI keeps user labels and CSS state unchanged", async () =
   expect(screen.getByRole("heading", { name: "Root" })).toBeDefined();
   expect(view.container.querySelector(".status-tag.connected")).not.toBeNull();
   expect(screen.getByRole("button", { name: "Desconectar" })).toBeDefined();
-  fireEvent.click(screen.getByRole("button", { name: /Preferências/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^Configuração$/ }));
   fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(api.settings).not.toHaveBeenCalled();
 });
@@ -1703,8 +1700,8 @@ test("setup submits preferred document formats and virtual capacity", async () =
 test("cache timing accepts 180 days and preserves an explicit zero upload delay", async () => {
   vi.mocked(api.settings).mockResolvedValue();
   render(<App />);
-  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
+  await waitFor(() => expect((screen.getByRole("button", { name: /^Configuration$/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /^Configuration$/ }));
   fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
   fireEvent.change(screen.getByLabelText("Cache retention after last access (hours)"), { target: { value: "4320" } });
   fireEvent.change(screen.getByLabelText("Upload delay after last use (seconds)"), { target: { value: "0" } });
@@ -1715,8 +1712,8 @@ test("cache timing accepts 180 days and preserves an explicit zero upload delay"
 test("cache location failure keeps the current location visible", async () => {
   vi.mocked(api.changeCacheLocation).mockRejectedValue(new Error("Disconnect all drives and resolve pending files before changing the cache."));
   render(<App />);
-  await waitFor(() => expect((screen.getByRole("button", { name: /Preferences/ }) as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: /Preferences/ }));
+  await waitFor(() => expect((screen.getByRole("button", { name: /^Configuration$/ }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: /^Configuration$/ }));
   fireEvent.click(screen.getByRole("tab", { name: "Cache" }));
   fireEvent.change(screen.getByLabelText("New empty cache directory"), { target: { value: "D:\\NewCache" } });
   fireEvent.click(screen.getByRole("button", { name: "Change cache location" }));
@@ -2499,7 +2496,7 @@ test.each(["en", "pt-BR"] as const)("cache and proxy defaults stay isolated and 
   vi.mocked(api.settings).mockResolvedValue();
   vi.mocked(api.saveProxy).mockResolvedValue();
   render(<App />);
-  const preferences = await screen.findByRole("button", { name: new RegExp(t("Preferences")) });
+  const preferences = await screen.findByRole("button", { name: new RegExp(t("Configuration")) });
   await waitFor(() => expect((preferences as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(preferences);
   fireEvent.click(screen.getByRole("tab", { name: t("Cache") }));
@@ -2527,7 +2524,7 @@ test.each(["en", "pt-BR"] as const)("SOCKS5 proxy preferences reopen and save wi
   vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, settings: { ...snapshot.settings, language } });
   vi.mocked(api.proxy).mockResolvedValue({ address: "socks5://127.0.0.1:1080", username: "synthetic", password: "", hasPassword: true });
   render(<App />);
-  const preferences = await screen.findByRole("button", { name: new RegExp(t("Preferences")) });
+  const preferences = await screen.findByRole("button", { name: new RegExp(t("Configuration")) });
   await waitFor(() => expect((preferences as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(preferences);
   fireEvent.click(screen.getByRole("tab", { name: t("Network") }));
@@ -2604,7 +2601,7 @@ test.each(["en", "pt-BR"] as const)("hidden file visibility follows the system a
 
 test("stripe follows each drive without a global appearance preference", async () => {
   render(<App />);
-  await openPreferences();
+  await openPreferences("Customize");
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
   expect(screen.queryByLabelText("Drive card stripe")).toBeNull();
   expect(document.querySelector(".drives")?.hasAttribute("data-stripe-source")).toBe(false);
@@ -2791,4 +2788,50 @@ test("restoring access fields and credential storage to their initial values per
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() => expect(api.update).toHaveBeenCalledOnce());
   expect(api.begin).not.toHaveBeenCalled();
+});
+
+
+test("main navigation remembers the collapsed rail without losing accessible actions", async () => {
+  localStorage.removeItem("sdrive.sidebarCollapsed");
+  const view = render(<App />);
+  const toggle = await screen.findByRole("button", { name: /Collapse navigation|Expand navigation/ });
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(localStorage.getItem("sdrive.sidebarCollapsed")).toBe("true");
+  expect(screen.getByRole("button", { name: "Configuration" })).toBeDefined();
+  view.unmount();
+  render(<App />);
+  expect((await screen.findByRole("button", { name: /Collapse navigation|Expand navigation/ })).getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(screen.getByRole("button", { name: /Collapse navigation|Expand navigation/ }));
+  expect(localStorage.getItem("sdrive.sidebarCollapsed")).toBe("false");
+  localStorage.removeItem("sdrive.sidebarCollapsed");
+});
+
+test("spacing previews across the interface and cancel restores the saved density", async () => {
+  render(<App />);
+  await openPreferences("Customize");
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  fireEvent.change(screen.getByLabelText("Spacing"), { target: { value: "compact" } });
+  expect(document.documentElement.dataset.density).toBe("compact");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(document.documentElement.dataset.density).toBe("balanced");
+  await openPreferences("Customize");
+  fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+  fireEvent.change(screen.getByLabelText("Spacing"), { target: { value: "comfortable" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(api.settings).toHaveBeenCalledWith(expect.objectContaining({ density: "comfortable" })));
+});
+
+
+test("customization and configuration expose separate categories and cache stays in the footer", async () => {
+  render(<App />);
+  await openPreferences("Customize");
+  expect(screen.getByRole("tab", { name: "Appearance" })).toBeDefined();
+  expect(screen.queryByRole("tab", { name: "Cache" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await openPreferences();
+  expect(screen.getByRole("tab", { name: "Cache" })).toBeDefined();
+  expect(screen.queryByRole("tab", { name: "Appearance" })).toBeNull();
+  expect(document.querySelector(".main-footer .cache-note")?.textContent).toContain("Cache target:");
+  expect(document.querySelector(".main-footer .drive-credits")?.textContent).toContain("Go + rclone");
 });

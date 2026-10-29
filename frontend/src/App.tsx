@@ -1,3 +1,4 @@
+import appLogo from "../../assets/sdrive.png";
 import { driveColorStyle } from "./driveColors";
 import { DriveIcon, DriveAppearanceDialog } from "./DriveAppearance";
 import { Preferences } from "./Preferences";
@@ -58,7 +59,7 @@ export function App() {
 
 function AppContent({ onLocked }: { onLocked: () => void }) {
   const { t, setLanguage } = useLanguage();
-  const { setTheme } = useTheme();
+  const { setTheme, setDensity } = useTheme();
   const [data, setData] = useState<Snapshot>();
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [error, setError] = useState<string | LocalizedMessage>("");
@@ -71,7 +72,22 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
   const [working, setWorking] = useState<Record<string, string>>({});
   const [driveDetail, setDriveDetail] = useState<DriveDetailSelection>();
   const [driveToolbar, setDriveToolbar] = useState<HTMLDivElement | null>(null);
-  const [settings, setSettings] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("sdrive.sidebarCollapsed") === "true"; } catch { return false; } });
+  const [narrowNavigation, setNarrowNavigation] = useState(() => window.matchMedia("(max-width: 650px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 650px)");
+    const update = () => setNarrowNavigation(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const toggleSidebar = () => {
+    if (narrowNavigation) { setNavigationOpen(value => !value); return; }
+    const next = !sidebarCollapsed;
+    try { localStorage.setItem("sdrive.sidebarCollapsed", String(next)); } catch {}
+    setSidebarCollapsed(next);
+  };
+  const [settings, setSettings] = useState<"Customize" | "Configuration">();
   const [accessSettings, setAccessSettings] = useState(false);
   const [about, setAbout] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
@@ -100,6 +116,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
       if (snapshot.access.locked) { onLocked(); return; }
       setData(snapshot);
       setTheme(snapshot.settings.theme || "system");
+      setDensity(snapshot.settings.density || "balanced");
       setLanguage(isLanguage(snapshot.settings.language) ? snapshot.settings.language : "en");
     } catch (e) {
       if (snapshotActive.current && request === snapshotRequest.current) setError(message(e));
@@ -172,34 +189,32 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
     }
   };
   return (
-    <div className="shell">
+    <div className={`shell${sidebarCollapsed ? " sidebar-collapsed" : ""}${navigationOpen ? " navigation-open" : ""}`}>
       {accessSettings && <AccessSettings onClose={() => { setAccessSettings(false); void refresh(); }} />}
-      <aside>
-        <div className="brand">
-          <span className="logo">S</span>
-          <div>
-            {" "}
-            SDrive<small>{t("YOUR DRIVE. YOUR CODE.")}</small>
+      <aside aria-label={t("Main navigation")}>
+        <div className="sidebar-heading">
+          <div className="brand">
+            <div className="brand-title"><span>SDrive</span><img className="logo" src={appLogo} alt="" /></div>
+            <small>Access All. Share Nothing.</small>
           </div>
+          <button className="sidebar-toggle" aria-label={t((narrowNavigation ? navigationOpen : !sidebarCollapsed) ? "Collapse navigation" : "Expand navigation")} aria-expanded={narrowNavigation ? navigationOpen : !sidebarCollapsed} onClick={toggleSidebar}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM9 4v16" /><path d={(narrowNavigation ? navigationOpen : !sidebarCollapsed) ? "m16 9-3 3 3 3" : "m13 9 3 3-3 3"} /></svg>
+          </button>
         </div>
-        <div className="nav-active">{t("▣   My drives")}</div>
-        <button
-          className="nav"
-          disabled={!data || !!data.settingsError}
-          onClick={() => setSettings(true)}
-        >
-          {t("⚙   Preferences")}
-        </button>
-        <button className="nav" onClick={() => setAccessSettings(true)}>{t("Application lock")}</button>
-        {data?.access?.enabled && <button className="nav" onClick={() => void run("lock", api.lock)}>{t("Lock SDrive")}</button>}
+        <div className="nav-active"><span className="nav-icon" aria-hidden="true">▣</span><span className="nav-label">{t("My drives")}</span></div>
+        {(["Customize", "Configuration"] as const).map(section => <button key={section} className="nav" title={t(section)} data-tooltip={t(section)} disabled={!data || !!data.settingsError} onClick={() => setSettings(section)}>
+          <span className="nav-icon" aria-hidden="true">{section === "Customize" ? <svg viewBox="0 0 24 24"><path d="m10 13 9-10a1.4 1.4 0 0 1 2 2l-9 10zM10 13c-3-1-5 1-5 4 0 2-2 3-3 3 5 2 10 0 10-5" /></svg> : "⚙"}</span><span className="nav-label">{t(section)}</span>
+        </button>)}
+        <button className="nav" title={t("Application lock")} data-tooltip={t("Application lock")} onClick={() => setAccessSettings(true)}><span className="nav-icon" aria-hidden="true">🔒</span><span className="nav-label">{t("Application lock")}</span></button>
+        {data?.access?.enabled && <button className="nav" title={t("Lock SDrive")} data-tooltip={t("Lock SDrive")} onClick={() => void run("lock", api.lock)}><span className="nav-icon" aria-hidden="true">▣</span><span className="nav-label">{t("Lock SDrive")}</span></button>}
         <footer>
-          <button className="nav" onClick={() => setAbout(true)}>{t("About SDrive")}</button>
+          <button className="nav" title={t("About SDrive")} data-tooltip={t("About SDrive")} onClick={() => setAbout(true)}><span className="nav-icon" aria-hidden="true">ⓘ</span><span className="nav-label">{t("About SDrive")}</span></button>
           <button
-            className="nav"
+            className="nav" title={t(data?.settingsError ? "Close SDrive" : "Exit safely")} data-tooltip={t(data?.settingsError ? "Close SDrive" : "Exit safely")}
             disabled={!!working["exit"]}
             onClick={() => void run("exit", api.exit)}
           >
-            {t(data?.settingsError ? "Close SDrive" : "Exit safely")}
+            <span className="nav-icon" aria-hidden="true">⏻</span><span className="nav-label">{t(data?.settingsError ? "Close SDrive" : "Exit safely")}</span>
           </button>
         </footer>
       </aside>
@@ -360,12 +375,6 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             <div className="drive-toolbar-slot" ref={setDriveToolbar} />
           </div>
         )}
-        {data && !data.settingsError && (
-          <p className="hint">{t("Cache target: {count} GiB per connection", { count: data.settings.cacheGiB })}
-            {" · "}{t("Free on cache disk: {size}", { size: bytes(data.freeBytes) })}
-            {" · "}{t("Pending files are preserved even when the target is exceeded.")}
-          </p>
-        )}
         <p className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
         <section aria-label={t("Drives")} className="drives">
           {data?.importDrafts?.map((draft) => <article className="drive" data-card-style={draft.definition.cardStyle || ""} style={driveColorStyle(draft.definition.cardStyle)} key={draft.id}>
@@ -430,7 +439,15 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             "Closing the window keeps your drives active in the tray. Wait for uploads before exiting.",
           )}
         </div>
-        <footer className="drive-credits">{t("Open source · GPLv3")} · Go + rclone</footer>
+        <footer className="main-footer">
+        {data && !data.settingsError && (
+          <p className="cache-note">{t("Cache target: {count} GiB per connection", { count: data.settings.cacheGiB })}
+            {" · "}{t("Free on cache disk: {size}", { size: bytes(data.freeBytes) })}
+            {" · "}{t("Pending files are preserved even when the target is exceeded.")}
+          </p>
+        )}
+          <span className="drive-credits">{t("Open source · GPLv3")} · Go + rclone</span>
+        </footer>
       </main>
       {editor && data && (
         <ConnectionEditor
@@ -447,10 +464,11 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
       )}
       {settings && data && (
         <Preferences
+          section={settings}
           data={data}
           onRefresh={refresh}
           onClose={() => {
-            setSettings(false);
+            setSettings(undefined);
             void refresh();
           }}
         />
@@ -487,7 +505,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       .catch((e) => { if (current) setError(message(e)); });
     return () => { current = false; };
   }, []);
-  return <DialogLayout dialogRef={dialog} titleID="about-title" title={t("About SDrive")} onClose={onClose} footer={<button onClick={onClose}>{t("Close")}</button>}>
+  return <DialogLayout dialogRef={dialog} titleID="about-title" title={t("About SDrive")} data-tooltip={t("About SDrive")} onClose={onClose} footer={<button onClick={onClose}>{t("Close")}</button>}>
     <p>{t("Open source · GPLv3")}</p>
     {error && <p role="alert" className="alert error">{t(error)}</p>}
     {!info && !error && <LoadingStatus>{t("Loading component versions…")}</LoadingStatus>}

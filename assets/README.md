@@ -8,4 +8,4 @@ The master artwork was created with the built-in Imagegen tool using this prompt
 
 ## Documentation screenshot
 
-`screenshots/overview.png` shows the actual React interface in English with fictional connection data, rendered at a 1180 by 800 viewport in the light theme. It does not use personal profiles or live provider accounts and is not evidence of provider compatibility. Refresh it when the interface materially changes, rather than for every release. Keep the README image path independent of the package version.
+`screenshots/overview.png` shows the actual React interface in English with fictional connection data, rendered at a 1440 by 900 viewport in the light theme. It does not use personal profiles or live provider accounts and is not evidence of provider compatibility. Refresh it when the interface materially changes, rather than for every release. Keep the README image path independent of the package version.

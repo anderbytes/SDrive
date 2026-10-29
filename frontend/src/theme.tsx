@@ -1,12 +1,18 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
+export type Density = "compact" | "balanced" | "comfortable";
 export type Theme = "system" | "light" | "dark";
 const Appearance = createContext({
+  setDensity: (_: Density) => {},
+  setDensityPreview: (_: Density | undefined) => {},
   setTheme: (_: Theme) => {},
   setPreview: (_: Theme | undefined) => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [density, setDensity] = useState<Density>("balanced");
+  const [densityPreview, setDensityPreview] = useState<Density>();
+  useEffect(() => { document.documentElement.dataset.density = densityPreview ?? density; }, [density, densityPreview]);
   const [theme, setTheme] = useState<Theme>("system");
   const [preview, setPreview] = useState<Theme>();
   useEffect(() => {
@@ -17,7 +23,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     system.addEventListener("change", apply);
     return () => system.removeEventListener("change", apply);
   }, [theme, preview]);
-  return <Appearance.Provider value={{ setTheme, setPreview }}>{children}</Appearance.Provider>;
+  return <Appearance.Provider value={{ setTheme, setPreview, setDensity, setDensityPreview }}>{children}</Appearance.Provider>;
 }
 
 export const useTheme = () => useContext(Appearance);

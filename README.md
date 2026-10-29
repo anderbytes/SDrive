@@ -12,7 +12,7 @@ Free and open source. Your storage, your accounts, one place to manage your conn
 
 [Features](#what-you-can-do) · [Get started](#get-started) · [User guide](docs/usage.md) · [Contribute](#help-improve-sdrive)
 
-![SDrive with soft-colored Documents and Team files cards, connection details and storage usage](assets/screenshots/overview.png)
+![SDrive with SFTP, S3 and WebDAV connections, gray and blue cards, and storage usage](assets/screenshots/overview.png)
 
 *The current interface with fictional demonstration data.*
 

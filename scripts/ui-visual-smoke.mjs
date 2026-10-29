@@ -82,6 +82,14 @@ try {
   page.setDefaultTimeout(8000);
   page.on("pageerror", e => errors.push(e.message));
   await page.goto(server.resolvedUrls.local[0]);
+  const ensureNavigation = async () => {
+    if (await page.locator(".shell > aside > .nav").first().isHidden()) await page.locator(".sidebar-toggle").click();
+  };
+  const openSettingsSection = async section => {
+    if (await page.getByRole("dialog").count()) await page.locator(".dialog-close").last().click();
+    await ensureNavigation();
+    await page.getByRole("button", { name: section, exact: true }).click();
+  };
   const settle = () => page.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {}))));
   const capture = async name => { await settle(); return page.screenshot({ path: path.join(artifacts, name + ".png"), fullPage: true }); };
   const bounds = async () => {
@@ -254,19 +262,36 @@ try {
     await page.evaluate(() => {
       const current = window.visualSnapshot;
       current.mountAvailable = true;
+      current.providers.push(...["sftp", "s3"].map(id => ({ ...current.providers[0], id, name: id === "sftp" ? "SFTP" : "S3", backend: id })));
+
       current.connections = [
-        { ...current.connections[0], cardStyle: "teal", cache: { ...current.connections[0].cache, checkedAt: "2026-10-27T12:03:00Z" } },
-        { ...current.connections[1], name: "Team files", letter: "T", mountFolder: "", cardStyle: "violet", serverPath: "https://files.example.test/dav/Team", pending: 0, recovery: false,
+        { ...current.connections[0], provider: "sftp", name: "Server files", serverPath: "sftp.example.test/Documents", cardStyle: "", transportSecurity: { state: "encrypted", protocol: "ssh", source: "configuration", checkedAt: null }, cache: { ...current.connections[0].cache, checkedAt: "2026-10-27T12:03:00Z" } },
+        { ...current.connections[1], provider: "s3", name: "Object storage", serverPath: "s3.example.test/team-bucket", letter: "T", mountFolder: "", cardStyle: "blue", pending: 0, recovery: false,
           cache: { usedBytes: 0, pendingBytes: 0, checkedAt: "2026-10-27T12:03:00Z", error: "" }, network: null, transportSecurity: null },
+        { ...current.connections[0], id: "visual-webdav", name: "Team documents", provider: "webdav", letter: "U", cardStyle: "blue", serverPath: "https://files.example.test/dav/Team" },
       ];
       window.visualVisibility(false); window.visualVisibility(true);
     });
-    await page.waitForFunction(() => document.querySelectorAll(".drive").length === 2 && document.querySelector(".drive").dataset.cardStyle === "teal");
+    await page.waitForFunction(() => document.querySelectorAll(".drive").length === 3 && document.querySelector(".drive").dataset.cardStyle === "");
     await page.evaluate(() => document.fonts.ready);
     assert.equal(await page.getByText("Installation needs repair", { exact: true }).count(), 0);
     await page.getByRole("heading", { name: "My drives", exact: true }).click();
     await page.mouse.move(5, 5);
     await bounds(); await settle();
+    assert(await page.locator(".sidebar-heading").evaluate(e => {
+      const title = e.querySelector(".brand-title").getBoundingClientRect();
+      const logo = e.querySelector(".logo").getBoundingClientRect();
+      const name = e.querySelector(".brand-title > span").getBoundingClientRect();
+      const slogan = e.querySelector("small").getBoundingClientRect();
+      const toggle = e.querySelector(".sidebar-toggle").getBoundingClientRect();
+      return logo.left >= name.right && slogan.top >= title.bottom && toggle.left >= title.right;
+    }), "Brand must place logo beside name, slogan below, toggle to the right");
+    assert(await page.locator(".main-footer").evaluate(e => {
+      const note = e.querySelector(".cache-note").getBoundingClientRect();
+      const credits = e.querySelector(".drive-credits").getBoundingClientRect();
+      return note.left < credits.left && note.top > document.querySelector(".drives").getBoundingClientRect().bottom;
+    }), "Cache information belongs at the left of the footer");
+    assert(await page.locator('.drive-detail-icon[data-tone="success"]').evaluateAll(icons => icons.length > 0 && icons.every(e => { const style = getComputedStyle(e); return style.borderTopWidth === "1px" && style.borderTopColor !== "rgba(0, 0, 0, 0)"; })), "Highlighted icons need a visible border");
     await page.screenshot({ path: path.join(root, "assets/screenshots/overview.png"), fullPage: true });
     await page.evaluate(original => { window.visualSnapshot = original; window.visualVisibility(false); window.visualVisibility(true); }, original);
     await page.waitForFunction(() => document.querySelectorAll(".drive").length === 3);
@@ -392,7 +417,7 @@ try {
     })), "All card paths must stay on one line and preserve the complete hover text");
     assert(await page.locator(".mount-folder strong").evaluate(element => parseInt(getComputedStyle(element).fontWeight) >= 600), "Mount prefix must be bold");
     assert(await page.locator(".drive-credits").evaluate(element => {
-      const box = element.getBoundingClientRect(), hint = element.previousElementSibling.getBoundingClientRect();
+      const box = element.getBoundingClientRect(), hint = element.closest(".main-footer").previousElementSibling.getBoundingClientRect();
       return getComputedStyle(element).fontSize === "11px" && box.top >= hint.bottom && getComputedStyle(element).textAlign === "right";
     }), "Credits must be discreet and below content");
     assert.equal(await firstCard.getByRole("button", { name: "Open", exact: true }).getAttribute("title"), "Open in Explorer");
@@ -555,7 +580,7 @@ try {
     await page.getByText("Enter destination directly", { exact: true }).click();
     await bounds(); await capture("path-actions-" + width);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await page.getByRole("button", { name: /Preferences/ }).click();
+    await ensureNavigation(); await page.getByRole("button", { name: /^Configuration$/ }).click();
     const navigationToggle = page.locator(".dialog-navigation .navigation-toggle");
     if (await navigationToggle.isVisible()) await navigationToggle.click();
     await page.getByRole("tab", { name: "Cache", exact: true }).click();
@@ -607,13 +632,15 @@ try {
     await bounds(); await capture("edit-drive-" + section.toLowerCase());
   }
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("button", { name: /Preferences/ }).click();
-  for (const tab of ["General", "Appearance", "Cache", "Network", "Configuration"]) {
+  await ensureNavigation(); await page.getByRole("button", { name: /^Configuration$/ }).click();
+  for (const tab of ["General", "Cache", "Network", "Configuration"]) {
     await page.getByRole("tab", { name: tab, exact: true }).click(); await bounds(); await capture("preferences-" + tab.toLowerCase());
   }
+  await openSettingsSection("Customize");
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   assert.equal(await page.getByLabel("Drive card stripe").count(), 0);
   assert.equal(await page.locator(".drives").getAttribute("data-stripe-source"), null);
+  await openSettingsSection("Configuration");
   await page.getByRole("tab", { name: "Configuration", exact: true }).click();
   await page.getByRole("button", { name: "Import configuration", exact: true }).click();
   assert.equal(await page.getByRole("dialog").count(), 2, "Import opens above Preferences");
@@ -663,7 +690,7 @@ try {
     await page.getByText(t("Advanced options"), { exact: true }).click();
     await bounds(); await capture("advanced-groups-" + language);
     await page.getByRole("button", { name: t("Close setup"), exact: true }).click();
-    await page.getByRole("button", { name: new RegExp(t("Preferences")) }).click();
+    await ensureNavigation(); await page.getByRole("button", { name: new RegExp(t("Configuration")) }).click();
     await page.locator(".dialog-navigation .navigation-toggle").click();
     await page.getByRole("tab", { name: t("Cache"), exact: true }).click();
     await bounds(); await capture("cache-actions-" + language);
@@ -672,7 +699,8 @@ try {
   await page.evaluate(() => { window.visualSnapshot.settings.language = "en"; window.visualVisibility(false); window.visualVisibility(true); });
   await page.waitForFunction(() => document.documentElement.lang === "en");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole("button", { name: /Preferences/ }).click();
+  await ensureNavigation(); await page.getByRole("button", { name: /^Configuration$/ }).click();
+  await openSettingsSection("Customize");
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.getByLabel("Theme", { exact: true }).selectOption("dark");
   await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
@@ -689,8 +717,29 @@ try {
   await page.evaluate(() => window.visualRelease.settings());
   await page.getByRole("dialog").waitFor({ state: "detached" });
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.getByRole("button", { name: /Preferences/ }).click();
+  await ensureNavigation(); await page.getByRole("button", { name: /^Configuration$/ }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  for (const language of ["en", "pt-BR"]) {
+    await page.evaluate(language => { window.visualSnapshot.settings.language = language; window.visualVisibility(false); window.visualVisibility(true); }, language);
+    await page.waitForFunction(language => document.documentElement.lang === language, language);
+    for (const density of ["compact", "balanced", "comfortable"]) {
+      await page.evaluate(density => { window.visualSnapshot.settings.density = density; window.visualVisibility(false); window.visualVisibility(true); }, density);
+      await page.waitForFunction(density => document.documentElement.dataset.density === density, density);
+      for (const width of [1440, 420]) {
+        await page.setViewportSize({ width, height: 900 });
+        await bounds();
+        await ensureNavigation();
+        await page.locator(".shell > aside > .nav").first().click();
+        await bounds();
+        await page.locator(".dialog-close").click();
+      }
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.locator(".sidebar-toggle").click();
+  assert(await page.locator(".shell").evaluate(e => e.classList.contains("sidebar-collapsed")));
+  await bounds(); await capture("collapsed-navigation");
+  await page.locator(".sidebar-toggle").click();
   assert.deepEqual(errors, []);
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Inline immediate filters, right-aligned summary controls, bounded wrapping and dropdowns in English and Portuguese at four widths, Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, per-drive soft colors, neutral defaults, rendered text/icon/stripe contrast across all 16 presets, dedicated palette modal and draft save/cancel, preview layout in both languages/themes, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);

@@ -35,7 +35,7 @@ The pencil beside **Connect** opens **Edit drive**, with **General**, **Access**
 
 ## Personalize SDrive
 
-Open **Preferences** and use its section menu. In narrow windows, expand the current section button to navigate.
+Open **Customize** for theme, spacing and drive-letter icons, or **Configuration** for general, cache, network and import/export settings. Use the section menu to navigate. In narrow windows, expand the current section button to navigate.
 
 - **General:** choose the interface language and whether SDrive starts with Windows. Startup is disabled initially and does not enable automatic connection by itself.
 - **Appearance:** choose System, Light or Dark. Changes preview immediately; **Save** keeps them, while **Cancel** or Escape restores the saved theme. Individual drive cards can also be personalized.
@@ -75,10 +75,14 @@ The maintainer cannot personally test every connection type, feature or environm
 
 Never delete the cache while recovery is pending. Use **Recover** on the original connection and keep its original account and destination available. To renew credentials, use **Edit drive → Access → Renew access**, preserving the server, username, folder and access mode. Destination changes and removal remain blocked until recovery finishes.
 
-Keep the profile and cache together with their binding information. The default profile is `%LOCALAPPDATA%\SDrive`; it holds preferences, encrypted credentials, keys and recovery information. The cache initially lives there and can be changed through Preferences after clean disconnection. SDrive uses its own configuration rather than modifying your regular `rclone.conf`.
+Keep the profile and cache together with their binding information. The default profile is `%LOCALAPPDATA%\SDrive`; it holds preferences, encrypted credentials, keys and recovery information. The cache initially lives there and can be changed through Configuration after clean disconnection. SDrive uses its own configuration rather than modifying your regular `rclone.conf`.
 
 Credential protection depends on your Windows user. Copying the profile to another account is not a portable credential backup; use credential-free configuration export and authenticate again instead. See [security and recovery limits](security.md) before using sensitive data.
 
 ## Uninstall
 
 Close open files, finish uploads and choose **Exit safely** before uninstalling. Uninstallation preserves your profile, credentials and cache to avoid losing pending uploads, and keeps shared Windows components installed. Only after resolving all pending files should you consider removing the profile manually. Preserve any separately configured cache until recovery is complete as well.
+
+### Interface spacing and navigation
+
+In Customize → Appearance, choose Compact, Balanced (default), or Comfortable spacing. Changes preview immediately; Save keeps them and Cancel restores the saved spacing. The setting also travels with exported preferences. Use the navigation toggle to collapse the main sidebar to icons; SDrive remembers this choice on this computer. In narrow windows, the toggle opens and closes the menu.

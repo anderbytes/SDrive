@@ -1000,5 +1000,15 @@
   "Disconnected · Last connection.": "Desconectado · Última conexão.",
   "Outdated sample · Last counters retained.": "Amostra desatualizada · Últimos contadores mantidos.",
   "Partial network coverage.": "Cobertura parcial da rede.",
-  "Approximate measurement at different layers; do not add the rows.": "Medição aproximada em camadas diferentes; não some as linhas."
+  "Approximate measurement at different layers; do not add the rows.": "Medição aproximada em camadas diferentes; não some as linhas.",
+  "Spacing": "Espaçamento",
+  "Compact": "Compacto",
+  "Balanced": "Equilibrado",
+  "Comfortable": "Confortável",
+  "Main navigation": "Navegação principal",
+  "Toggle navigation": "Alternar navegação",
+  "unsupported spacing": "espaçamento não suportado",
+  "Customize": "Personalização",
+  "Collapse navigation": "Recolher navegação",
+  "Expand navigation": "Expandir navegação"
 }

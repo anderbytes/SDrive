@@ -8,25 +8,27 @@ import { ConfigurationPortability } from "./ConfigurationPortability";
 import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
 import { DialogNavigation } from "./DialogNavigation";
-import { useTheme, type Theme } from "./theme";
+import { useTheme, type Theme, type Density } from "./theme";
 import { LoadingStatus } from "./Spinner";
 
 const tabs = ["General", "Appearance", "Cache", "Network", "Configuration"] as const;
 
 export function Preferences({
+  section = "Configuration",
   data,
   onRefresh,
   onClose,
 }: {
+  section?: "Customize" | "Configuration";
   data: Snapshot;
   onRefresh: () => Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useLanguage();
   const helpID = useId();
-  const [tab, setTab] = useState<typeof tabs[number]>("General");
-  const { setTheme, setPreview } = useTheme();
-  useEffect(() => () => setPreview(undefined), [setPreview]);
+  const [tab, setTab] = useState<typeof tabs[number]>(section === "Customize" ? "Appearance" : "General");
+  const { setTheme, setPreview, setDensity, setDensityPreview } = useTheme();
+  useEffect(() => () => { setPreview(undefined); setDensityPreview(undefined); }, [setPreview, setDensityPreview]);
   const [settings, setSettings] = useState({ ...data.settings, theme: data.settings.theme || "system" });
   const [cachePath, setCachePath] = useState(data.cacheLocation);
   const [effectiveCache, setEffectiveCache] = useState(data.cacheLocation);
@@ -44,9 +46,9 @@ export function Preferences({
     if (!busy) onClose();
   });
   return (
-    <DialogLayout dialogRef={dialog} titleID="preferences-title" title={t("Preferences")} onClose={onClose} closeDisabled={busy}
+    <DialogLayout dialogRef={dialog} titleID="preferences-title" title={t(section)} onClose={onClose} closeDisabled={busy}
       navigation={<DialogNavigation label={t("Preferences categories")} selected={tab} onSelect={(key) => setTab(key as typeof tab)}
-        items={tabs.map((name) => ({ key: name, label: t(name), id: `${helpID}-${name}-tab`, panel: `${helpID}-${name}-panel`, disabled: busy }))} />}
+        items={tabs.filter(name => section === "Customize" ? name === "Appearance" : name !== "Appearance").map((name) => ({ key: name, label: t(name), id: `${helpID}-${name}-tab`, panel: `${helpID}-${name}-panel`, disabled: busy }))} />}
       footer={<><button type="button" disabled={busy} onClick={onClose}>{t("Cancel")}</button><button form={`${helpID}-form`} className="primary" disabled={busy}>{t("Save")}</button></>}>
         {(busy || !error && (tab === "Cache" && !defaults || tab === "Network" && !proxyReady)) && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
         {error && (
@@ -69,6 +71,8 @@ export function Preferences({
               if (proxyDirty) await api.saveProxy(proxy);
               await api.settings(settings);
               setTheme(settings.theme);
+              setDensity(settings.density || "balanced");
+              setDensityPreview(undefined);
               setPreview(undefined);
               onClose();
             } catch (e) {
@@ -105,6 +109,7 @@ export function Preferences({
             </label>
           </div>
           <div id={`${helpID}-Appearance-panel`} role="tabpanel" aria-labelledby={`${helpID}-Appearance-tab`} data-preference-tab="Appearance" hidden={tab !== "Appearance"}>
+            <label>{t("Spacing")}<select aria-label={t("Spacing")} disabled={busy} value={settings.density || "balanced"} onChange={(e) => { const density = e.target.value as Density; setSettings({ ...settings, density }); setDensityPreview(density); }}>{(["compact", "balanced", "comfortable"] as const).map(value => <option key={value} value={value}>{t({ compact: "Compact", balanced: "Balanced", comfortable: "Comfortable" }[value])}</option>)}</select></label>
             <label>{t("Theme")}<select aria-label={t("Theme")} disabled={busy} value={settings.theme} onChange={(e) => {
               const theme = e.target.value as Theme; setSettings({ ...settings, theme }); setPreview(theme);
             }}><option value="system">{t("System")}</option><option value="light">{t("Light")}</option><option value="dark">{t("Dark")}</option></select></label>

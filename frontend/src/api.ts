@@ -1,5 +1,5 @@
 import { type Language } from "./i18n";
-import { type Theme } from "./theme";
+import { type Density, type Theme } from "./theme";
 import { localizedMessage, type LocalizedMessage } from "./messages";
 import { Call, Clipboard, Events } from "@wailsio/runtime";
 
@@ -107,6 +107,7 @@ export interface NetworkView {
   filesReceived: number | null;
 }
 export interface Settings {
+  density?: Density;
   theme: Theme;
 	showServiceIcons: boolean;
   language: Language;
