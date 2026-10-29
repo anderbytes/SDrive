@@ -75,6 +75,7 @@ export function ImportConfigurationDialog({ preview, data, onClose, onSaved }: {
     <p>{t("Theme")}: {t(document.preferences.theme === "light" ? "Light" : document.preferences.theme === "dark" ? "Dark" : "System")}</p>
     <p>{t("Imported preferences: {language}, {cache} GiB, retention {hours} h, upload delay {seconds} s.", { language: document.preferences.language, cache: document.preferences.cacheGiB, hours: document.preferences.cacheMaxAgeHours ?? 24, seconds: document.preferences.writeBackSeconds ?? 5 })}</p>
     <p>{t("Show service icons for drive letters")}: {t(document.preferences.showServiceIcons ? "Enabled" : "Disabled")}</p>
+    <p>{t("Appearance preferences are included when applying imported preferences.")}</p>
     <p>{t("Windows startup, proxy credentials and cache location stay local.")}</p>
     {error && <p role="alert">{error}</p>}
   </DialogLayout>;

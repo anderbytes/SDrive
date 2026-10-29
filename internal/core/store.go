@@ -48,14 +48,15 @@ type Connection struct {
 	Binding               string `json:"binding,omitempty"`
 }
 type Settings struct {
-	Density          string `json:"density"`
-	Theme            string `json:"theme"`
-	ShowServiceIcons bool   `json:"showServiceIcons"`
-	Language         string `json:"language"`
-	AutoStart        bool   `json:"autoStart"`
-	CacheGiB         int    `json:"cacheGiB"`
-	CacheMaxAgeHours *int   `json:"cacheMaxAgeHours,omitempty"`
-	WriteBackSeconds *int   `json:"writeBackSeconds,omitempty"`
+	Appearance       *AppearancePreferences `json:"appearance,omitempty"`
+	Density          string                 `json:"density"`
+	Theme            string                 `json:"theme"`
+	ShowServiceIcons bool                   `json:"showServiceIcons"`
+	Language         string                 `json:"language"`
+	AutoStart        bool                   `json:"autoStart"`
+	CacheGiB         int                    `json:"cacheGiB"`
+	CacheMaxAgeHours *int                   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds *int                   `json:"writeBackSeconds,omitempty"`
 }
 type Store struct {
 	AccessProtected bool          `json:"accessProtected,omitempty"`
@@ -116,6 +117,9 @@ func decodeStore(b []byte) (Store, error) {
 		return s, invalid
 	}
 	var err error
+	if err := validateAppearance(s.Settings.Appearance); err != nil {
+		return s, err
+	}
 	if !validDensity(s.Settings.Density) {
 		s.Settings.Density = "balanced"
 	}

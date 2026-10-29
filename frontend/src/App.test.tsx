@@ -1,3 +1,4 @@
+import { appearanceDefaults } from "./appearance";
 import React from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
@@ -1513,6 +1514,7 @@ test.each(Object.keys(languages) as Language[])("language %s is saved, applied a
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByRole("heading", { name: translate(language, "My drives") });
   expect(api.settings).toHaveBeenCalledWith({
+    appearance: appearanceDefaults,
     autoStart: false,
     theme: "system",
     cacheGiB: 2,
@@ -2791,19 +2793,19 @@ test("restoring access fields and credential storage to their initial values per
 });
 
 
-test("main navigation remembers the collapsed rail without losing accessible actions", async () => {
+test("main navigation toggle is temporary without losing accessible actions", async () => {
   localStorage.removeItem("sdrive.sidebarCollapsed");
   const view = render(<App />);
   const toggle = await screen.findByRole("button", { name: /Collapse navigation|Expand navigation/ });
   fireEvent.click(toggle);
   expect(toggle.getAttribute("aria-expanded")).toBe("false");
-  expect(localStorage.getItem("sdrive.sidebarCollapsed")).toBe("true");
+  expect(localStorage.getItem("sdrive.sidebarCollapsed")).toBeNull();
   expect(screen.getByRole("button", { name: "Configuration" })).toBeDefined();
   view.unmount();
   render(<App />);
-  expect((await screen.findByRole("button", { name: /Collapse navigation|Expand navigation/ })).getAttribute("aria-expanded")).toBe("false");
+  expect((await screen.findByRole("button", { name: /Collapse navigation|Expand navigation/ })).getAttribute("aria-expanded")).toBe("true");
   fireEvent.click(screen.getByRole("button", { name: /Collapse navigation|Expand navigation/ }));
-  expect(localStorage.getItem("sdrive.sidebarCollapsed")).toBe("false");
+  expect(localStorage.getItem("sdrive.sidebarCollapsed")).toBeNull();
   localStorage.removeItem("sdrive.sidebarCollapsed");
 });
 
@@ -2834,4 +2836,41 @@ test("customization and configuration expose separate categories and cache stays
   expect(screen.queryByRole("tab", { name: "Appearance" })).toBeNull();
   expect(document.querySelector(".main-footer .cache-note")?.textContent).toContain("Cache target:");
   expect(document.querySelector(".main-footer .drive-credits")?.textContent).toContain("Go + rclone");
+});
+
+ test("new appearance preferences apply only after save and validate delay", async () => {
+ let saved: import("./api").Settings & {appearance: import("./appearance").AppearancePreferences} = {...snapshot.settings, appearance: {...appearanceDefaults}};
+ vi.mocked(api.snapshot).mockImplementation(async()=>({...snapshot, settings:saved}));
+ vi.mocked(api.settings).mockImplementation(async(settings)=>{saved={...settings,appearance:settings.appearance!};});
+ render(<App/>); await openPreferences("Customize");
+ fireEvent.change(screen.getByLabelText("Text size"),{target:{value:"large"}});
+ expect(document.documentElement.style.getPropertyValue("--text-scale")).toBe("1");
+ fireEvent.click(screen.getByRole("button",{name:"Cancel"}));
+ await openPreferences("Customize"); expect((screen.getByLabelText("Text size") as HTMLSelectElement).value).toBe("standard");
+ fireEvent.change(screen.getByLabelText("Text size"),{target:{value:"large"}});
+ fireEvent.click(screen.getByRole("tab",{name:"Disconnection"}));
+ fireEvent.change(screen.getByLabelText("Time before disappearing (ms)"),{target:{value:"-1"}});
+ fireEvent.click(screen.getByRole("button",{name:"Save"})); expect(api.settings).not.toHaveBeenCalled();
+ fireEvent.change(screen.getByLabelText("Time before disappearing (ms)"),{target:{value:"0"}});
+ fireEvent.click(screen.getByRole("button",{name:"Save"}));
+ await waitFor(()=>expect(document.documentElement.style.getPropertyValue("--text-scale")).toBe("1.15"));
+ expect(saved.appearance.disconnectDelayMs).toBe(0);
+ });
+
+test("card preferences hide secondary details while preserving actions", async () => {
+ vi.mocked(api.snapshot).mockResolvedValue({...snapshot,connections:[{...connection,mounted:false,capacity:{total:1024,used:256,free:768,checkedAt:null,state:"available"}}],settings:{...snapshot.settings,appearance:{...appearanceDefaults,hiddenCardDetails:15}}});
+ render(<App/>); await waitFor(()=>expect((screen.getByRole("button",{name:"Customize"}) as HTMLButtonElement).disabled).toBe(false));
+ expect(document.querySelector(".drive .type-tag")).toBeNull(); expect(document.querySelector(".drive .server-path")).toBeNull(); expect(document.querySelector(".drive .mount-folder")).toBeNull(); expect(document.querySelector(".drive-capacity")).toBeNull();
+ expect(screen.getByRole("button",{name:/^Connect$/})).toBeDefined();
+});
+test("automatic sidebar follows breakpoint changes and temporary toggle overrides them", async () => {
+ const query = new EventTarget(); let collapsed=false;
+ vi.mocked(window.matchMedia).mockImplementation((media:string)=>({get matches(){return media.includes("1100px") && collapsed;},addEventListener:media.includes("1100px") ? query.addEventListener.bind(query) : vi.fn(),removeEventListener:media.includes("1100px") ? query.removeEventListener.bind(query) : vi.fn()} as MediaQueryList));
+ vi.mocked(api.snapshot).mockResolvedValue({...snapshot,settings:{...snapshot.settings,appearance:{...appearanceDefaults,sidebar:"auto"}}});
+ render(<App/>); await waitFor(()=>expect((screen.getByRole("button",{name:"Customize"}) as HTMLButtonElement).disabled).toBe(false));
+ const toggle=screen.getByRole("button",{name:/Collapse navigation|Expand navigation/});
+ expect(toggle.getAttribute("aria-expanded")).toBe("true");
+ act(()=>{collapsed=true;query.dispatchEvent(new Event("change"));}); expect(toggle.getAttribute("aria-expanded")).toBe("false");
+ fireEvent.click(toggle); expect(toggle.getAttribute("aria-expanded")).toBe("true");
+ act(()=>{query.dispatchEvent(new Event("change"));}); expect(toggle.getAttribute("aria-expanded")).toBe("true");
 });

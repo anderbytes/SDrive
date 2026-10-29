@@ -25,17 +25,18 @@ type AccessPolicy struct {
 }
 
 type AccessStatus struct {
-	Platform     string       `json:"platform"`
-	GlobalIdle   bool         `json:"globalIdle"`
-	Theme        string       `json:"theme"`
-	SetupPending bool         `json:"setupPending"`
-	Language     string       `json:"language"`
-	Enabled      bool         `json:"enabled"`
-	Locked       bool         `json:"locked"`
-	Policy       AccessPolicy `json:"policy"`
-	RetryAt      time.Time    `json:"retryAt"`
-	Error        string       `json:"error"`
-	Warning      string       `json:"warning"`
+	Platform     string                 `json:"platform"`
+	GlobalIdle   bool                   `json:"globalIdle"`
+	Appearance   *AppearancePreferences `json:"appearance,omitempty"`
+	Theme        string                 `json:"theme"`
+	SetupPending bool                   `json:"setupPending"`
+	Language     string                 `json:"language"`
+	Enabled      bool                   `json:"enabled"`
+	Locked       bool                   `json:"locked"`
+	Policy       AccessPolicy           `json:"policy"`
+	RetryAt      time.Time              `json:"retryAt"`
+	Error        string                 `json:"error"`
+	Warning      string                 `json:"warning"`
 }
 
 type accessRecord struct {
@@ -146,7 +147,7 @@ func (s *Service) AccessStatus() AccessStatus {
 }
 
 func (s *Service) accessStatus() AccessStatus {
-	status := AccessStatus{Platform: platform.OS, GlobalIdle: platform.GlobalIdleSupported, Theme: s.store.Settings.Theme, SetupPending: !s.access.locked && s.session != nil, Language: s.store.Settings.Language, Enabled: s.access.record != nil || s.store.AccessProtected || s.access.error != "", Locked: s.access.locked, Error: s.access.error, Warning: s.access.warning, Policy: AccessPolicy{IdleMinutes: platform.DefaultIdleMinutes}}
+	status := AccessStatus{Appearance: s.store.Settings.Appearance, Platform: platform.OS, GlobalIdle: platform.GlobalIdleSupported, Theme: s.store.Settings.Theme, SetupPending: !s.access.locked && s.session != nil, Language: s.store.Settings.Language, Enabled: s.access.record != nil || s.store.AccessProtected || s.access.error != "", Locked: s.access.locked, Error: s.access.error, Warning: s.access.warning, Policy: AccessPolicy{IdleMinutes: platform.DefaultIdleMinutes}}
 	if r := s.access.record; r != nil {
 		status.Policy, status.RetryAt = r.Policy, r.RetryAt
 	}
@@ -154,7 +155,7 @@ func (s *Service) accessStatus() AccessStatus {
 }
 
 func (s *Service) lockedView() View {
-	return View{Platform: platform.OS, Access: s.accessStatus(), Settings: Settings{Language: s.store.Settings.Language, Theme: s.store.Settings.Theme}, Providers: []Provider{}, Connections: []ConnectionView{}, ImportDrafts: []ImportDraft{}, Letters: []string{}}
+	return View{Platform: platform.OS, Access: s.accessStatus(), Settings: Settings{Appearance: s.store.Settings.Appearance, Language: s.store.Settings.Language, Theme: s.store.Settings.Theme}, Providers: []Provider{}, Connections: []ConnectionView{}, ImportDrafts: []ImportDraft{}, Letters: []string{}}
 }
 
 func (s *Service) lockManagement() {

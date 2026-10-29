@@ -1,3 +1,5 @@
+import { AppearanceOptions } from "./AppearanceOptions";
+import { appearanceDefaults } from "./appearance";
 import { useEffect, useId, useState } from "react";
 import { flushSync } from "react-dom";
 import { api, type Snapshot, type ProxyConfig, type Settings } from "./api";
@@ -11,14 +13,16 @@ import { DialogNavigation } from "./DialogNavigation";
 import { useTheme, type Theme, type Density } from "./theme";
 import { LoadingStatus } from "./Spinner";
 
-const tabs = ["General", "Appearance", "Cache", "Network", "Configuration"] as const;
+const tabs = ["General", "Appearance", "Drive cards", "Disconnection", "Cache", "Network", "Configuration"] as const;
 
 export function Preferences({
+  onSaved,
   section = "Configuration",
   data,
   onRefresh,
   onClose,
 }: {
+  onSaved?: () => void;
   section?: "Customize" | "Configuration";
   data: Snapshot;
   onRefresh: () => Promise<void>;
@@ -29,7 +33,7 @@ export function Preferences({
   const [tab, setTab] = useState<typeof tabs[number]>(section === "Customize" ? "Appearance" : "General");
   const { setTheme, setPreview, setDensity, setDensityPreview } = useTheme();
   useEffect(() => () => { setPreview(undefined); setDensityPreview(undefined); }, [setPreview, setDensityPreview]);
-  const [settings, setSettings] = useState({ ...data.settings, theme: data.settings.theme || "system" });
+  const [settings, setSettings] = useState({ ...data.settings, theme: data.settings.theme || "system", appearance: data.settings.appearance ?? { ...appearanceDefaults, sidebar: (() => { try { return localStorage.getItem("sdrive.sidebarCollapsed") === "true" ? "collapsed" : "expanded"; } catch { return "expanded"; } })() } });
   const [cachePath, setCachePath] = useState(data.cacheLocation);
   const [effectiveCache, setEffectiveCache] = useState(data.cacheLocation);
   const [cacheNotice, setCacheNotice] = useState("");
@@ -48,7 +52,7 @@ export function Preferences({
   return (
     <DialogLayout dialogRef={dialog} titleID="preferences-title" title={t(section)} onClose={onClose} closeDisabled={busy}
       navigation={<DialogNavigation label={t("Preferences categories")} selected={tab} onSelect={(key) => setTab(key as typeof tab)}
-        items={tabs.filter(name => section === "Customize" ? name === "Appearance" : name !== "Appearance").map((name) => ({ key: name, label: t(name), id: `${helpID}-${name}-tab`, panel: `${helpID}-${name}-panel`, disabled: busy }))} />}
+        items={tabs.filter(name => section === "Customize" ? ["Appearance", "Drive cards", "Disconnection"].includes(name) : !["Appearance", "Drive cards", "Disconnection"].includes(name)).map((name) => ({ key: name, label: t(name), id: `${helpID}-${name.replaceAll(" ", "-")}-tab`, panel: `${helpID}-${name.replaceAll(" ", "-")}-panel`, disabled: busy }))} />}
       footer={<><button type="button" disabled={busy} onClick={onClose}>{t("Cancel")}</button><button form={`${helpID}-form`} className="primary" disabled={busy}>{t("Save")}</button></>}>
         {(busy || !error && (tab === "Cache" && !defaults || tab === "Network" && !proxyReady)) && <LoadingStatus>{t("Operation in progress…")}</LoadingStatus>}
         {error && (
@@ -70,6 +74,7 @@ export function Preferences({
             try {
               if (proxyDirty) await api.saveProxy(proxy);
               await api.settings(settings);
+              onSaved?.();
               setTheme(settings.theme);
               setDensity(settings.density || "balanced");
               setDensityPreview(undefined);
@@ -109,6 +114,7 @@ export function Preferences({
             </label>
           </div>
           <div id={`${helpID}-Appearance-panel`} role="tabpanel" aria-labelledby={`${helpID}-Appearance-tab`} data-preference-tab="Appearance" hidden={tab !== "Appearance"}>
+            <AppearanceOptions section="Appearance" value={settings.appearance} onChange={appearance => setSettings({...settings, appearance})}/>
             <label>{t("Spacing")}<select aria-label={t("Spacing")} disabled={busy} value={settings.density || "balanced"} onChange={(e) => { const density = e.target.value as Density; setSettings({ ...settings, density }); setDensityPreview(density); }}>{(["compact", "balanced", "comfortable"] as const).map(value => <option key={value} value={value}>{t({ compact: "Compact", balanced: "Balanced", comfortable: "Comfortable" }[value])}</option>)}</select></label>
             <label>{t("Theme")}<select aria-label={t("Theme")} disabled={busy} value={settings.theme} onChange={(e) => {
               const theme = e.target.value as Theme; setSettings({ ...settings, theme }); setPreview(theme);
@@ -118,6 +124,7 @@ export function Preferences({
             {data.platform === "linux" && <p>{t("Drive-letter icons are available only on Windows.")}</p>}
             <p>{t("Service icons are local monograms for SDrive drive letters. Existing customization takes precedence; mounted folders keep their icons.")}</p>
           </div>
+          {(["Drive cards", "Disconnection"] as const).map(name => <div key={name} id={`${helpID}-${name.replaceAll(" ", "-")}-panel`} role="tabpanel" aria-labelledby={`${helpID}-${name.replaceAll(" ", "-")}-tab`} data-preference-tab={name} hidden={tab !== name}><AppearanceOptions section={name} value={settings.appearance} onChange={appearance => setSettings({...settings, appearance})}/></div>)}
           <div id={`${helpID}-Cache-panel`} role="tabpanel" aria-labelledby={`${helpID}-Cache-tab`} data-preference-tab="Cache" hidden={tab !== "Cache"}>
             <div className="field-action">
             <label>

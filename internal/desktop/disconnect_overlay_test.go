@@ -54,3 +54,32 @@ func TestDisconnectOverlayBoundsRemainInsideMonitorWorkArea(t *testing.T) {
 		}
 	}
 }
+
+func TestDisconnectOverlaySizePresetsStayWithinWorkArea(t *testing.T) {
+	for _, size := range []string{"compact", "standard", "large"} {
+		for _, area := range []application.Rect{{X: -1280, Y: -200, Width: 1280, Height: 960}, {Width: 240, Height: 160}} {
+			b := disconnectSizedBounds(area, size)
+			if b.X < area.X || b.Y < area.Y || b.X+b.Width > area.X+area.Width || b.Y+b.Height > area.Y+area.Height {
+				t.Fatal(size, b, area)
+			}
+		}
+	}
+}
+
+func TestDisconnectSuccessDelayDoesNotExpireFailuresOrRestartTimers(t *testing.T) {
+	for _, delay := range []time.Duration{0, time.Second, 1575 * time.Millisecond, 60 * time.Second} {
+		now := time.Now()
+		o := &disconnectOverlay{entries: map[string]disconnectEntry{"success": {DisconnectProgress: core.DisconnectProgress{Stage: "succeeded"}}, "failed": {DisconnectProgress: core.DisconnectProgress{Stage: "failed"}}, "active": {DisconnectProgress: core.DisconnectProgress{Stage: "unmounting"}}}}
+		o.startSuccessTimers(now, delay)
+		o.startSuccessTimers(now.Add(time.Second), delay)
+		if !o.entries["success"].expires.Equal(now.Add(delay)) {
+			t.Fatal("success expiry reset")
+		}
+		if delay > 0 && len(o.view(core.AccessStatus{}, now.Add(delay-time.Nanosecond)).Rows) != 3 {
+			t.Fatal("expired early")
+		}
+		if len(o.view(core.AccessStatus{}, now.Add(delay)).Rows) != 2 {
+			t.Fatal("incorrect completion expiry")
+		}
+	}
+}

@@ -1,3 +1,4 @@
+import { applyAppearance, appearanceDefaults, type AppearancePreferences } from "./appearance";
 import appLogo from "../../assets/sdrive.png";
 import { driveColorStyle } from "./driveColors";
 import { DriveIcon, DriveAppearanceDialog } from "./DriveAppearance";
@@ -80,11 +81,22 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
   }, []);
+  const sidebarMode = data?.settings.appearance?.sidebar;
+  const [autoCollapsed, setAutoCollapsed] = useState(() => window.matchMedia("(max-width: 1100px)").matches);
+  const [sidebarOverride, setSidebarOverride] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1100px)");
+    const update = () => setAutoCollapsed(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  useEffect(() => { setSidebarOverride(false); }, [sidebarMode]);
+  const effectiveCollapsed = sidebarOverride || !sidebarMode ? sidebarCollapsed : sidebarMode === "auto" ? autoCollapsed : sidebarMode === "collapsed";
   const [navigationOpen, setNavigationOpen] = useState(false);
   const toggleSidebar = () => {
     if (narrowNavigation) { setNavigationOpen(value => !value); return; }
-    const next = !sidebarCollapsed;
-    try { localStorage.setItem("sdrive.sidebarCollapsed", String(next)); } catch {}
+    const next = !effectiveCollapsed;
+    setSidebarOverride(true);
     setSidebarCollapsed(next);
   };
   const [settings, setSettings] = useState<"Customize" | "Configuration">();
@@ -115,6 +127,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
       if (!snapshotActive.current || request !== snapshotRequest.current) return;
       if (snapshot.access.locked) { onLocked(); return; }
       setData(snapshot);
+      applyAppearance(snapshot.settings.appearance);
       setTheme(snapshot.settings.theme || "system");
       setDensity(snapshot.settings.density || "balanced");
       setLanguage(isLanguage(snapshot.settings.language) ? snapshot.settings.language : "en");
@@ -189,7 +202,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
     }
   };
   return (
-    <div className={`shell${sidebarCollapsed ? " sidebar-collapsed" : ""}${navigationOpen ? " navigation-open" : ""}`}>
+    <div className={`shell${effectiveCollapsed ? " sidebar-collapsed" : ""}${navigationOpen ? " navigation-open" : ""}`}>
       {accessSettings && <AccessSettings onClose={() => { setAccessSettings(false); void refresh(); }} />}
       <aside aria-label={t("Main navigation")}>
         <div className="sidebar-heading">
@@ -197,8 +210,8 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             <div className="brand-title"><span>SDrive</span><img className="logo" src={appLogo} alt="" /></div>
             <small>Access All. Share Nothing.</small>
           </div>
-          <button className="sidebar-toggle" aria-label={t((narrowNavigation ? navigationOpen : !sidebarCollapsed) ? "Collapse navigation" : "Expand navigation")} aria-expanded={narrowNavigation ? navigationOpen : !sidebarCollapsed} onClick={toggleSidebar}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM9 4v16" /><path d={(narrowNavigation ? navigationOpen : !sidebarCollapsed) ? "m16 9-3 3 3 3" : "m13 9 3 3-3 3"} /></svg>
+          <button className="sidebar-toggle" aria-label={t((narrowNavigation ? navigationOpen : !effectiveCollapsed) ? "Collapse navigation" : "Expand navigation")} aria-expanded={narrowNavigation ? navigationOpen : !effectiveCollapsed} onClick={toggleSidebar}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM9 4v16" /><path d={(narrowNavigation ? navigationOpen : !effectiveCollapsed) ? "m16 9-3 3 3 3" : "m13 9 3 3-3 3"} /></svg>
           </button>
         </div>
         <div className="nav-active"><span className="nav-icon" aria-hidden="true">▣</span><span className="nav-label">{t("My drives")}</span></div>
@@ -395,6 +408,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
             <Drive
               key={c.id}
               connection={c}
+              appearancePreferences={data.settings.appearance}
               detailSelection={driveDetail}
               onDetailSelect={setDriveDetail}
               provider={data.providers.find((p) => p.id === c.provider)!}
@@ -464,6 +478,7 @@ function AppContent({ onLocked }: { onLocked: () => void }) {
       )}
       {settings && data && (
         <Preferences
+          onSaved={() => setSidebarOverride(false)}
           section={settings}
           data={data}
           onRefresh={refresh}
@@ -548,6 +563,7 @@ function RestoreSettingsDialog({
 function Drive({
   connection: c,
   provider: p,
+  appearancePreferences = appearanceDefaults,
   detailSelection,
   onDetailSelect,
   busy,
@@ -558,6 +574,7 @@ function Drive({
   onAppearanceSaved,
 }: {
   connection: ConnectionView;
+  appearancePreferences?: AppearancePreferences;
   provider: Provider;
   detailSelection: DriveDetailSelection | undefined;
   onDetailSelect: (selection: DriveDetailSelection | undefined) => void;
@@ -616,13 +633,13 @@ function Drive({
                   ? t("Recovery required")
                   : t("Disconnected")}
         </div></div>
-        <div className="drive-metadata"><span className={`type-tag type-${["smb", "sftp", "ftp"].includes(p.id) ? "network" : ["webdav", "nextcloud", "owncloud"].includes(p.id) ? "webdav" : ["s3", "b2", "azureblob", "gcs"].includes(p.id) ? "object" : "cloud"}`}>{t(p.name)}</span><span className="server-path" title={c.serverPath || c.path || t("Root")}>{c.serverPath || c.path || t("Root")}</span></div>
-        {usage !== null && <div className="drive-capacity">
-          <progress max={100} value={usage} aria-label={t("Space used on {name}", { name: c.name })} aria-valuetext={usageText} />
-          <p>{usageText}</p>
+        <div className="drive-metadata">{!(appearancePreferences.hiddenCardDetails & 1) && <span className={`type-tag type-${["smb", "sftp", "ftp"].includes(p.id) ? "network" : ["webdav", "nextcloud", "owncloud"].includes(p.id) ? "webdav" : ["s3", "b2", "azureblob", "gcs"].includes(p.id) ? "object" : "cloud"}`}>{t(p.name)}</span>}{!(appearancePreferences.hiddenCardDetails & 2) && <span className="server-path" title={c.serverPath || c.path || t("Root")}>{c.serverPath || c.path || t("Root")}</span>}</div>
+        {usage !== null && !(appearancePreferences.hiddenCardDetails & 8) && <div className="drive-capacity">
+          {!!(appearancePreferences.capacityParts & 1) && <progress max={100} value={usage} aria-label={t("Space used on {name}", { name: c.name })} aria-valuetext={usageText} />}
+          <p>{appearancePreferences.capacityParts === 7 ? usageText : [appearancePreferences.capacityParts & 2 ? new Intl.NumberFormat(language, { style: "percent", maximumFractionDigits: 1 }).format(usage! / 100) : "", appearancePreferences.capacityParts & 4 ? `${bytes(used)} / ${bytes(total)}` : ""].filter(Boolean).join(" · ")}</p>
         </div>}
         {p.experimental && <p className="drive-secondary">{t("Experimental")}</p>}
-        {c.mountFolder && <p className="mount-folder"><strong>{t("Mounted at:")}</strong>{" "}<span title={c.mountFolder}>{c.mountFolder}</span></p>}
+        {c.mountFolder && !(appearancePreferences.hiddenCardDetails & 4) && <p className="mount-folder"><strong>{t("Mounted at:")}</strong>{" "}<span title={c.mountFolder}>{c.mountFolder}</span></p>}
         {c.recovery && !c.mounted && (busy || c.pending === null) && <p className="inline-error">{t("Recovery required")}</p>}
         {!!c.error && <p className="inline-error">{t("Connection needs attention.")}</p>}
         {(!!c.cache.error || !!c.uploads?.cacheErrors) && <p className="inline-error">{t("Local cache needs attention.")}</p>}

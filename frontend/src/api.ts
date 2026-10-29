@@ -6,6 +6,7 @@ import { Call, Clipboard, Events } from "@wailsio/runtime";
 export interface FileAccessView { path: string; state: string; checkedAt: string; processes: { pid: number; name: string; startedAt: string }[] }
 export interface AccessPolicy { idleMinutes: number; disconnectIdle: boolean; reconnect: boolean }
 export interface AccessStatus {
+ appearance?: import("./appearance").AppearancePreferences;
   platform?: string;
   globalIdle?: boolean; theme: string; setupPending: boolean; enabled: boolean; locked: boolean; language: string; policy: AccessPolicy; retryAt: string; error: string; warning: string }
 
@@ -107,6 +108,7 @@ export interface NetworkView {
   filesReceived: number | null;
 }
 export interface Settings {
+ appearance?: import("./appearance").AppearancePreferences;
   density?: Density;
   theme: Theme;
 	showServiceIcons: boolean;

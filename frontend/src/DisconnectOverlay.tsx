@@ -1,3 +1,4 @@
+import { applyAppearance, type AppearancePreferences } from "./appearance";
 import { useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { LanguageProvider, isLanguage, useLanguage } from "./i18n";
@@ -13,6 +14,7 @@ const stages = {
 } as const;
 
 export interface DisconnectView {
+  appearance?: AppearancePreferences;
   revision: number;
   language: string;
   theme: string;
@@ -35,6 +37,7 @@ function DisconnectStatus() {
       revision.current = next.revision;
       setLanguage(isLanguage(next.language) ? next.language : "en");
       setTheme((next.theme || "system") as Theme);
+      applyAppearance(next.appearance);
       setView(next);
     });
     void Events.Emit("disconnect:ready");

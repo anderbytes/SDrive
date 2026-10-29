@@ -1,3 +1,4 @@
+import { applyAppearance } from "./appearance";
 import { useTheme, type Theme } from "./theme";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { api, type AccessPolicy, type AccessStatus } from "./api";
@@ -26,7 +27,7 @@ export function AccessBoundary({ children }: { children: (showLocked: () => void
     try {
       const next = await api.accessStatus();
       if (request !== generation.current) return;
-      setStatus(next);
+      applyAppearance(next.appearance); setStatus(next);
       setPlatform(next.platform || "windows");
       setTheme((next.theme || "system") as Theme);
       setLanguage(isLanguage(next.language) ? next.language : "en");
@@ -110,7 +111,7 @@ export function AccessSettings({ onClose }: { onClose: () => void }) {
   const dialog = useDialog(() => { if (!busy && !code) onClose(); });
   useEffect(() => {
     active.current = true;
-    void api.accessStatus().then((next) => { if (active.current) { setStatus(next);
+    void api.accessStatus().then((next) => { if (active.current) { applyAppearance(next.appearance); setStatus(next);
       setPlatform(next.platform || "windows"); setPolicy(next.platform === "linux" ? { idleMinutes: 0, disconnectIdle: false, reconnect: false } : next.policy); } }).catch((e) => { if (active.current) setError(t(errorMessage(e))); });
     return () => { active.current = false; };
   }, []);

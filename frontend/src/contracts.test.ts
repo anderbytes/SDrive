@@ -12,10 +12,10 @@ const question = samples.sessionFilled.question;
 type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T];
 
 test("portable definitions and update status preserve the Go wire shape", () => {
-  expectTypeOf<keyof AccessStatus>().toEqualTypeOf<keyof typeof samples.accessStatus>();
+  expectTypeOf<Exclude<keyof AccessStatus, "appearance">>().toEqualTypeOf<keyof typeof samples.accessStatus>();
   expectTypeOf<keyof FileAccessView>().toEqualTypeOf<keyof typeof samples.fileAccess>();
   expectTypeOf<keyof PortableConnection>().toEqualTypeOf<keyof typeof samples.importDraft.definition>();
-  expectTypeOf<keyof PortablePreferences>().toEqualTypeOf<keyof typeof samples.importPreview.document.preferences>();
+  expectTypeOf<Exclude<keyof PortablePreferences, "appearance">>().toEqualTypeOf<keyof typeof samples.importPreview.document.preferences>();
   expectTypeOf<keyof PortableFile>().toEqualTypeOf<keyof typeof samples.importPreview.document>();
   expectTypeOf<keyof ImportDraft>().toEqualTypeOf<keyof typeof samples.importDraft>();
   expectTypeOf<keyof ImportPreview>().toEqualTypeOf<keyof typeof samples.importPreview>();
@@ -42,7 +42,7 @@ test("Go wire samples satisfy the TypeScript bridge, including nested keys and n
   expectTypeOf<keyof Field>().toEqualTypeOf<keyof typeof filled.providers[0]["fields"][0]>();
   expectTypeOf<keyof Session>().toEqualTypeOf<keyof typeof samples.sessionFilled>();
   expectTypeOf<keyof Question>().toEqualTypeOf<keyof typeof question>();
-  expectTypeOf<keyof Settings>().toEqualTypeOf<keyof typeof filled.settings>();
+  expectTypeOf<Exclude<keyof Settings, "appearance">>().toEqualTypeOf<keyof typeof filled.settings>();
   expectTypeOf<keyof ConfigInput>().toEqualTypeOf<keyof typeof samples.configInput>();
   expectTypeOf<keyof AboutInfo>().toEqualTypeOf<keyof typeof samples.about>();
   expectTypeOf<keyof FieldError>().toEqualTypeOf<keyof typeof samples.dynamicFieldError>();

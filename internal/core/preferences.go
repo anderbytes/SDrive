@@ -24,6 +24,8 @@ func (s *Service) PreferenceDefaults() (Settings, error) {
 		return Settings{}, err
 	}
 	settings := defaultStore().Settings
+	appearance := appearanceDefaults()
+	settings.Appearance = &appearance
 	age, delay := cacheDurations(settings)
 	hours, seconds := int(age.Hours()), int(delay.Seconds())
 	settings.CacheMaxAgeHours, settings.WriteBackSeconds = &hours, &seconds
@@ -41,6 +43,9 @@ func (s *Service) SaveSettings(settings Settings) error {
 		return err
 	}
 	defer s.reconcileDesktopAppearance()
+	if err := validateAppearance(settings.Appearance); err != nil {
+		return err
+	}
 	if err := validateCacheDurations(settings); err != nil {
 		return err
 	}

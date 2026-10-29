@@ -48,13 +48,14 @@ type PortableConnection struct {
 }
 
 type PortablePreferences struct {
-	Density          string `json:"density"`
-	Theme            string `json:"theme"`
-	Language         string `json:"language"`
-	CacheGiB         int    `json:"cacheGiB"`
-	CacheMaxAgeHours *int   `json:"cacheMaxAgeHours,omitempty"`
-	WriteBackSeconds *int   `json:"writeBackSeconds,omitempty"`
-	ShowServiceIcons bool   `json:"showServiceIcons"`
+	Appearance       *AppearancePreferences `json:"appearance,omitempty"`
+	Density          string                 `json:"density"`
+	Theme            string                 `json:"theme"`
+	Language         string                 `json:"language"`
+	CacheGiB         int                    `json:"cacheGiB"`
+	CacheMaxAgeHours *int                   `json:"cacheMaxAgeHours,omitempty"`
+	WriteBackSeconds *int                   `json:"writeBackSeconds,omitempty"`
+	ShowServiceIcons bool                   `json:"showServiceIcons"`
 }
 
 // Read the retired stripe preference without exporting it or relaxing other fields.
@@ -95,10 +96,11 @@ func portableDefinition(c Connection) PortableConnection {
 }
 
 func portablePreferences(settings Settings) PortablePreferences {
-	return PortablePreferences{settings.Density, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.ShowServiceIcons}
+	return PortablePreferences{settings.Appearance, settings.Density, settings.Theme, settings.Language, settings.CacheGiB, settings.CacheMaxAgeHours, settings.WriteBackSeconds, settings.ShowServiceIcons}
 }
 
 func (p PortablePreferences) settings(local Settings) Settings {
+	local.Appearance = p.Appearance
 	local.Density = p.Density
 	if local.Density == "" {
 		local.Density = "balanced"
@@ -215,6 +217,9 @@ func validatePortableDocument(d PortableFile) error {
 		return fmt.Errorf("Unsupported or invalid portable configuration.")
 	}
 	s := d.Preferences.settings(defaultStore().Settings)
+	if err := validateAppearance(s.Appearance); err != nil {
+		return err
+	}
 	if !validDensity(s.Density) || !validTheme(s.Theme) || !i18n.Valid(s.Language) || s.CacheGiB < 1 || s.CacheGiB > 1024 {
 		return fmt.Errorf("Invalid portable preferences.")
 	}

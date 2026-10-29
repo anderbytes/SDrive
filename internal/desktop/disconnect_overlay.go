@@ -22,10 +22,11 @@ type disconnectRow struct {
 }
 
 type disconnectView struct {
-	Revision uint64          `json:"revision"`
-	Language string          `json:"language"`
-	Theme    string          `json:"theme"`
-	Rows     []disconnectRow `json:"rows"`
+	Revision   uint64                     `json:"revision"`
+	Language   string                     `json:"language"`
+	Appearance core.AppearancePreferences `json:"appearance"`
+	Theme      string                     `json:"theme"`
+	Rows       []disconnectRow            `json:"rows"`
 }
 
 // All overlay state is owned by the desktop thread.
@@ -87,8 +88,28 @@ func (o *disconnectOverlay) view(access core.AccessStatus, now time.Time) discon
 }
 
 func disconnectBounds(area application.Rect) application.Rect {
-	width, height := min(380, area.Width), min(280, area.Height)
+	return disconnectSizedBounds(area, "standard")
+}
+
+func disconnectSizedBounds(area application.Rect, size string) application.Rect {
+	w, h := 380, 280
+	if size == "compact" {
+		w, h = 320, 240
+	}
+	if size == "large" {
+		w, h = 480, 360
+	}
+	width, height := min(w, area.Width), min(h, area.Height)
 	return application.Rect{X: max(area.X, area.X+area.Width-width-16), Y: max(area.Y, area.Y+area.Height-height-16), Width: width, Height: height}
+}
+
+func (o *disconnectOverlay) startSuccessTimers(now time.Time, delay time.Duration) {
+	for id, entry := range o.entries {
+		if entry.Stage == "succeeded" && entry.expires.IsZero() {
+			entry.expires = now.Add(delay)
+			o.entries[id] = entry
+		}
+	}
 }
 
 func (o *disconnectOverlay) render() {
@@ -99,14 +120,11 @@ func (o *disconnectOverlay) render() {
 		o.timer.Stop()
 		o.timer = nil
 	}
+	preferences := core.DesktopAppearance(o.desktop.service)
 	now := time.Now()
-	for id, entry := range o.entries {
-		if entry.Stage == "succeeded" && entry.expires.IsZero() {
-			entry.expires = now.Add(time.Second)
-			o.entries[id] = entry
-		}
-	}
+	o.startSuccessTimers(now, time.Duration(preferences.DisconnectDelayMS)*time.Millisecond)
 	view := o.view(o.desktop.service.AccessStatus(), now)
+	view.Appearance = preferences
 	o.window.EmitEvent("disconnect:state", view)
 	if len(view.Rows) == 0 {
 		o.window.Hide()
@@ -121,7 +139,7 @@ func (o *disconnectOverlay) render() {
 		}
 	}
 	if screen != nil {
-		o.window.SetBounds(disconnectBounds(screen.WorkArea))
+		o.window.SetBounds(disconnectSizedBounds(screen.WorkArea, preferences.DisconnectSize))
 	}
 	if !o.window.IsVisible() {
 		showDisconnectWindow(o.window)
