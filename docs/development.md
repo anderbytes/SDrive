@@ -44,6 +44,8 @@ The optional `TestSMBTransportNegotiationIntegration` requires `SDRIVE_TEST_SMB=
 
 Outputs in `bin/`: application, rclone, per-user online and offline installers, SDrive and rclone sources, licenses and `SHA256SUMS`. Both installers include sources and licenses. Local executables have no publisher digital signature.
 
+Windows installer packaging and the Linux build also regenerate `bin/Releases` through `scripts/release-assets.mjs`. Upload every file in that folder to the GitHub release: the available packages for the current version, `SDrive-<version>-windows-source.zip` and/or `SDrive-<version>-linux-source.zip`, shared `rclone-source.zip`, and a single `SHA256SUMS` using the final names. The script checks input and copied hashes, removes old release files, and includes the other platform when its current-version packages are present locally. Missing or inconsistent inputs fail packaging. Separate CI runners produce only their available platform; combine the build outputs locally and rerun `node scripts/release-assets.mjs windows` or `node scripts/release-assets.mjs linux` to prepare a combined upload folder. This command only stages existing packages; it does not rebuild them.
+
 Individual checks:
 
 ```powershell
