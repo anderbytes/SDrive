@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { DisconnectOverlay } from "./DisconnectOverlay";
 import "./style.css";
+import "./themes.css";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -52,7 +52,7 @@ The Wails smoke test also exercises portable export/import, explicit reauthentic
 
 ## Appearance preferences
 
-Preferences separates General, Appearance, Cache, Network and Configuration settings. Appearance offers System, Light and Dark themes. System is the default for new and older profiles and follows Windows theme changes. Selecting a theme previews it immediately; Save persists it, while Cancel or Escape restores the saved choice. Failed saves leave the preview open for correction or cancellation. The saved theme also applies to the application lock screen.
+Preferences separates General, Appearance, Cache, Network and Configuration settings. Appearance offers System, Light, Dark, Retro 95, Outline Ink, Phosphor Terminal, Swiss Editorial and Organic Atelier themes. The five visual styles apply to navigation, controls, forms and default drive cards while preserving per-drive color customizations. System is the default for new and older profiles and follows Windows theme changes. Selecting a theme previews it immediately; Save persists it, while Cancel or Escape restores the saved choice. Failed saves leave the preview open for correction or cancellation. The saved theme also applies to the application lock screen.
 
 Portable exports include the theme. Importing it requires selecting the imported preferences checkbox; older portable files without a theme use System when those preferences are applied. Cache-directory changes and import/export actions take effect independently of Save and are not undone by Cancel.
 

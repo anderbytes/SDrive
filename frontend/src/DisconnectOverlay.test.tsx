@@ -61,3 +61,9 @@ test("updates to generic localized status after locking", () => {
   publish(3, [{ name: "", stage: "succeeded" }], "pt-BR");
   expect(screen.getByText("Unidade desconectada.")).toBeDefined();
 });
+
+test.each(["retro", "outline", "terminal", "editorial", "atelier"])("disconnect progress uses the saved %s theme", (theme) => {
+  render(<DisconnectOverlay />);
+  act(() => receive({ data: { revision: 1, rows: [], language: "en", theme } }));
+  expect(document.documentElement.dataset.theme).toBe(theme);
+});

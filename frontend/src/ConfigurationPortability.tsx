@@ -1,3 +1,4 @@
+import { themeLabels } from "./theme";
 import { useState } from "react";
 import { api, type ImportPreview, type Snapshot } from "./api";
 import { useDialog } from "./useDialog";
@@ -72,7 +73,7 @@ export function ImportConfigurationDialog({ preview, data, onClose, onSaved }: {
       {invalid[index] && <p id={`import-error-${index}`} role="alert">{t(invalid[index])}</p>}
     </fieldset>)}
     <label><input type="checkbox" disabled={busy} checked={preferences} onChange={(e) => setPreferences(e.target.checked)} />{t("Apply imported theme, language, cache timing and desktop preferences")}</label>
-    <p>{t("Theme")}: {t(document.preferences.theme === "light" ? "Light" : document.preferences.theme === "dark" ? "Dark" : "System")}</p>
+    <p>{t("Theme")}: {t(themeLabels[document.preferences.theme] || "System")}</p>
     <p>{t("Imported preferences: {language}, {cache} GiB, retention {hours} h, upload delay {seconds} s.", { language: document.preferences.language, cache: document.preferences.cacheGiB, hours: document.preferences.cacheMaxAgeHours ?? 24, seconds: document.preferences.writeBackSeconds ?? 5 })}</p>
     <p>{t("Show service icons for drive letters")}: {t(document.preferences.showServiceIcons ? "Enabled" : "Disabled")}</p>
     <p>{t("Appearance preferences are included when applying imported preferences.")}</p>

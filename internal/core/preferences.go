@@ -36,7 +36,14 @@ func validDensity(value string) bool {
 	return value == "compact" || value == "balanced" || value == "comfortable"
 }
 
-func validTheme(theme string) bool { return theme == "system" || theme == "light" || theme == "dark" }
+func validTheme(theme string) bool {
+	switch theme {
+	case "system", "light", "dark", "retro", "outline", "terminal", "editorial", "atelier":
+		return true
+	default:
+		return false
+	}
+}
 
 func (s *Service) SaveSettings(settings Settings) error {
 	if err := s.accessAllowed(); err != nil {

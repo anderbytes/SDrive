@@ -1,7 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 export type Density = "compact" | "balanced" | "comfortable";
-export type Theme = "system" | "light" | "dark";
+export const themeLabels = {
+  system: "System", light: "Light", dark: "Dark",
+  retro: "Retro 95", outline: "Outline Ink", terminal: "Phosphor Terminal",
+  editorial: "Swiss Editorial", atelier: "Organic Atelier",
+} as const;
+export type Theme = keyof typeof themeLabels;
 const Appearance = createContext({
   setDensity: (_: Density) => {},
   setDensityPreview: (_: Density | undefined) => {},

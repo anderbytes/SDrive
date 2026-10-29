@@ -329,7 +329,7 @@ try {
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".drive").dataset.cardStyle === "rose");
   const appearanceColors = palette.map(([id]) => id);
-  for (const theme of ["light", "dark"]) {
+  for (const theme of ["light", "dark", "retro", "outline", "terminal", "editorial", "atelier"]) {
     for (const color of appearanceColors) {
       await page.evaluate(({ theme, color }) => {
         window.visualSnapshot.settings.theme = theme;
@@ -740,8 +740,35 @@ try {
   assert(await page.locator(".shell").evaluate(e => e.classList.contains("sidebar-collapsed")));
   await bounds(); await capture("collapsed-navigation");
   await page.locator(".sidebar-toggle").click();
+  for (const theme of ["retro", "outline", "terminal", "editorial", "atelier"]) {
+    for (const language of ["en", "pt-BR"]) {
+      const catalog = language === "en" ? {} : JSON.parse(await readFile(path.join(root, "internal/i18n/pt-BR.json"), "utf8"));
+      const t = text => catalog[text] || text;
+      await page.evaluate(({theme, language}) => {
+        window.visualSnapshot.settings.theme = theme;
+        window.visualSnapshot.settings.language = language;
+        window.visualVisibility(false); window.visualVisibility(true);
+      }, {theme, language});
+      await page.waitForFunction(({theme, language}) => document.documentElement.dataset.theme === theme && document.documentElement.lang === language, {theme, language});
+      for (const width of [1440, 420]) {
+        await page.setViewportSize({width, height:900});
+        await bounds(); await capture(`${theme}-${language}-${width}`);
+        await ensureNavigation();
+        await page.getByRole("button", {name:t("Customize"), exact:true}).click();
+        if (width === 420) await page.locator(".dialog-navigation .navigation-toggle").click();
+        await page.getByRole("tab", {name:t("Appearance"), exact:true}).click();
+        assert.equal(await page.getByLabel(t("Theme"), {exact:true}).inputValue(), theme);
+        await bounds(); await capture(`${theme}-${language}-${width}-settings`);
+        await page.emulateMedia({forcedColors:"active"});
+        await bounds();
+        assert.equal(await page.locator(".dialog-footer .primary").evaluate(e => getComputedStyle(e).boxShadow), "none");
+        await page.emulateMedia({forcedColors:"none"});
+        await page.getByRole("button", {name:t("Cancel"), exact:true}).click();
+      }
+    }
+  }
   assert.deepEqual(errors, []);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Inline immediate filters, right-aligned summary controls, bounded wrapping and dropdowns in English and Portuguese at four widths, Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, per-drive soft colors, neutral defaults, rendered text/icon/stripe contrast across all 16 presets, dedicated palette modal and draft save/cancel, preview layout in both languages/themes, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors", errors }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "passed", type: "browser-fixture", checks: "Inline immediate filters, right-aligned summary controls, bounded wrapping and dropdowns in English and Portuguese at four widths, Centered startup and snapshot spinners, compact card and button spinners, pending saves, reduced-motion and forced-colors spinners, Single-line local/remote paths with full hover text, bold mount prefix, short Open action, per-drive soft colors, neutral defaults, rendered text/icon/stripe contrast across all 16 presets, dedicated palette modal and draft save/cancel, preview layout in both languages/themes, discreet credits, hidden file checkbox, drive appearance save/cancel, local image normalization, folder icon, destination hierarchy, U1, 44px actions, long paths, four viewport sizes, advanced groups and native validation, horizontal field actions, drawer/menu animation and reopening, stable cards on refresh, reduced motion including backdrops, contextual icon visibility, semantic security colors, disappearing-icon focus recovery, 32px desktop and 44px touch controls, preference sections, setup, contextual help and Escape, nested import, access settings, diagnostics, seven languages including narrow field actions, dark and forced colors, five visual styles with English and Portuguese settings at desktop and narrow widths", errors }, null, 2));
   console.log("Visual UI smoke passed; screenshots: " + artifacts);
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ status: "failed", type: "browser-fixture", reason: error.message }, null, 2));

@@ -1,3 +1,4 @@
+import { themeLabels } from "./theme";
 import { appearanceDefaults } from "./appearance";
 import React from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -284,7 +285,7 @@ test("preference tabs preserve edits, navigate by keyboard and reveal invalid fi
   expect(screen.queryByRole("tab", { name: "Appearance" })).toBeNull();
 });
 
-test("theme previews survive polling and failed saves, cancel restores and save persists", async () => {
+test.each(["dark", "retro", "outline", "terminal", "editorial", "atelier"] as const)("%s previews survive polling and failed saves, cancel restores and save persists", async (theme) => {
   let saved: import("./api").Settings = { ...snapshot.settings, theme: "light" };
   vi.mocked(api.accessStatus).mockResolvedValue({ ...access, theme: "light" });
   vi.mocked(api.snapshot).mockImplementation(async () => ({ ...snapshot, settings: saved }));
@@ -292,33 +293,33 @@ test("theme previews survive polling and failed saves, cancel restores and save 
   await screen.findByRole("heading", { name: "My drives" });
   await openPreferences("Customize");
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
-  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
-  expect(document.documentElement.dataset.theme).toBe("dark");
+  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: theme } });
+  expect(document.documentElement.dataset.theme).toBe(theme);
   vi.mocked(api.settings).mockRejectedValueOnce(new Error("save denied"));
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("save denied");
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 3100)); });
-  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect(document.documentElement.dataset.theme).toBe(theme);
   cancelDialog();
   expect(document.documentElement.dataset.theme).toBe("light");
   await openPreferences("Customize");
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
-  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: theme } });
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(document.documentElement.dataset.theme).toBe("light");
   await openPreferences("Customize");
   fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
-  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+  fireEvent.change(screen.getByLabelText("Theme"), { target: { value: theme } });
   vi.mocked(api.settings).mockImplementation(async (settings) => { saved = { ...settings }; });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(saved.theme).toBe("dark");
+  expect(saved.theme).toBe(theme);
   view.unmount();
   render(<App />);
   await screen.findByRole("heading", { name: "My drives" });
   await openPreferences("Customize");
-  expect((screen.getByLabelText("Theme") as HTMLSelectElement).value).toBe("dark");
-  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect((screen.getByLabelText("Theme") as HTMLSelectElement).value).toBe(theme);
+  expect(document.documentElement.dataset.theme).toBe(theme);
 });
 
 test("system theme follows live changes while explicit themes and lock screens stay consistent", async () => {
@@ -2873,4 +2874,10 @@ test("automatic sidebar follows breakpoint changes and temporary toggle override
  act(()=>{collapsed=true;query.dispatchEvent(new Event("change"));}); expect(toggle.getAttribute("aria-expanded")).toBe("false");
  fireEvent.click(toggle); expect(toggle.getAttribute("aria-expanded")).toBe("true");
  act(()=>{query.dispatchEvent(new Event("change"));}); expect(toggle.getAttribute("aria-expanded")).toBe("true");
+});
+
+test.each(["retro", "outline", "terminal", "editorial", "atelier"] as const)("import preview names the %s theme", (theme) => {
+  const document = { ...bridgeFixtures.samples.importPreview.document, preferences: { ...snapshot.settings, theme }, connections: [] };
+  render(<ImportConfigurationDialog preview={{ id: "preview", document }} data={snapshot} onClose={vi.fn()} onSaved={vi.fn()} />);
+  expect(screen.getByText(`Theme: ${themeLabels[theme]}`)).toBeDefined();
 });

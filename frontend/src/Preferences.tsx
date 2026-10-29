@@ -10,7 +10,7 @@ import { ConfigurationPortability } from "./ConfigurationPortability";
 import { useDialog } from "./useDialog";
 import { DialogLayout } from "./DialogLayout";
 import { DialogNavigation } from "./DialogNavigation";
-import { useTheme, type Theme, type Density } from "./theme";
+import { useTheme, themeLabels, type Theme, type Density } from "./theme";
 import { LoadingStatus } from "./Spinner";
 
 const tabs = ["General", "Appearance", "Drive cards", "Disconnection", "Cache", "Network", "Configuration"] as const;
@@ -118,7 +118,7 @@ export function Preferences({
             <label>{t("Spacing")}<select aria-label={t("Spacing")} disabled={busy} value={settings.density || "balanced"} onChange={(e) => { const density = e.target.value as Density; setSettings({ ...settings, density }); setDensityPreview(density); }}>{(["compact", "balanced", "comfortable"] as const).map(value => <option key={value} value={value}>{t({ compact: "Compact", balanced: "Balanced", comfortable: "Comfortable" }[value])}</option>)}</select></label>
             <label>{t("Theme")}<select aria-label={t("Theme")} disabled={busy} value={settings.theme} onChange={(e) => {
               const theme = e.target.value as Theme; setSettings({ ...settings, theme }); setPreview(theme);
-            }}><option value="system">{t("System")}</option><option value="light">{t("Light")}</option><option value="dark">{t("Dark")}</option></select></label>
+            }}>{Object.entries(themeLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
             <p>{t("System follows your Windows theme. Save to keep the preview; Cancel restores the saved theme.")}</p>
             <label className="check"><input type="checkbox" disabled={data.platform === "linux"} checked={settings.showServiceIcons || false} onChange={(e) => setSettings({ ...settings, showServiceIcons: e.target.checked })} />{t("Show service icons for drive letters")}</label>
             {data.platform === "linux" && <p>{t("Drive-letter icons are available only on Windows.")}</p>}

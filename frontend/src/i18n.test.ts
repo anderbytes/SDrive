@@ -63,3 +63,12 @@ test.each(Object.keys(languages) as Language[])("%s supports static, legacy and 
     expect(translate(language, { code, params: {}, message: "English fallback" })).toBe("English fallback");
   }
 });
+
+test("visual theme names are localized in every supported language", () => {
+  for (const language of Object.keys(languages) as Language[]) {
+    for (const name of ["Retro 95", "Outline Ink", "Phosphor Terminal", "Swiss Editorial", "Organic Atelier"]) {
+      expect(translate(language, name)).not.toBe("");
+      if (language !== "en") expect(translate(language, name)).toBe(({ "pt-BR": portuguese, es: spanish, fr: french, de: german, it: italian, "zh-CN": chinese }[language] as Record<string, string>)[name]);
+    }
+  }
+});

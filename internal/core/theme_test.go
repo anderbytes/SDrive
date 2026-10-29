@@ -3,13 +3,15 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 func TestThemePersistenceAndCompatibility(t *testing.T) {
 	s := testService(t, nil)
 	SetAutoStart(s, func(bool) error { return nil })
-	for _, theme := range []string{"system", "light", "dark", ""} {
+	for _, theme := range []string{"system", "light", "dark", "retro", "outline", "terminal", "editorial", "atelier", ""} {
 		settings := s.store.Settings
 		settings.Theme = theme
 		if err := s.SaveSettings(settings); err != nil {
@@ -38,15 +40,17 @@ func TestThemePersistenceAndCompatibility(t *testing.T) {
 			t.Fatalf("legacy/invalid theme: %+v, %v", loaded.Settings, err)
 		}
 	}
-	s.store.Settings.Theme = "dark"
 	s.access.locked = true
-	if s.AccessStatus().Theme != "dark" || s.lockedView().Settings.Theme != "dark" {
-		t.Fatal("lock screen lost the saved theme")
+	for _, theme := range []string{"dark", "retro", "outline", "terminal", "editorial", "atelier"} {
+		s.store.Settings.Theme = theme
+		if s.AccessStatus().Theme != theme || s.lockedView().Settings.Theme != theme {
+			t.Fatal("lock screen lost the saved theme")
+		}
 	}
 }
 
 func TestPortableThemeValidationAndSelectiveImport(t *testing.T) {
-	for _, theme := range []string{"system", "light", "dark", ""} {
+	for _, theme := range []string{"system", "light", "dark", "retro", "outline", "terminal", "editorial", "atelier", ""} {
 		document := portableFixture()
 		document.Preferences.Theme = theme
 		data, err := json.Marshal(document)
@@ -70,17 +74,22 @@ func TestPortableThemeValidationAndSelectiveImport(t *testing.T) {
 	if validatePortableDocument(document) == nil {
 		t.Fatal("invalid portable theme accepted")
 	}
+	if runtime.GOOS == "linux" {
+		document.Connections[0].MountFolder = filepath.Join(t.TempDir(), "Mount")
+		document.Connections[0].Letter = ""
+		document.Connections[0].MountMode = "local"
+	}
 	for _, apply := range []bool{false, true} {
 		s := testService(t, nil)
 		s.store.Settings.Theme = "dark"
-		document.Preferences.Theme = "light"
+		document.Preferences.Theme = "atelier"
 		preview := previewFixture(t, s, document)
 		if err := s.CommitImport(preview.ID, preview.Document, apply); err != nil {
 			t.Fatal(err)
 		}
 		want := "dark"
 		if apply {
-			want = "light"
+			want = "atelier"
 		}
 		loaded, err := loadStore(s.dir)
 		if err != nil || loaded.Settings.Theme != want || portablePreferences(loaded.Settings).Theme != want {

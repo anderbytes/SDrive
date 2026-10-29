@@ -1,0 +1,314 @@
+/* Visual styles share the existing layout, density and per-drive palette controls. */
+@media (forced-colors: none) {
+:root[data-theme="retro"] {
+  color-scheme: light;
+  --default-drive-background: #d4d0c8;
+  --default-drive-foreground: #101010;
+  --default-drive-stripe: #000080;
+  --text: #101010;
+  --page: #c0c0c0;
+  --surface: #d4d0c8;
+  --sidebar: #c0c0c0;
+  --muted: #424242;
+  --strong: #101010;
+  --border: #808080;
+  --surface-border: #808080;
+  --accent: #000080;
+  --accent-hover: #000080;
+  --on-accent: #ffffff;
+  --button: #d4d0c8;
+  --button-hover: #c0c0c0;
+  --selected: #c0c0c0;
+  --selected-text: #000080;
+  --input: #d4d0c8;
+  --input-text: #101010;
+  --connected-text: #4d7565;
+  --connected-border: #537d70;
+  --state-text: #5b6b7c;
+  --warning-border: #9c875c;
+  --warning-bg: #f7f5ee;
+  --warning-text: #675b43;
+  --error-border: #9c7474;
+  --error-bg: #f8f3f3;
+  --error-text: #805454;
+  --success-border: #668575;
+  --success-bg: #f1f6f3;
+  --success-text: #4c695a;
+  --invalid: #805454;
+  --focus: #42678a;
+  --letter: #c0c0c0;
+  --popover: #d4d0c8;
+  --shadow: #24334518;
+  --card-shadow: #24334524;
+  --icon-info: #000080;
+  --icon-success: #227245;
+  --icon-warning: #876000;
+  --icon-danger: #b52b38;
+}
+:root[data-theme="retro"] {
+  font-family: Tahoma,'Segoe UI',sans-serif;
+}
+:root[data-theme="retro"] * {border-radius:0!important}
+:root[data-theme="retro"] .shell>aside {border-right:2px solid #808080}
+:root[data-theme="retro"] button, :root[data-theme="retro"] .actions summary {border:2px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #808080;background:#d4d0c8}
+:root[data-theme="retro"] .primary {background:#000080;color:white}
+:root[data-theme="retro"] .nav-active {background:#000080;color:white}
+:root[data-theme="retro"] .drive {border:2px solid;border-color:#fff #808080 #808080 #fff;box-shadow:1px 1px 0 #404040}
+:root[data-theme="retro"] input, :root[data-theme="retro"] select {border:2px solid!important;border-color:#808080 #fff #fff #808080!important;background:white!important}
+:root[data-theme="retro"] .letter {border:2px solid;border-color:#808080 #fff #fff #808080}
+:root[data-theme="retro"] h1 {font-size:calc(27px * var(--text-scale, 1));letter-spacing:0}
+:root[data-theme="retro"] .dialog-heading {background:linear-gradient(90deg,#000080,#2362a6);color:white;padding:12px 18px}
+:root[data-theme="retro"] .dialog-heading .eyebrow, :root[data-theme="retro"] .dialog-heading h2 {color:white}
+:root[data-theme="retro"] dialog {border:3px solid!important;border-color:white #404040 #404040 white!important;box-shadow:4px 4px #0006!important}
+
+:root[data-theme="outline"] {
+  color-scheme: light;
+  --default-drive-background: #ffffff;
+  --default-drive-foreground: #111111;
+  --default-drive-stripe: #111111;
+  --text: #111111;
+  --page: #ffffff;
+  --surface: #ffffff;
+  --sidebar: #ffffff;
+  --muted: #515151;
+  --strong: #111111;
+  --border: #111111;
+  --surface-border: #111111;
+  --accent: #111111;
+  --accent-hover: #111111;
+  --on-accent: #ffffff;
+  --button: #ffffff;
+  --button-hover: #ffffff;
+  --selected: #ffffff;
+  --selected-text: #111111;
+  --input: #ffffff;
+  --input-text: #111111;
+  --connected-text: #4d7565;
+  --connected-border: #537d70;
+  --state-text: #5b6b7c;
+  --warning-border: #9c875c;
+  --warning-bg: #f7f5ee;
+  --warning-text: #675b43;
+  --error-border: #9c7474;
+  --error-bg: #f8f3f3;
+  --error-text: #805454;
+  --success-border: #668575;
+  --success-bg: #f1f6f3;
+  --success-text: #4c695a;
+  --invalid: #805454;
+  --focus: #42678a;
+  --letter: #ffffff;
+  --popover: #ffffff;
+  --shadow: #24334518;
+  --card-shadow: #24334524;
+  --icon-info: #111111;
+  --icon-success: #227245;
+  --icon-warning: #876000;
+  --icon-danger: #b52b38;
+}
+:root[data-theme="outline"] {
+  font-family: 'Segoe UI',sans-serif;
+}
+:root[data-theme="outline"] button, :root[data-theme="outline"] input, :root[data-theme="outline"] select {border:1.5px solid #111!important;border-radius:0!important}
+:root[data-theme="outline"] .drive {border:2px solid #111;border-radius:0;box-shadow:5px 5px 0 #111;margin:0 5px 6px 0}
+:root[data-theme="outline"] .shell>aside {border-right:2px solid #111}
+:root[data-theme="outline"] .nav-active {border:1.5px solid #111;border-radius:0;background:white;color:black;box-shadow:3px 3px black}
+:root[data-theme="outline"] h1 {font-size:calc(40px * var(--text-scale, 1));font-weight:750;letter-spacing:-1.5px}
+:root[data-theme="outline"] .letter {border:2px solid #111;background:white;border-radius:50%;color:black}
+:root[data-theme="outline"] .summary {border-bottom:2px solid #111;margin-bottom:20px}
+:root[data-theme="outline"] dialog {border:2px solid #111!important;border-radius:0!important;box-shadow:8px 8px #111!important}
+:root[data-theme="outline"] .drive-detail-icon {border:0!important}
+:root[data-theme="outline"] .eyebrow {letter-spacing:3px}
+
+:root[data-theme="terminal"] {
+  --default-drive-background: #0d1e17;
+  --default-drive-foreground: #c3f2d2;
+  --default-drive-stripe: #9ee8b4;
+  --text: #c3f2d2;
+  --page: #081510;
+  --surface: #0d1e17;
+  --sidebar: #0a1913;
+  --muted: #9bbbA6;
+  --strong: #c3f2d2;
+  --border: #386249;
+  --surface-border: #386249;
+  --accent: #9ee8b4;
+  --accent-hover: #9ee8b4;
+  --on-accent: #082015;
+  --button: #0d1e17;
+  --button-hover: #0a1913;
+  --selected: #0a1913;
+  --selected-text: #9ee8b4;
+  --input: #0d1e17;
+  --input-text: #c3f2d2;
+  --connected-text: #a9caba;
+  --connected-border: #8ba99a;
+  --state-text: #b2bfcc;
+  --warning-border: #ae9871;
+  --warning-bg: #34312a;
+  --warning-text: #e0cda9;
+  --error-border: #af8c8c;
+  --error-bg: #382d31;
+  --error-text: #e6bdbd;
+  --success-border: #8ba99a;
+  --success-bg: #293831;
+  --success-text: #c0ddce;
+  --invalid: #e6bdbd;
+  --focus: #bfd7ed;
+  --letter: #0a1913;
+  --popover: #0d1e17;
+  --shadow: #0003;
+  --card-shadow: #0005;
+  --icon-info: #9ee8b4;
+  --icon-success: #7fd4a0;
+  --icon-warning: #f0c05a;
+  --icon-danger: #ff9292;
+  color-scheme: dark;
+}
+:root[data-theme="terminal"] {
+  font-family: Consolas,'Courier New',monospace;
+  color-scheme: dark;
+}
+:root[data-theme="terminal"] * {border-radius:0!important}
+:root[data-theme="terminal"] button {font-size:calc(13px * var(--text-scale, 1))}
+:root[data-theme="terminal"] .drive {border:1px solid #386249;box-shadow:inset 0 0 22px #72ff9b06;border-left:3px solid #9ee8b4}
+:root[data-theme="terminal"] .letter {background:#102d20;color:#c3f2d2;border:1px solid #568d68}
+:root[data-theme="terminal"] .nav-active {border:1px solid #568d68;background:#173324;color:#c3f2d2}
+:root[data-theme="terminal"] h1 {font-weight:400;font-size:calc(32px * var(--text-scale, 1));letter-spacing:-1px}
+:root[data-theme="terminal"] .brand-title {color:#9ee8b4}
+:root[data-theme="terminal"] .eyebrow {letter-spacing:2px}
+:root[data-theme="terminal"] main {background:repeating-linear-gradient(0deg,#91ff9a02 0 1px,transparent 1px 5px)}
+:root[data-theme="terminal"] dialog {box-shadow:0 0 0 1px #568d68,0 18px 60px #0009!important}
+:root[data-theme="terminal"] .summary {border-bottom:1px dashed #386249;margin-bottom:16px}
+:root[data-theme="terminal"] .state {color:#a9e9bd!important}
+
+:root[data-theme="editorial"] {
+  color-scheme: light;
+  --default-drive-background: #faf7ef;
+  --default-drive-foreground: #211e1b;
+  --default-drive-stripe: #bc3426;
+  --text: #211e1b;
+  --page: #f3efe6;
+  --surface: #faf7ef;
+  --sidebar: #e7e1d6;
+  --muted: #625d56;
+  --strong: #211e1b;
+  --border: #b7afa1;
+  --surface-border: #b7afa1;
+  --accent: #bc3426;
+  --accent-hover: #bc3426;
+  --on-accent: #ffffff;
+  --button: #faf7ef;
+  --button-hover: #e7e1d6;
+  --selected: #e7e1d6;
+  --selected-text: #bc3426;
+  --input: #faf7ef;
+  --input-text: #211e1b;
+  --connected-text: #4d7565;
+  --connected-border: #537d70;
+  --state-text: #5b6b7c;
+  --warning-border: #9c875c;
+  --warning-bg: #f7f5ee;
+  --warning-text: #675b43;
+  --error-border: #9c7474;
+  --error-bg: #f8f3f3;
+  --error-text: #805454;
+  --success-border: #668575;
+  --success-bg: #f1f6f3;
+  --success-text: #4c695a;
+  --invalid: #805454;
+  --focus: #42678a;
+  --letter: #e7e1d6;
+  --popover: #faf7ef;
+  --shadow: #24334518;
+  --card-shadow: #24334524;
+  --icon-info: #bc3426;
+  --icon-success: #227245;
+  --icon-warning: #876000;
+  --icon-danger: #b52b38;
+}
+:root[data-theme="editorial"] {
+  font-family: Arial,'Segoe UI',sans-serif;
+}
+:root[data-theme="editorial"] .shell>aside {border-right:1px solid #211e1b}
+:root[data-theme="editorial"] button, :root[data-theme="editorial"] input, :root[data-theme="editorial"] select, :root[data-theme="editorial"] .nav-active {border-radius:0!important}
+:root[data-theme="editorial"] h1 {font-size:calc(54px * var(--text-scale, 1));font-weight:800;letter-spacing:-3px;line-height:1.05}
+:root[data-theme="editorial"] .eyebrow {color:#bc3426;font-weight:800;letter-spacing:2px}
+:root[data-theme="editorial"] .brand {font-weight:800}
+:root[data-theme="editorial"] .drive {border:0;border-top:2px solid #211e1b;border-radius:0;box-shadow:none;padding:18px 4px;}
+:root[data-theme="editorial"] .drives {gap:0}
+:root[data-theme="editorial"] .drive h2 {font-size:calc(19px * var(--text-scale, 1));font-weight:750;letter-spacing:-.5px}
+:root[data-theme="editorial"] .letter {background:#bc3426;color:white;border-radius:0;font-weight:800}
+:root[data-theme="editorial"] .nav-active {background:#bc3426;color:white}
+:root[data-theme="editorial"] .summary {border-top:4px solid #211e1b;margin-top:24px;padding:14px 0 22px}
+:root[data-theme="editorial"] dialog {border:1px solid #211e1b!important;border-radius:0!important;box-shadow:12px 12px #211e1b20!important}
+:root[data-theme="editorial"] .dialog-heading h2 {font-weight:800;font-size:calc(32px * var(--text-scale, 1));letter-spacing:-1px}
+
+:root[data-theme="atelier"] {
+  color-scheme: light;
+  --default-drive-background: #fffaf0;
+  --default-drive-foreground: #352e26;
+  --default-drive-stripe: #78432f;
+  --text: #352e26;
+  --page: #f2e9d8;
+  --surface: #fffaf0;
+  --sidebar: #e4ddc9;
+  --muted: #66594c;
+  --strong: #352e26;
+  --border: #b8a589;
+  --surface-border: #b8a589;
+  --accent: #78432f;
+  --accent-hover: #78432f;
+  --on-accent: #fffaf0;
+  --button: #fffaf0;
+  --button-hover: #e4ddc9;
+  --selected: #e4ddc9;
+  --selected-text: #78432f;
+  --input: #fffaf0;
+  --input-text: #352e26;
+  --connected-text: #4d7565;
+  --connected-border: #537d70;
+  --state-text: #5b6b7c;
+  --warning-border: #9c875c;
+  --warning-bg: #f7f5ee;
+  --warning-text: #675b43;
+  --error-border: #9c7474;
+  --error-bg: #f8f3f3;
+  --error-text: #805454;
+  --success-border: #668575;
+  --success-bg: #f1f6f3;
+  --success-text: #4c695a;
+  --invalid: #805454;
+  --focus: #42678a;
+  --letter: #e4ddc9;
+  --popover: #fffaf0;
+  --shadow: #24334518;
+  --card-shadow: #24334524;
+  --icon-info: #78432f;
+  --icon-success: #227245;
+  --icon-warning: #876000;
+  --icon-danger: #b52b38;
+}
+:root[data-theme="atelier"] {
+  font-family: 'Segoe UI',sans-serif;
+}
+:root[data-theme="atelier"] .shell {background:radial-gradient(ellipse at 98% 6%,#dfb29170 0 15%,transparent 15.2%),radial-gradient(ellipse at 68% 100%,#aeb99b55 0 23%,transparent 23.2%),#f2e9d8}
+:root[data-theme="atelier"] main {background:repeating-linear-gradient(0deg,#71503503 0 1px,transparent 1px 4px)}
+:root[data-theme="atelier"] h1 {font-family:Georgia,serif;font-style:italic;font-size:calc(46px * var(--text-scale, 1));letter-spacing:-1.8px}
+:root[data-theme="atelier"] .brand-title {font-family:Georgia,serif}
+:root[data-theme="atelier"] .shell>aside {background:#e4ddc9;border-right:1px solid #bcad92}
+:root[data-theme="atelier"] .nav-active {background:#cdd4b9;color:#35412c;border-radius:22px 8px 22px 8px}
+:root[data-theme="atelier"] .drive {border:1px solid #b8a589;border-left:5px solid #a3674d;border-radius:22px 7px 22px 7px;box-shadow:0 5px 0 #b8a58935,0 12px 24px #66462e0b;}
+:root[data-theme="atelier"] .letter {border-radius:50% 45% 38% 45%;background:#e4ddc9;color:#65472e}
+:root[data-theme="atelier"] button {border-radius:20px}
+:root[data-theme="atelier"] .primary {border-radius:20px 7px 20px 7px}
+:root[data-theme="atelier"] .eyebrow {letter-spacing:2.3px;color:#78432f}
+:root[data-theme="atelier"] dialog {border-radius:24px 8px 24px 8px!important;border:1px solid #b8a589!important;box-shadow:0 22px 70px #543f2833!important}
+:root[data-theme="atelier"] .dialog-heading h2 {font-family:Georgia,serif;font-size:calc(30px * var(--text-scale, 1))}
+
+
+/* Keep palette stripes distinct on gray and tinted surfaces. */
+:root:is([data-theme="retro"], [data-theme="outline"], [data-theme="terminal"], [data-theme="editorial"], [data-theme="atelier"]) .drive {
+  border-left-color: color-mix(in srgb, var(--drive-stripe, var(--default-drive-stripe)) 70%, var(--text));
+}
+}
