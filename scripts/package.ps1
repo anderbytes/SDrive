@@ -38,6 +38,7 @@ try {
     if ($LASTEXITCODE) { throw 'Online installer compilation failed' }
     & $compiler /DOFFLINE "/DAPP_VERSION=$version" /INPUTCHARSET UTF8 /V2 installer/sdrive.nsi
     if ($LASTEXITCODE) { throw 'Offline installer compilation failed' }
+    & "$PSScriptRoot/test-artifact-antivirus.ps1"
     $artifacts = @('bin/SDrive.exe','bin/rclone.exe',"bin/SDrive-$version-setup.exe","bin/SDrive-$version-offline-setup.exe",'bin/SDrive-source.zip','bin/rclone-source.zip')
     $hashLines = foreach ($artifact in $artifacts) { $hash = Get-FileHash -LiteralPath $artifact -Algorithm SHA256; "$($hash.Hash.ToLower())  $([IO.Path]::GetFileName($artifact))" }
     $hashLines | Set-Content -LiteralPath 'bin/SHA256SUMS' -Encoding utf8
