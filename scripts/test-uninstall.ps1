@@ -97,8 +97,30 @@ try {
     $section = $section.Replace('Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive', $registryPath)
     $section = $section.Replace('Software\Microsoft\Windows\CurrentVersion\Run', "$registryPath\Run")
     $section = $section.Replace('Local\SDrive-$1', $mutexName).Replace('$SMPROGRAMS\SDrive.lnk', '$INSTDIR\SDrive.lnk')
+    $section = $section.Replace('..\bin\SDrive-cleanup.exe', "$workspace\helper.exe")
     $probe = $probe.Replace('$LOCALAPPDATA\SDrive\instance.lock', '$INSTDIR\instance.lock')
     $include = (Join-Path $projectRoot 'installer/uninstall-retry.nsh')
+    Compile 'helper' @'
+Unicode true
+!include "FileFunc.nsh"
+Name "SDrive cleanup test helper"
+OutFile "@WORKSPACE@\helper.exe"
+RequestExecutionLevel user
+SilentInstall silent
+Section
+  ${GetParameters} $0
+  StrCpy $0 $0 -1 1
+  ${GetParent} $0 $1
+  FileOpen $0 "$1\cleanup-count.txt" a
+  FileSeek $0 0 END
+  FileWrite $0 "cleanup$\r$\n"
+  FileClose $0
+  IfFileExists "$1\fail-cleanup" 0 +3
+    SetErrorLevel 1
+    Quit
+  SetErrorLevel 0
+SectionEnd
+'@.Replace('@WORKSPACE@', $workspace)
     $fixture = @'
 Unicode true
 !include "MUI2.nsh"
@@ -126,25 +148,7 @@ SectionEnd
     Compile 'fixture' $fixture
     $creator = Start-Process -FilePath "$workspace/creator.exe" -ArgumentList '/S' -PassThru -WindowStyle Hidden
     Assert ($creator.WaitForExit(15000) -and $creator.ExitCode -eq 0) 'Could not create fixture uninstaller'
-    Compile 'helper' @'
-Unicode true
-Name "SDrive cleanup test helper"
-OutFile "@WORKSPACE@\helper.exe"
-RequestExecutionLevel user
-SilentInstall silent
-Section
-  FileOpen $0 "$EXEDIR\cleanup-count.txt" a
-  FileSeek $0 0 END
-  FileWrite $0 "cleanup$\r$\n"
-  FileClose $0
-  IfFileExists "$EXEDIR\fail-cleanup" 0 +3
-    SetErrorLevel 1
-    Quit
-  SetErrorLevel 0
-SectionEnd
-'@.Replace('@WORKSPACE@', $workspace)
-
-    foreach ($scenario in @('lock-retry', 'lock-cancel', 'mutex-retry', 'mutex-cancel', 'cleanup-retry', 'cleanup-cancel', 'helper-retry', 'file-retry', 'directory-retry', 'file-cancel', 'silent-lock', 'silent-mutex', 'silent-cleanup', 'silent-file', 'directory-mismatch', 'silent-directory-mismatch')) {
+    foreach ($scenario in @('lock-retry', 'lock-cancel', 'mutex-retry', 'mutex-cancel', 'cleanup-retry', 'cleanup-cancel', 'helper-retry', 'file-retry', 'directory-retry', 'file-cancel', 'silent-lock', 'silent-mutex', 'silent-cleanup', 'silent-file', 'directory-mismatch', 'silent-directory-mismatch', 'missing-application', 'damaged-application', 'missing-owned-files')) {
         foreach ($language in $languageIDs.Keys) {
             $install = Join-Path $workspace "$scenario-$language"
             New-Item -ItemType Directory -Path "$install/docs" -Force | Out-Null
@@ -153,6 +157,13 @@ SectionEnd
             Set-Content -LiteralPath "$install/docs/locked.txt" -Value 'fixture'
             Set-Content -LiteralPath "$install/Uninstall.exe" -Value 'fixture'
             Set-Content -LiteralPath "$install/preserved.txt" -Value 'unowned file'
+            Set-Content -LiteralPath "$install/settings.json" -Value 'preserved settings'
+            Set-Content -LiteralPath "$install/key.dpapi" -Value 'preserved credentials'
+            New-Item -ItemType Directory -Path "$install/cache" -Force | Out-Null
+            Set-Content -LiteralPath "$install/cache/pending.txt" -Value 'pending upload'
+            if ($scenario -in @('missing-application', 'missing-owned-files')) { Remove-Item -LiteralPath "$install/SDrive.exe" }
+            if ($scenario -eq 'damaged-application') { Set-Content -LiteralPath "$install/SDrive.exe" -Value 'damaged executable' }
+            if ($scenario -eq 'missing-owned-files') { Remove-Item -LiteralPath "$install/rclone.exe", "$install/Uninstall.exe", "$install/docs/locked.txt" }
             $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($registryPath)
             $mismatch = $scenario -like '*directory-mismatch'
             $key.SetValue('InstallLocation', $(if ($mismatch) { "$install-other" } else { $install }))
@@ -163,7 +174,7 @@ SectionEnd
             if ($scenario -like '*lock*') { $lock = [IO.File]::Open("$install/instance.lock", 'OpenOrCreate', 'ReadWrite', 'None') }
             if ($scenario -like '*mutex*') { $mutex = [Threading.Mutex]::new($false, $mutexName) }
             if ($scenario -like '*cleanup*') { Set-Content -LiteralPath "$install/fail-cleanup" -Value 'fail' }
-            if ($scenario -like '*file*') { $lock = [IO.File]::Open("$install/rclone.exe", 'Open', 'ReadWrite', 'None') }
+            if ($scenario -in @('file-retry', 'file-cancel', 'silent-file')) { $lock = [IO.File]::Open("$install/rclone.exe", 'Open', 'ReadWrite', 'None') }
             if ($scenario -eq 'helper-retry') { $lock = [IO.File]::Open("$install/SDrive.exe", 'Open', 'ReadWrite', 'None') }
             if ($scenario -eq 'directory-retry') { $lock = [IO.File]::Open("$install/docs/locked.txt", 'Open', 'ReadWrite', 'None') }
 
@@ -174,7 +185,7 @@ SectionEnd
             $start.Arguments = $(if ($silent) { '/S ' } else { '' }) + '_?=' + $install
             $process = [Diagnostics.Process]::Start($start)
             $cancel = $scenario -like '*-cancel' -or $silent -or $mismatch
-            if (-not $silent) {
+            if (-not $silent -and $scenario -notin @('missing-application', 'damaged-application', 'missing-owned-files')) {
                 $dialog = Wait-Dialog $(if ($mismatch) { 2 } else { 4 })
                 $text = [UninstallTestDialog]::Text($dialog)
                 $pattern = '(?m)^LangString Uninstall\w+ \$\{LANG_' + $languageIDs[$language] + '\} "(.*)"\r?$'
@@ -213,6 +224,9 @@ SectionEnd
             }
             if ($key) { $key.Dispose() }
             Assert ((Get-Content -LiteralPath "$install/preserved.txt") -eq 'unowned file') 'Removed an unowned file'
+            Assert ((Get-Content -LiteralPath "$install/settings.json") -eq 'preserved settings') 'Removed settings'
+            Assert ((Get-Content -LiteralPath "$install/key.dpapi") -eq 'preserved credentials') 'Removed credentials'
+            Assert ((Get-Content -LiteralPath "$install/cache/pending.txt") -eq 'pending upload') 'Removed pending uploads'
             [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($registryPath, $false)
             Write-Output "PASS $scenario ($language)"
             $process.Dispose()

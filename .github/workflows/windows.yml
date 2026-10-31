@@ -23,6 +23,9 @@ jobs:
       - name: Antivirus gate regression checks
         shell: pwsh
         run: ./scripts/test-antivirus-gate.ps1
+      - name: Installer payload boundaries
+        shell: pwsh
+        run: ./scripts/test-installer-payload.ps1
       - name: Native Wails and WebView2 smoke (required)
         timeout-minutes: 6
         shell: pwsh

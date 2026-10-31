@@ -83,6 +83,8 @@ Credential protection depends on your Windows user. Copying the profile to anoth
 
 Close open files, finish uploads and choose **Exit safely** before uninstalling. Uninstallation preserves your profile, credentials and cache to avoid losing pending uploads, and keeps shared Windows components installed. Only after resolving all pending files should you consider removing the profile manually. Preserve any separately configured cache until recovery is complete as well.
 
+The uninstaller can remove a damaged installation even when the application executable is missing or quarantined. Older uninstallers may require repairing the installation with the current installer first. If removal is blocked by open files, close the reported application and choose **Retry**; **Cancel** preserves the remaining files and registration.
+
 ### Interface spacing and navigation
 
 In Customize → Appearance, choose Compact, Balanced (default), or Comfortable spacing. Changes preview immediately; Save keeps them and Cancel restores the saved spacing. The setting also travels with exported preferences. Use the navigation toggle to collapse the main sidebar to icons; SDrive remembers this choice on this computer. In narrow windows, the toggle opens and closes the menu.

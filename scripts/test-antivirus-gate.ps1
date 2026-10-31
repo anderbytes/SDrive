@@ -29,7 +29,7 @@ function Get-MpComputerStatus {
 }
 try {
     foreach ($fixtureMode in @('clean', 'detection', 'zero-detection', 'skipped', 'error', 'unknown', 'mutation', 'update-error', 'inactive', 'missing-scanner', 'missing-artifact')) {
-        foreach ($name in @('SDrive.exe', 'rclone.exe', 'SDrive-1.2.3-setup.exe', 'SDrive-1.2.3-offline-setup.exe')) {
+        foreach ($name in @('SDrive.exe', 'SDrive-cleanup.exe', 'rclone.exe', 'SDrive-1.2.3-setup.exe', 'SDrive-1.2.3-offline-setup.exe')) {
             Set-Content -LiteralPath (Join-Path $workspace "bin/$name") -Value 'synthetic artifact'
         }
         Set-Content -LiteralPath "$workspace/mode.txt" -Value $fixtureMode
@@ -42,7 +42,7 @@ try {
         $report = Get-Content -LiteralPath "$workspace/.tools/check-results/artifact-antivirus.json" -Raw | ConvertFrom-Json
         $expected = if ($failed) { 'failed' } else { 'passed' }
         if ($report.status -cne $expected) { throw "Incorrect evidence status: $fixtureMode" }
-        if (!$failed -and ($report.artifacts.Count -ne 4 -or $report.signatureVersion -cne '1.2.3.4' -or @($report.artifacts | Where-Object { !$_.clean -or $_.sha256 -notmatch '^[0-9a-f]{64}$' }).Count)) { throw 'Incomplete clean-scan evidence' }
+        if (!$failed -and ($report.artifacts.Count -ne 5 -or $report.signatureVersion -cne '1.2.3.4' -or @($report.artifacts | Where-Object { !$_.clean -or $_.sha256 -notmatch '^[0-9a-f]{64}$' }).Count)) { throw 'Incomplete clean-scan evidence' }
         if ($failed -and !$report.error) { throw "Missing failure evidence: $fixtureMode" }
         Write-Output "PASS antivirus gate: $fixtureMode"
     }

@@ -216,8 +216,11 @@ Section "SDrive"
   File "..\THIRD_PARTY_NOTICES.md"
   File "..\bin\SDrive-source.zip"
   File "..\bin\rclone-source.zip"
-  File /r "..\bin\licenses"
-  File /r "..\docs"
+  SetOutPath "$INSTDIR\licenses"
+  File /r "..\bin\licenses\*"
+  SetOutPath "$INSTDIR\docs"
+  File /r "..\docs\*"
+  SetOutPath "$INSTDIR"
   CreateShortcut "$SMPROGRAMS\SDrive.lnk" "$INSTDIR\SDrive.exe"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\SDrive" "DisplayName" "SDrive"
@@ -255,8 +258,11 @@ Section "Uninstall"
     Goto retry_uninstall_checks
   ${EndIf}
   ; Never delete caches or credentials: pending uploads may still need recovery.
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=cleanup.exe "..\bin\SDrive-cleanup.exe"
   ClearErrors
-  ExecWait '"$INSTDIR\SDrive.exe" --cleanup-drive-icons' $0
+  ExecWait '"$PLUGINSDIR\cleanup.exe" "$INSTDIR\SDrive.exe"' $0
   ${If} ${Errors}
   ${OrIf} $0 != 0
     !insertmacro UninstallRetry "$(UninstallIconsFailed)"

@@ -21,7 +21,7 @@ try {
     $version = (Get-Content -LiteralPath "$projectRoot/frontend/package.json" -Raw | ConvertFrom-Json).version
     if ($version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Artifact verification requires a stable three-part package version.' }
     # Scan unpacked payloads too: NSIS archive scans can miss a detected executable.
-    foreach ($name in @('SDrive.exe', 'rclone.exe', "SDrive-$version-setup.exe", "SDrive-$version-offline-setup.exe")) {
+    foreach ($name in @('SDrive.exe', 'SDrive-cleanup.exe', 'rclone.exe', "SDrive-$version-setup.exe", "SDrive-$version-offline-setup.exe")) {
         $file = Get-Item -LiteralPath (Join-Path $projectRoot "bin/$name")
         $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         $output = @(& $ScannerPath -Scan -ScanType 3 -File $file.FullName -DisableRemediation 2>&1)
@@ -34,7 +34,7 @@ try {
         if ((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -cne $hash) { throw "Artifact changed during antivirus verification: $name" }
     }
     $report.status = 'passed'
-    Write-Output "PASS: application, rclone and both installers scanned with Defender signatures $($report.signatureVersion)"
+    Write-Output "PASS: application, uninstall helper, rclone and both installers scanned with Defender signatures $($report.signatureVersion)"
 } catch {
     $report.error = $_.Exception.Message
     throw

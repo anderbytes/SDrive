@@ -75,7 +75,7 @@ dpkg-deb --root-owner-group --build "$stage/deb" "$output/SDrive-$version-linux-
 tar -C "$stage/portable" -czf "$output/SDrive-$version-linux-amd64.tar.gz" .
 # Explicit source roots include new files, without distributing local backlog notes.
 rm -f -- "$output/SDrive-source.zip"
-zip -qr "$output/SDrive-source.zip" ./*.go go.mod go.sum assets internal tests frontend/src frontend/index.html frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vitest.config.ts scripts docs installer LICENSE README.md THIRD_PARTY_NOTICES.md .github .gitignore .editorconfig .gitattributes
+zip -qr "$output/SDrive-source.zip" ./*.go go.mod go.sum assets cmd internal tests frontend/src frontend/index.html frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vitest.config.ts scripts docs installer LICENSE README.md THIRD_PARTY_NOTICES.md .github .gitignore .editorconfig .gitattributes
 (cd "$output" && sha256sum SDrive rclone "SDrive-$version-linux-amd64.deb" "SDrive-$version-linux-amd64.tar.gz" SDrive-source.zip rclone-source.zip > SHA256SUMS && sha256sum -c SHA256SUMS)
 node scripts/release-assets.mjs linux
 echo "Linux distribution ready at $output"
